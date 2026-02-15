@@ -1,0 +1,124 @@
+ranchat/
+├── android/
+│   ├── .kotlin/
+│   │   └── sessions/
+│   ├── app/
+│   │   ├── src/
+│   │   │   ├── debug/
+│   │   │   │   └── AndroidManifest.xml
+│   │   │   ├── debugOptimized/
+│   │   │   │   └── AndroidManifest.xml
+│   │   │   └── main/
+│   │   │       ├── java/
+│   │   │       │   └── com/
+│   │   │       │       └── ranchat/
+│   │   │       │           ├── MainActivity.kt
+│   │   │       │           └── MainApplication.kt
+│   │   │       ├── res/
+│   │   │       │   ├── drawable/
+│   │   │       │   │   ├── ic_launcher_background.xml
+│   │   │       │   │   └── rn_edit_text_material.xml
+│   │   │       │   ├── drawable-hdpi/
+│   │   │       │   │   └── splashscreen_logo.png
+│   │   │       │   ├── drawable-mdpi/
+│   │   │       │   │   └── splashscreen_logo.png
+│   │   │       │   ├── drawable-xhdpi/
+│   │   │       │   │   └── splashscreen_logo.png
+│   │   │       │   ├── drawable-xxhdpi/
+│   │   │       │   │   └── splashscreen_logo.png
+│   │   │       │   ├── drawable-xxxhdpi/
+│   │   │       │   │   └── splashscreen_logo.png
+│   │   │       │   ├── mipmap-anydpi-v26/
+│   │   │       │   │   ├── ic_launcher.xml
+│   │   │       │   │   └── ic_launcher_round.xml
+│   │   │       │   ├── mipmap-hdpi/
+│   │   │       │   │   ├── ic_launcher.webp
+│   │   │       │   │   ├── ic_launcher_foreground.webp
+│   │   │       │   │   └── ic_launcher_round.webp
+│   │   │       │   ├── mipmap-mdpi/
+│   │   │       │   │   ├── ic_launcher.webp
+│   │   │       │   │   ├── ic_launcher_foreground.webp
+│   │   │       │   │   └── ic_launcher_round.webp
+│   │   │       │   ├── mipmap-xhdpi/
+│   │   │       │   │   ├── ic_launcher.webp
+│   │   │       │   │   ├── ic_launcher_foreground.webp
+│   │   │       │   │   └── ic_launcher_round.webp
+│   │   │       │   ├── mipmap-xxhdpi/
+│   │   │       │   │   ├── ic_launcher.webp
+│   │   │       │   │   ├── ic_launcher_foreground.webp
+│   │   │       │   │   └── ic_launcher_round.webp
+│   │   │       │   ├── mipmap-xxxhdpi/
+│   │   │       │   │   ├── ic_launcher.webp
+│   │   │       │   │   ├── ic_launcher_foreground.webp
+│   │   │       │   │   └── ic_launcher_round.webp
+│   │   │       │   ├── values/
+│   │   │       │   │   ├── colors.xml
+│   │   │       │   │   ├── strings.xml
+│   │   │       │   │   └── styles.xml
+│   │   │       │   └── values-night/
+│   │   │       │       └── colors.xml
+│   │   │       └── AndroidManifest.xml
+│   │   ├── build.gradle
+│   │   ├── debug.keystore
+│   │   └── proguard-rules.pro
+│   ├── gradle/
+│   │   └── wrapper/
+│   │       ├── gradle-wrapper.jar
+│   │       └── gradle-wrapper.properties
+│   ├── .gitignore
+│   ├── build.gradle
+│   ├── gradle.properties
+│   ├── gradlew
+│   ├── gradlew.bat
+│   └── settings.gradle
+├── keystores/
+│   └── release.keystore
+├── plugins/
+│   └── withAndroidReleaseSigning.js
+├── src/
+│   ├── components/
+│   │   ├── AppModal.tsx
+│   │   ├── AppText.tsx
+│   │   ├── FontSizeSlider.tsx
+│   │   ├── PrimaryButton.tsx
+│   │   └── Spinner.tsx
+│   ├── config/
+│   │   ├── app.ts
+│   │   └── theme.ts
+│   ├── navigation/
+│   │   ├── MainStack.tsx
+│   │   └── RootNavigator.tsx
+│   ├── screens/
+│   │   ├── _GlobalModalHost.tsx
+│   │   ├── CallScreen.tsx
+│   │   ├── HomeScreen.tsx
+│   │   └── ProfileScreen.tsx
+│   ├── services/
+│   │   ├── ads/
+│   │   │   └── AdManager.tsx
+│   │   ├── auth/
+│   │   │   ├── AuthBootstrap.ts
+│   │   │   └── DeviceBind.ts
+│   │   ├── device/
+│   │   │   └── DeviceKey.ts
+│   │   ├── purchases/
+│   │   │   └── PurchaseManager.ts
+│   │   ├── signal/
+│   │   │   └── SignalClient.ts
+│   │   └── webrtc/
+│   │       └── WebRTCSession.ts
+│   ├── store/
+│   │   └── useAppStore.ts
+│   └── utils/
+│       └── storage.ts
+├── .env
+├── .gitignore
+├── all_project_code_20260215_121117.txt
+├── app.json
+├── App.tsx
+├── export_code.py
+├── index.ts
+├── make_full_tree.py
+├── package-lock.json
+├── package.json
+└── tsconfig.json

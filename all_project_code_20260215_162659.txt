@@ -1,0 +1,2899 @@
+==================================================
+   N_BBANG PROJECT SOURCE CODE
+   Exported at: 2026-02-15 16:26:59
+==================================================
+
+
+================================================================================
+ FILE: app.json
+================================================================================
+
+{
+  "expo": {
+    "name": "ranchat",
+    "slug": "ranchat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.ranchat",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "BLUETOOTH",
+        "BLUETOOTH_CONNECT"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "./plugins/withAndroidReleaseSigning",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "extra": {
+      "react-native-google-mobile-ads": {
+        "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+        "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+      }
+    }
+  }
+}
+
+
+================================================================================
+ FILE: App.tsx
+================================================================================
+
+﻿// FILE: C:\ranchat\src\config\app.ts
+import Constants from "expo-constants";
+
+const env = (Constants.expoConfig?.extra ?? {}) as Record<string, any>;
+
+const read = (k: string, fallback = ""): string => {
+  const v = (process.env as any)?.[k];
+  if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  const e = env?.[k];
+  if (typeof e === "string" && e.trim().length > 0) return e.trim();
+  return fallback;
+};
+
+const readNumber = (k: string, fallback: number): number => {
+  const raw = read(k, String(fallback));
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const freeRemoteVideoSeconds = readNumber("EXPO_PUBLIC_FREE_REMOTE_VIDEO_SECONDS", 30);
+
+export const APP_CONFIG = {
+  SIGNALING_URL: read("EXPO_PUBLIC_SIGNALING_URL", "ws://152.67.213.225:3001"),
+
+  TURN: {
+    host: read("EXPO_PUBLIC_TURN_HOST", "152.67.213.225"),
+    port: Number(read("EXPO_PUBLIC_TURN_PORT", "3478")),
+    username: read("EXPO_PUBLIC_TURN_USERNAME", "testuser"),
+    password: read("EXPO_PUBLIC_TURN_PASSWORD", "testpass"),
+  },
+
+  AUTH_HTTP_BASE_URL: read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "http://152.67.213.225:4000"),
+
+  ADS: {
+    bannerAndroid: read("EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID", ""),
+    interstitialAndroid: read("EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_ANDROID", ""),
+  },
+
+  PURCHASES: {
+    revenueCatKey: read("EXPO_PUBLIC_REVENUECAT_PUBLIC_SDK_KEY", ""),
+    entitlementId: read("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID", "premium"),
+  },
+
+  POLICY: {
+    privacyUrl: read("EXPO_PUBLIC_PRIVACY_POLICY_URL", ""),
+  },
+
+  // ✅ CallScreen.tsx가 참조하는 값(없어서 TS 에러였음)
+  MATCH_TIMEOUT_MS: readNumber("EXPO_PUBLIC_MATCH_TIMEOUT_MS", 20000),
+  FREE_CALL_LIMIT_MS: readNumber("EXPO_PUBLIC_FREE_CALL_LIMIT_MS", freeRemoteVideoSeconds * 1000),
+
+  FREE_LIMITS: {
+    remoteVideoSeconds: freeRemoteVideoSeconds,
+  },
+
+  PLANS: {
+    weekly: { label: "1주", price: 4900 },
+    monthly: { label: "1개월", price: 14900 },
+    halfYear: { label: "6개월", price: 44900 },
+  },
+} as const;
+
+export type Gender = "male" | "female";
+export type Language = "ko" | "en";
+
+export const COUNTRY_OPTIONS: { code: string; label: string; dial?: string }[] = [
+  { code: "KR", label: "대한민국", dial: "+82" },
+  { code: "JP", label: "일본", dial: "+81" },
+  { code: "US", label: "미국", dial: "+1" },
+  { code: "CA", label: "캐나다", dial: "+1" },
+  { code: "GB", label: "영국", dial: "+44" },
+  { code: "AU", label: "호주", dial: "+61" },
+  { code: "DE", label: "독일", dial: "+49" },
+  { code: "FR", label: "프랑스", dial: "+33" },
+  { code: "SG", label: "싱가포르", dial: "+65" },
+  { code: "TH", label: "태국", dial: "+66" },
+];
+
+
+================================================================================
+ FILE: index.ts
+================================================================================
+
+import { registerRootComponent } from 'expo';
+
+import App from './App';
+
+// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
+// It also ensures that whether you load the app in Expo Go or in a native build,
+// the environment is set up appropriately
+registerRootComponent(App);
+
+
+================================================================================
+ FILE: package.json
+================================================================================
+
+{
+  "name": "ranchat",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.13.0",
+    "@react-navigation/native": "^7.1.28",
+    "@react-navigation/native-stack": "^7.12.0",
+    "event-target-shim": "^6.0.2",
+    "expo": "~54.0.33",
+    "expo-constants": "~18.0.13",
+    "expo-location": "~19.0.8",
+    "expo-secure-store": "~15.0.8",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-get-random-values": "^2.0.0",
+    "react-native-google-mobile-ads": "^16.0.3",
+    "react-native-purchases": "^9.9.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-webrtc": "^124.0.7",
+    "uuid": "^13.0.0",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+
+
+================================================================================
+ FILE: tsconfig.json
+================================================================================
+
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  },
+  "exclude": [
+    "server-auth",
+    "android",
+    "ios",
+    "node_modules"
+  ]
+}
+
+
+================================================================================
+ FILE: plugins\withAndroidReleaseSigning.js
+================================================================================
+
+﻿const { withAppBuildGradle } = require("@expo/config-plugins");
+
+function ensureReleaseSigningConfig(gradle) {
+  const hasSigningConfigs = /signingConfigs\s*\{/.test(gradle);
+  if (!hasSigningConfigs) return gradle;
+
+  const signingConfigsToBuildTypes = /signingConfigs\s*\{([\s\S]*?)\n\s*\}\s*\n\s*buildTypes\s*\{/m;
+  const m = gradle.match(signingConfigsToBuildTypes);
+  if (!m) return gradle;
+
+  const inner = m[1];
+  const hasRelease = /\n\s*release\s*\{/.test(inner);
+
+  let newInner = inner;
+  if (!hasRelease) {
+    const releaseBlock =
+      "\n        release {\n" +
+      "            def storeFilePath = (findProperty('RN_STORE_FILE') ?: '../../release.keystore')\n" +
+      "            storeFile file(storeFilePath)\n" +
+      "            storePassword (findProperty('RN_STORE_PASSWORD') ?: '123456')\n" +
+      "            keyAlias (findProperty('RN_KEY_ALIAS') ?: 'my-key-alias')\n" +
+      "            keyPassword (findProperty('RN_KEY_PASSWORD') ?: '123456')\n" +
+      "        }\n";
+    newInner = inner.replace(/\n\s*$/m, "") + releaseBlock;
+  }
+
+  gradle = gradle.replace(signingConfigsToBuildTypes, (full) => {
+    return full.replace(m[1], newInner);
+  });
+
+  const buildTypesBlock = /buildTypes\s*\{([\s\S]*?)\n\s*\}\s*(?=\n\s*\w|\n\}|\s*$)/m;
+  const bt = gradle.match(buildTypesBlock);
+  if (!bt) return gradle;
+
+  const btInner = bt[1];
+  const releaseBlockRegex = /release\s*\{\s*\n([\s\S]*?)\n\s*\}/m;
+  const rb = btInner.match(releaseBlockRegex);
+  if (!rb) return gradle;
+
+  const rbBody = rb[1].replace(/^\s*signingConfig\s+signingConfigs\.(debug|release)\s*\n/gm, "");
+  const fixedRelease =
+    "release {\n" +
+    "            signingConfig signingConfigs.release\n" +
+    rbBody +
+    "\n        }";
+
+  const newBtInner = btInner.replace(releaseBlockRegex, fixedRelease);
+
+  gradle = gradle.replace(buildTypesBlock, (full) => {
+    return full.replace(btInner, newBtInner);
+  });
+
+  return gradle;
+}
+
+module.exports = function withAndroidReleaseSigning(config) {
+  return withAppBuildGradle(config, (config) => {
+    const src = config.modResults.contents;
+    config.modResults.contents = ensureReleaseSigningConfig(src);
+    return config;
+  });
+};
+
+
+================================================================================
+ FILE: src\components\AppModal.tsx
+================================================================================
+
+﻿//C:\ranchat\src\components\AppModal.tsx
+import React from "react";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { theme } from "../config/theme";
+import AppText from "./AppText";
+
+type Props = {
+  visible: boolean;
+  title?: string;
+  children?: React.ReactNode;
+  onClose?: () => void;
+  footer?: React.ReactNode;
+  dismissible?: boolean;
+};
+
+export default function AppModal({ visible, title, children, onClose, footer, dismissible = true }: Props) {
+  return (
+    <Modal transparent visible={visible} animationType="fade" statusBarTranslucent>
+      <View style={styles.backdrop}>
+        <Pressable
+          style={styles.backdropPress}
+          onPress={() => {
+            if (dismissible) onClose?.();
+          }}
+        />
+        <View style={styles.card}>
+          {title ? <AppText style={styles.title}>{title}</AppText> : null}
+          <View style={styles.body}>{children}</View>
+          {footer ? <View style={styles.footer}>{footer}</View> : null}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: theme.colors.dim,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: theme.spacing.lg,
+  },
+  backdropPress: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 520,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.spacing.lg,
+    ...theme.shadow.card,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  body: {
+    gap: theme.spacing.sm,
+  },
+  footer: {
+    marginTop: theme.spacing.md,
+  },
+});
+
+
+================================================================================
+ FILE: src\components\AppText.tsx
+================================================================================
+
+//C:\ranchat\src\components\AppText.tsx
+import React, { useMemo } from "react";
+import { Text, TextProps, TextStyle, StyleProp } from "react-native";
+import { useAppStore } from "../store/useAppStore";
+
+function scaleOneStyle(s: TextStyle, scale: number): TextStyle {
+  const out: TextStyle = { ...s };
+
+  if (typeof out.fontSize === "number") out.fontSize = Math.round(out.fontSize * scale);
+  if (typeof out.lineHeight === "number") out.lineHeight = Math.round(out.lineHeight * scale);
+
+  // fontWeight 700 초과 방지
+  if (typeof out.fontWeight === "string") {
+    const n = Number(out.fontWeight);
+    if (!Number.isNaN(n) && n > 700) out.fontWeight = "700";
+  }
+
+  return out;
+}
+
+function scaleStyle(style: StyleProp<TextStyle>, scale: number): StyleProp<TextStyle> {
+  if (!style) return style;
+
+  if (Array.isArray(style)) {
+    return style.map((x) => scaleStyle(x as any, scale)) as any;
+  }
+
+  if (typeof style === "object") {
+    return scaleOneStyle(style as TextStyle, scale);
+  }
+
+  return style;
+}
+
+type Props = TextProps & {
+  children?: React.ReactNode;
+};
+
+export default function AppText(props: Props) {
+  const scale = useAppStore((s) => s.ui.fontScale);
+
+  const scaledStyle = useMemo(() => scaleStyle(props.style as any, scale), [props.style, scale]);
+
+  return (
+    <Text
+      {...props}
+      allowFontScaling={false}
+      maxFontSizeMultiplier={1}
+      style={scaledStyle}
+    >
+      {props.children}
+    </Text>
+  );
+}
+
+
+================================================================================
+ FILE: src\components\FontSizeSlider.tsx
+================================================================================
+
+//C:\ranchat\src\components\FontSizeSlider.tsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { LayoutChangeEvent, PanResponder, StyleSheet, View } from "react-native";
+import { theme } from "../config/theme";
+
+type Props = {
+  value: number;          // 예: 1.0
+  min?: number;           // 기본 0.85
+  max?: number;           // 기본 1.25
+  onChange: (v: number) => void;
+};
+
+export default function FontSizeSlider({ value, min = 0.85, max = 1.25, onChange }: Props) {
+  const [w, setW] = useState(1);
+  const draggingRef = useRef(false);
+
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+
+  const pct = useMemo(() => {
+    const p = (value - min) / (max - min);
+    return Math.min(1, Math.max(0, p));
+  }, [value, min, max]);
+
+  const knobLeft = useMemo(() => Math.round(pct * (w - 18)), [pct, w]);
+
+  const setFromX = (x: number) => {
+    const p = Math.min(1, Math.max(0, x / (w - 18)));
+    const v = min + p * (max - min);
+    onChange(Number(clamp(v).toFixed(2)));
+  };
+
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          draggingRef.current = true;
+          const x = evt.nativeEvent.locationX - 9;
+          setFromX(x);
+        },
+        onPanResponderMove: (_evt, g) => {
+          // g.moveX는 화면 절대좌표라서 locationX 기반으로 처리하기가 더 안정적임
+        },
+        onPanResponderRelease: () => {
+          draggingRef.current = false;
+        },
+      }),
+    [w, min, max]
+  );
+
+  // move 이벤트는 View의 onTouchMove에서 locationX로 처리 (RN에서 가장 덜 꼬임)
+  const onTouchMove = (evt: any) => {
+    if (!draggingRef.current) return;
+    const x = evt?.nativeEvent?.locationX - 9;
+    if (typeof x === "number") setFromX(x);
+  };
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const next = Math.max(1, Math.floor(e.nativeEvent.layout.width));
+    setW(next);
+  };
+
+  useEffect(() => {
+    if (!Number.isFinite(value)) onChange(1);
+  }, [value, onChange]);
+
+  return (
+    <View style={styles.wrap} onLayout={onLayout} {...pan.panHandlers} onTouchMove={onTouchMove}>
+      <View style={styles.track} />
+      <View style={[styles.fill, { width: Math.max(0, knobLeft + 9) }]} />
+      <View style={[styles.knob, { left: knobLeft }]} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    height: 28,
+    justifyContent: "center",
+  },
+  track: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: theme.colors.line,
+  },
+  fill: {
+    position: "absolute",
+    left: 0,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: theme.colors.pinkDeep,
+  },
+  knob: {
+    position: "absolute",
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+  },
+});
+
+
+================================================================================
+ FILE: src\components\PrimaryButton.tsx
+================================================================================
+
+﻿//C:\ranchat\src\components\PrimaryButton.tsx
+import React from "react";
+import { Pressable, StyleSheet, ViewStyle } from "react-native";
+import { theme } from "../config/theme";
+import AppText from "./AppText";
+
+type Props = {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+  variant?: "primary" | "ghost" | "danger";
+  style?: ViewStyle;
+};
+
+export default function PrimaryButton({ title, onPress, disabled, variant = "primary", style }: Props) {
+  const bg =
+    variant === "primary" ? theme.colors.pinkDeep : variant === "danger" ? theme.colors.danger : "transparent";
+  const border = variant === "ghost" ? theme.colors.line : "transparent";
+  const text = variant === "ghost" ? theme.colors.text : theme.colors.white;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.btn,
+        { backgroundColor: bg, borderColor: border, opacity: disabled ? 0.5 : 1 },
+        style,
+      ]}
+    >
+      <AppText style={[styles.txt, { color: text }]}>{title}</AppText>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  btn: {
+    height: 50,
+    borderRadius: theme.radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  txt: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+});
+
+
+================================================================================
+ FILE: src\components\Spinner.tsx
+================================================================================
+
+﻿import React from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { theme } from "../config/theme";
+import AppText from "./AppText";
+
+export default function Spinner() {
+  return (
+    <View style={styles.wrap}>
+      <AppText style={styles.text}>매칭 연결중</AppText>
+      <ActivityIndicator size={48} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    paddingVertical: theme.spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  text: {
+    color: "rgba(112, 112, 112, 0.85)",
+    fontSize: 18,
+    fontWeight: "400",
+    textAlign: "center",
+  },
+});
+
+
+================================================================================
+ FILE: src\config\app.ts
+================================================================================
+
+﻿import Constants from "expo-constants";
+
+const env = (Constants.expoConfig?.extra ?? {}) as Record<string, any>;
+
+const read = (k: string, fallback = ""): string => {
+  const v = (process.env as any)?.[k];
+  if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  const e = env?.[k];
+  if (typeof e === "string" && e.trim().length > 0) return e.trim();
+  return fallback;
+};
+
+export const APP_CONFIG = {
+  SIGNALING_URL: read("EXPO_PUBLIC_SIGNALING_URL", "ws://152.67.213.225:3001"),
+
+  TURN: {
+    host: read("EXPO_PUBLIC_TURN_HOST", "152.67.213.225"),
+    port: Number(read("EXPO_PUBLIC_TURN_PORT", "3478")),
+    username: read("EXPO_PUBLIC_TURN_USERNAME", "testuser"),
+    password: read("EXPO_PUBLIC_TURN_PASSWORD", "testpass"),
+  },
+
+  AUTH_HTTP_BASE_URL: read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "http://152.67.213.225:4000"),
+
+  ADS: {
+    bannerAndroid: read("EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID", ""),
+    interstitialAndroid: read("EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_ANDROID", ""),
+  },
+
+  PURCHASES: {
+    revenueCatKey: read("EXPO_PUBLIC_REVENUECAT_PUBLIC_SDK_KEY", ""),
+    entitlementId: read("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID", "premium"),
+  },
+
+  POLICY: {
+    privacyUrl: read("EXPO_PUBLIC_PRIVACY_POLICY_URL", ""),
+  },
+
+  FREE_LIMITS: {
+    remoteVideoSeconds: 30,
+  },
+
+  PLANS: {
+    weekly: { label: "1주", price: 4900 },
+    monthly: { label: "1개월", price: 14900 },
+    halfYear: { label: "6개월", price: 44900 },
+  },
+} as const;
+
+export type Gender = "male" | "female";
+export type Language = "ko" | "en";
+
+export const COUNTRY_OPTIONS: { code: string; label: string; dial?: string }[] = [
+  { code: "KR", label: "대한민국", dial: "+82" },
+  { code: "JP", label: "일본", dial: "+81" },
+  { code: "US", label: "미국", dial: "+1" },
+  { code: "CA", label: "캐나다", dial: "+1" },
+  { code: "GB", label: "영국", dial: "+44" },
+  { code: "AU", label: "호주", dial: "+61" },
+  { code: "DE", label: "독일", dial: "+49" },
+  { code: "FR", label: "프랑스", dial: "+33" },
+  { code: "SG", label: "싱가포르", dial: "+65" },
+  { code: "TH", label: "태국", dial: "+66" },
+];
+
+================================================================================
+ FILE: src\config\theme.ts
+================================================================================
+
+﻿export const theme = {
+  colors: {
+    bg: "#FFF5FA",
+    card: "#FFFFFF",
+    cardSoft: "#FFE8F2",
+    line: "#F3C7D9",
+    text: "#2B2230",
+    sub: "#6F5E6A",
+    danger: "#D93A5A",
+    ok: "#2E7D5B",
+    pink: "#F2A8C6",
+    pinkDeep: "#E983AD",
+    black: "#111111",
+    white: "#FFFFFF",
+    dim: "rgba(0,0,0,0.45)",
+  },
+  radius: {
+    xl: 22,
+    lg: 16,
+    md: 12,
+  },
+  spacing: {
+    xs: 8,
+    sm: 12,
+    md: 16,
+    lg: 20,
+    xl: 28,
+  },
+  shadow: {
+    card: {
+      shadowColor: "#000",
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 3,
+    },
+  },
+};
+
+================================================================================
+ FILE: src\navigation\MainStack.tsx
+================================================================================
+
+﻿//C:\ranchat\src\navigation\MainStack.tsx
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import HomeScreen from "../screens/HomeScreen";
+import CallScreen from "../screens/CallScreen";
+import ProfileScreen from "../screens/ProfileScreen";
+import { theme } from "../config/theme";
+
+export type MainStackParamList = {
+  Home: undefined;
+  Call: undefined;
+  Profile: undefined;
+};
+
+const Stack = createNativeStackNavigator<MainStackParamList>();
+
+export default function MainStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: theme.colors.bg },
+        headerShadowVisible: false,
+        headerTitleStyle: { fontWeight: "700" },
+        contentStyle: { backgroundColor: theme.colors.bg },
+      }}
+    >
+      <Stack.Screen name="Home" component={HomeScreen} options={{ title: "RanChat" }} />
+      <Stack.Screen name="Call" component={CallScreen} options={{ title: "매칭" }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "프로필" }} />
+    </Stack.Navigator>
+  );
+}
+
+
+================================================================================
+ FILE: src\navigation\RootNavigator.tsx
+================================================================================
+
+﻿// C:\ranchat\src\navigation\RootNavigator.tsx
+import React, { useEffect, useState } from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { StyleSheet, Text, View } from "react-native";
+
+import MainStack from "./MainStack";
+import { theme } from "../config/theme";
+import { useAppStore } from "../store/useAppStore";
+
+import { initAds } from "../services/ads/AdManager";
+import { initPurchases } from "../services/purchases/PurchaseManager";
+import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
+import GlobalModalHost from "../screens/_GlobalModalHost";
+
+function toErrMsg(e: unknown) {
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object" && "message" in e) return String((e as any).message || "UNKNOWN_ERROR");
+  return "UNKNOWN_ERROR";
+}
+
+export default function RootNavigator() {
+  const hasHydrated = useAppStore((s) => s.hasHydrated);
+  const authNonce = useAppStore((s) => s.authNonce);
+
+  const setAuth = useAppStore((s) => s.setAuth);
+  const showGlobalModal = useAppStore((s) => s.showGlobalModal);
+
+  const [booting, setBooting] = useState(true);
+
+  useEffect(() => {
+    initAds();
+    initPurchases();
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+
+    let alive = true;
+
+    (async () => {
+      try {
+        await bootstrapDeviceBinding();
+      } catch (e) {
+        setAuth({ verified: true, token: null, userId: null });
+        showGlobalModal("인증", toErrMsg(e));
+      } finally {
+        if (alive) setBooting(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [hasHydrated, authNonce, setAuth, showGlobalModal]);
+
+  if (!hasHydrated || booting) {
+    return (
+      <>
+        <View style={styles.boot}>
+          <Text style={styles.bootTitle}>연결 중</Text>
+          <Text style={styles.bootSub}>잠시만 기다려 주세요.</Text>
+        </View>
+        <GlobalModalHost />
+      </>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <MainStack />
+      <GlobalModalHost />
+    </NavigationContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  boot: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: theme.spacing.lg,
+  },
+  bootTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  bootSub: {
+    fontSize: 14,
+    color: theme.colors.sub,
+  },
+});
+
+
+================================================================================
+ FILE: src\screens\CallScreen.tsx
+================================================================================
+
+﻿//C:\ranchat\src\screens\CallScreen.tsx
+import React, { useEffect, useRef, useState } from "react";
+import { StyleSheet, View, Pressable, Dimensions } from "react-native";
+import { RTCView } from "react-native-webrtc";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+import AppModal from "../components/AppModal";
+import PrimaryButton from "../components/PrimaryButton";
+import Spinner from "../components/Spinner";
+import { theme } from "../config/theme";
+import { APP_CONFIG } from "../config/app";
+import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
+import { useAppStore } from "../store/useAppStore";
+import { SignalClient, SignalMessage } from "../services/signal/SignalClient";
+import { WebRTCSession } from "../services/webrtc/WebRTCSession";
+import { BannerBar, createInterstitial } from "../services/ads/AdManager";
+import { AdEventType } from "react-native-google-mobile-ads";
+import { purchasePremium, refreshSubscription } from "../services/purchases/PurchaseManager";
+import type { MainStackParamList } from "../navigation/MainStack";
+import AppText from "../components/AppText";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+type Props = NativeStackScreenProps<MainStackParamList, "Call">;
+
+type Phase = "connecting" | "queued" | "matched" | "calling" | "ended";
+
+// ✅ APP_CONFIG 타입에 값이 없어도 TS 에러 없이 동작하도록 fallback 상수로 사용
+const MATCH_TIMEOUT_MS = (() => {
+  const v = Number((APP_CONFIG as any)?.MATCH_TIMEOUT_MS);
+  return Number.isFinite(v) ? v : 20000;
+})();
+
+const FREE_CALL_LIMIT_MS = (() => {
+  const direct = Number((APP_CONFIG as any)?.FREE_CALL_LIMIT_MS);
+  if (Number.isFinite(direct)) return direct;
+
+  const sec = Number((APP_CONFIG as any)?.FREE_LIMITS?.remoteVideoSeconds);
+  if (Number.isFinite(sec)) return sec * 1000;
+
+  return 30000;
+})();
+
+export default function CallScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
+
+  const prefs = useAppStore((s) => s.prefs);
+  const token = useAppStore((s) => s.auth.token);
+  const isPremium = useAppStore((s) => s.sub.isPremium);
+
+  const [phase, setPhase] = useState<Phase>("connecting");
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [isCaller, setIsCaller] = useState(false);
+
+  const [localStreamURL, setLocalStreamURL] = useState<string | null>(null);
+  const [remoteStreamURL, setRemoteStreamURL] = useState<string | null>(null);
+
+  const [myCamOn, setMyCamOn] = useState(true);
+  const [mySoundOn, setMySoundOn] = useState(true);
+
+  const [limitModal, setLimitModal] = useState(false);
+  const [remoteVideoAllowed, setRemoteVideoAllowed] = useState(true);
+
+  const [upgradeModal, setUpgradeModal] = useState(false);
+  const [noMatchModal, setNoMatchModal] = useState(false);
+
+  const wsRef = useRef<SignalClient | null>(null);
+  const rtcRef = useRef<WebRTCSession | null>(null);
+  const limitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const matchInterstitialRef = useRef<ReturnType<typeof createInterstitial> | null>(null);
+
+  const enqueuedRef = useRef(false);
+  const queueRunningRef = useRef(false);
+
+  const rebindOnceRef = useRef(false);
+
+  const noMatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requeueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const canStart = useRef(false);
+
+  useEffect(() => {
+    canStart.current = Boolean(String(prefs.country || "").length > 0 && String(prefs.gender || "").length > 0);
+  }, [prefs.country, prefs.gender]);
+
+  const startNoMatchTimer = () => {
+    if (isPremium) return;
+    if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
+
+    noMatchTimerRef.current = setTimeout(() => {
+      setNoMatchModal(true);
+    }, MATCH_TIMEOUT_MS);
+  };
+
+  const clearNoMatchTimer = () => {
+    if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
+    noMatchTimerRef.current = null;
+  };
+
+  const stopAll = () => {
+    if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
+    requeueTimerRef.current = null;
+
+    clearNoMatchTimer();
+
+    queueRunningRef.current = false;
+    enqueuedRef.current = false;
+
+    try {
+      wsRef.current?.leaveQueue();
+    } catch {}
+    try {
+      wsRef.current?.close();
+    } catch {}
+    wsRef.current = null;
+
+    try {
+      rtcRef.current?.stop();
+    } catch {}
+    rtcRef.current = null;
+
+    if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
+    limitTimerRef.current = null;
+
+    setLocalStreamURL(null);
+    setRemoteStreamURL(null);
+    setRoomId(null);
+    setRemoteVideoAllowed(true);
+    setLimitModal(false);
+    setPhase("ended");
+  };
+
+  const beginCall = async (ws: SignalClient, rid: string, caller: boolean) => {
+    try {
+      const rtc = new WebRTCSession({
+        onLocalStream: (s) => setLocalStreamURL(s.toURL()),
+        onRemoteStream: (s) => setRemoteStreamURL(s.toURL()),
+        onIceCandidate: (c) => ws.sendIce(rid, c),
+        onAnswer: (sdp) => ws.sendAnswer(rid, sdp),
+        onOffer: (sdp) => ws.sendOffer(rid, sdp),
+      });
+
+      rtcRef.current = rtc;
+      await rtc.start({ isCaller: caller });
+
+      setPhase("calling");
+
+      if (!isPremium) {
+        if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
+        limitTimerRef.current = setTimeout(() => {
+          setRemoteVideoAllowed(false);
+          setLimitModal(true);
+        }, FREE_CALL_LIMIT_MS);
+      }
+    } catch (e) {
+      useAppStore.getState().showGlobalModal("통화", "통화를 시작할 수 없습니다.");
+      ws.leaveRoom(rid);
+      stopAll();
+      navigation.goBack();
+    }
+  };
+
+  const startQueue = () => {
+    if (queueRunningRef.current) return;
+    queueRunningRef.current = true;
+    enqueuedRef.current = false;
+
+    if (!canStart.current) {
+      useAppStore.getState().showGlobalModal("매칭", "필터(나라/성별)가 설정되지 않았습니다.");
+      queueRunningRef.current = false;
+      navigation.goBack();
+      return;
+    }
+
+    setNoMatchModal(false);
+    setPhase("connecting");
+    startNoMatchTimer();
+
+    if (!isPremium) matchInterstitialRef.current = createInterstitial();
+
+    const ws = new SignalClient({
+      onOpen: () => {
+        setPhase("queued");
+
+        if (enqueuedRef.current) return;
+        enqueuedRef.current = true;
+
+        startNoMatchTimer();
+        ws.enqueue(String(prefs.country), String(prefs.gender));
+      },
+      onClose: () => {
+        if (queueRunningRef.current) {
+          endCallAndRequeue();
+        }
+      },
+      onMessage: async (msg: SignalMessage) => {
+        if (msg.type === "queued") {
+          setPhase("queued");
+          startNoMatchTimer();
+          return;
+        }
+
+        if (msg.type === "match") {
+          clearNoMatchTimer();
+
+          setRoomId(msg.roomId);
+          setIsCaller(Boolean(msg.isCaller));
+          setPhase("matched");
+
+          const run = () => beginCall(ws, msg.roomId, Boolean(msg.isCaller));
+
+          if (!isPremium && matchInterstitialRef.current) {
+            const ad = matchInterstitialRef.current;
+
+            let done = false;
+            const runOnce = () => {
+              if (done) return;
+              done = true;
+              cleanup();
+              run();
+            };
+
+            let unsubClosed: any = null;
+            let unsubLoaded: any = null;
+            let unsubError: any = null;
+
+            const cleanup = () => {
+              try {
+                unsubClosed?.();
+              } catch {}
+              try {
+                unsubLoaded?.();
+              } catch {}
+              try {
+                unsubError?.();
+              } catch {}
+              unsubClosed = null;
+              unsubLoaded = null;
+              unsubError = null;
+            };
+
+            unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, runOnce);
+            unsubLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
+              try {
+                ad.show();
+              } catch {
+                runOnce();
+              }
+            });
+            unsubError = ad.addAdEventListener(AdEventType.ERROR, runOnce);
+
+            try {
+              ad.load();
+            } catch {
+              runOnce();
+            }
+
+            setTimeout(runOnce, 1500);
+            return;
+          }
+
+          run();
+          return;
+        }
+
+        if (msg.type === "offer") {
+          await rtcRef.current?.handleRemoteOffer(msg.sdp);
+          return;
+        }
+        if (msg.type === "answer") {
+          await rtcRef.current?.handleRemoteAnswer(msg.sdp);
+          return;
+        }
+        if (msg.type === "ice") {
+          await rtcRef.current?.handleRemoteIce(msg.candidate);
+          return;
+        }
+        if (msg.type === "end") {
+          endCallAndRequeue();
+          return;
+        }
+
+        if (msg.type === "error") {
+          const reason = String(msg.message ?? "").trim();
+          const reasonLower = reason.toLowerCase();
+
+          if (reasonLower === "not_registered") {
+            if (rebindOnceRef.current) {
+              useAppStore.getState().showGlobalModal("인증", reason || "not_registered");
+              stopAll();
+              navigation.goBack();
+              return;
+            }
+
+            rebindOnceRef.current = true;
+            stopAll();
+            setNoMatchModal(false);
+            setPhase("connecting");
+
+            (async () => {
+              try {
+                await bootstrapDeviceBinding();
+                startQueue();
+              } catch (e) {
+                const m = typeof e === "object" && e && "message" in (e as any) ? String((e as any).message) : String(e);
+                useAppStore.getState().showGlobalModal("인증", m || "BIND_FAILED");
+                navigation.goBack();
+              }
+            })();
+
+            return;
+          }
+
+          useAppStore.getState().showGlobalModal("매칭", reason || "오류가 발생했습니다.");
+          endCallAndRequeue();
+          return;
+        }
+      },
+    });
+
+    wsRef.current = ws;
+
+    const tokenNow = useAppStore.getState().auth.token;
+    ws.connect(APP_CONFIG.SIGNALING_URL, tokenNow);
+  };
+
+  const endCallAndRequeue = () => {
+    stopAll();
+    setNoMatchModal(false);
+    setPhase("connecting");
+
+    if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
+    requeueTimerRef.current = setTimeout(() => {
+      startQueue();
+    }, 350);
+  };
+
+  const toggleCam = () => {
+    const next = !myCamOn;
+    setMyCamOn(next);
+    rtcRef.current?.setLocalVideoEnabled(next);
+  };
+
+  const toggleSound = () => {
+    const next = !mySoundOn;
+    setMySoundOn(next);
+    rtcRef.current?.setLocalAudioEnabled(next);
+  };
+
+  const purchase = async () => {
+    await purchasePremium();
+    await refreshSubscription();
+    const nowPremium = useAppStore.getState().sub.isPremium;
+    if (nowPremium) {
+      setUpgradeModal(false);
+      setLimitModal(false);
+      setRemoteVideoAllowed(true);
+      if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
+      limitTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    startQueue();
+    return () => stopAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const endCall = () => {
+    try {
+      wsRef.current?.leaveRoom(roomId || "");
+    } catch {}
+    stopAll();
+    navigation.goBack();
+  };
+
+  const retry = () => {
+    setNoMatchModal(false);
+    endCallAndRequeue();
+  };
+
+  const dismissNoMatch = () => {
+    setNoMatchModal(false);
+  };
+
+  return (
+    <View style={styles.root}>
+      <View style={[styles.top, { paddingTop: insets.top + 10 }]}>
+        <Pressable onPress={endCall} style={({ pressed }) => [styles.iconBtn, pressed ? { opacity: 0.7 } : null]}>
+          <Ionicons name="close" size={26} color={theme.colors.text} />
+        </Pressable>
+
+        <AppText style={styles.phase}>
+          {phase === "connecting" ? "연결 중..." : phase === "queued" ? "매칭 대기 중..." : phase === "matched" ? "매칭됨" : phase === "calling" ? "통화 중" : ""}
+        </AppText>
+
+        <View style={{ width: 44 }} />
+      </View>
+
+      <View style={styles.stage}>
+        {remoteStreamURL && remoteVideoAllowed ? (
+          <RTCView streamURL={remoteStreamURL} style={styles.remote} />
+        ) : (
+          <View style={styles.placeholder}>
+            <AppText style={styles.placeholderText}>
+              {phase === "calling" && !remoteVideoAllowed ? "무료 통화 시간이 종료되었습니다." : "상대 화면 대기 중..."}
+            </AppText>
+          </View>
+        )}
+
+        {localStreamURL ? <RTCView streamURL={localStreamURL} style={styles.local} /> : null}
+
+        {phase !== "calling" ? (
+          <View style={styles.centerOverlay}>
+            <Spinner />
+          </View>
+        ) : null}
+      </View>
+
+      <View style={[styles.controls, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+        <Pressable onPress={toggleCam} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
+          <Ionicons name={myCamOn ? "videocam" : "videocam-off"} size={22} color={theme.colors.text} />
+        </Pressable>
+
+        <Pressable onPress={toggleSound} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
+          <Ionicons name={mySoundOn ? "mic" : "mic-off"} size={22} color={theme.colors.text} />
+        </Pressable>
+      </View>
+
+      {!isPremium ? (
+        <View style={[styles.banner, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+          <BannerBar />
+        </View>
+      ) : null}
+
+      <AppModal
+        visible={limitModal}
+        title="무료 이용 시간 종료"
+        dismissible={false}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title="프리미엄 구매" onPress={() => setUpgradeModal(true)} />
+            <PrimaryButton title="나가기" onPress={endCall} variant="ghost" />
+          </View>
+        }
+      >
+        <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>
+          무료 통화 시간(예: {Math.round(FREE_CALL_LIMIT_MS / 1000)}초)이 종료되었습니다.
+          {"\n"}프리미엄을 구매하면 제한 없이 이용할 수 있습니다.
+        </AppText>
+      </AppModal>
+
+      <AppModal
+        visible={upgradeModal}
+        title="프리미엄"
+        dismissible={true}
+        onClose={() => setUpgradeModal(false)}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title="구매하기" onPress={purchase} />
+            <PrimaryButton title="닫기" onPress={() => setUpgradeModal(false)} variant="ghost" />
+          </View>
+        }
+      >
+        <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>
+          프리미엄 구매 시 광고 제거 및 통화 제한이 해제됩니다.
+        </AppText>
+      </AppModal>
+
+      <AppModal
+        visible={noMatchModal}
+        title="매칭 실패"
+        dismissible={true}
+        onClose={dismissNoMatch}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title="다시 시도" onPress={retry} />
+            <PrimaryButton title="나가기" onPress={endCall} variant="ghost" />
+          </View>
+        }
+      >
+        <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>
+          일정 시간 동안 매칭이 되지 않았습니다.
+          {"\n"}필터를 변경하거나 다시 시도해 주세요.
+        </AppText>
+      </AppModal>
+    </View>
+  );
+}
+
+const W = Dimensions.get("window").width;
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.colors.bg },
+  top: {
+    height: 56,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  phase: { fontSize: 14, fontWeight: "700", color: theme.colors.text },
+
+  stage: { flex: 1, position: "relative" },
+  remote: { flex: 1, backgroundColor: "#000" },
+  local: {
+    position: "absolute",
+    right: 12,
+    top: 12,
+    width: Math.min(140, W * 0.34),
+    height: Math.min(200, W * 0.46),
+    backgroundColor: "#000",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  placeholder: { flex: 1, alignItems: "center", justifyContent: "center" },
+  placeholderText: { fontSize: 14, color: theme.colors.sub, fontWeight: "700" },
+  centerOverlay: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
+
+  controls: { paddingHorizontal: 14, paddingTop: 12, flexDirection: "row", justifyContent: "center", gap: 14 },
+  controlBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.card,
+  },
+
+  banner: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.line,
+    backgroundColor: theme.colors.bg,
+    alignItems: "center",
+  },
+});
+
+
+================================================================================
+ FILE: src\screens\HomeScreen.tsx
+================================================================================
+
+﻿// FILE: C:\ranchat\src\screens\HomeScreen.tsx
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { PermissionsAndroid, Platform, Pressable, StyleSheet, View } from "react-native";
+import { theme } from "../config/theme";
+import AppModal from "../components/AppModal";
+import PrimaryButton from "../components/PrimaryButton";
+import { BannerBar, createInterstitial } from "../services/ads/AdManager";
+import { useAppStore } from "../store/useAppStore";
+import { AdEventType } from "react-native-google-mobile-ads";
+import AppText from "../components/AppText";
+import FontSizeSlider from "../components/FontSizeSlider";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Location from "expo-location";
+
+export default function HomeScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
+
+  const prefs = useAppStore((s: any) => s.prefs);
+  const isPremium = useAppStore((s: any) => s.sub.isPremium);
+  const showGlobalModal = useAppStore((s: any) => s.showGlobalModal);
+
+  const fontScale = useAppStore((s: any) => s.ui.fontScale);
+  const setFontScale = useAppStore((s: any) => s.setFontScale);
+
+  const [permModal, setPermModal] = useState(false);
+  const [permBusy, setPermBusy] = useState(false);
+
+  const [prefsModal, setPrefsModal] = useState(false);
+
+  const interstitialRef = useRef<any>(null);
+
+  const canMatch = useMemo(() => {
+    const countryOk = String(prefs.country || "").length > 0;
+    const genderOk = String(prefs.gender || "").length > 0;
+    const langOk = String(prefs.language || "").length > 0;
+    return countryOk && genderOk && langOk;
+  }, [prefs.country, prefs.gender, prefs.language]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          onPress={() => navigation.navigate("Profile")}
+          style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
+        >
+          <AppText style={styles.headerBtnText}>≡</AppText>
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable
+          onPress={() => setPrefsModal(true)}
+          style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
+        >
+          <AppText style={styles.headerBtnText}>⚙</AppText>
+        </Pressable>
+      ),
+    });
+  }, [navigation]);
+
+  const hasAndroidPermission = useCallback(async (perm: string) => {
+    try {
+      const r = await PermissionsAndroid.check(perm as any);
+      return Boolean(r);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const applyCountryFromGPS = useCallback(async () => {
+    try {
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) return;
+
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") return;
+
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const rev = await Location.reverseGeocodeAsync({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      });
+
+      const iso = String(rev?.[0]?.isoCountryCode || "").toUpperCase();
+      if (!iso) return;
+
+      const st: any = useAppStore.getState?.() ?? {};
+      const setPrefs = st.setPrefs;
+      const setPref = st.setPref;
+      const setPrefsField = st.setPrefsField;
+
+      if (typeof setPrefs === "function") {
+        setPrefs({ country: iso });
+      } else if (typeof setPref === "function") {
+        setPref("country", iso);
+      } else if (typeof setPrefsField === "function") {
+        setPrefsField("country", iso);
+      }
+    } catch {}
+  }, []);
+
+  const checkPermissions = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      setPermModal(false);
+      return;
+    }
+
+    const cam = await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.CAMERA);
+    const mic = await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    const loc =
+      (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)) ||
+      (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION));
+
+    const ok = cam && mic && loc;
+    setPermModal(!ok);
+
+    if (ok) {
+      applyCountryFromGPS();
+    }
+  }, [applyCountryFromGPS, hasAndroidPermission]);
+
+  useEffect(() => {
+    checkPermissions();
+  }, [checkPermissions]);
+
+  const requestPermissions = useCallback(async () => {
+    if (permBusy) return;
+    setPermBusy(true);
+
+    try {
+      if (Platform.OS !== "android") {
+        setPermModal(false);
+        return;
+      }
+
+      const results: Record<string, string> = {};
+
+      results.camera = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+      results.mic = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+      results.loc = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+
+      const ok =
+        results.camera === PermissionsAndroid.RESULTS.GRANTED &&
+        results.mic === PermissionsAndroid.RESULTS.GRANTED &&
+        results.loc === PermissionsAndroid.RESULTS.GRANTED;
+
+      if (!ok) {
+        showGlobalModal("권한", "카메라/마이크/위치(GPS) 권한이 필요합니다.");
+        setPermModal(true);
+      } else {
+        setPermModal(false);
+        applyCountryFromGPS();
+      }
+    } catch {
+      showGlobalModal("권한", "권한 요청에 실패했습니다.");
+      setPermModal(true);
+    } finally {
+      setPermBusy(false);
+    }
+  }, [applyCountryFromGPS, permBusy, showGlobalModal]);
+
+  const goCall = useCallback(() => {
+    navigation.navigate("Call");
+  }, [navigation]);
+
+  const onPressMatch = useCallback(() => {
+    if (!canMatch) {
+      setPrefsModal(true);
+      return;
+    }
+
+    if (isPremium) {
+      goCall();
+      return;
+    }
+
+    const ad = createInterstitial();
+    interstitialRef.current = ad;
+
+    let done = false;
+    const runOnce = () => {
+      if (done) return;
+      done = true;
+      goCall();
+    };
+
+    let unsubClosed: any = null;
+    let unsubLoaded: any = null;
+    let unsubError: any = null;
+
+    const cleanup = () => {
+      try {
+        unsubClosed?.();
+      } catch {}
+      try {
+        unsubLoaded?.();
+      } catch {}
+      try {
+        unsubError?.();
+      } catch {}
+      unsubClosed = null;
+      unsubLoaded = null;
+      unsubError = null;
+    };
+
+    unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+      cleanup();
+      runOnce();
+    });
+
+    unsubLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
+      try {
+        ad.show();
+      } catch {
+        cleanup();
+        runOnce();
+      }
+    });
+
+    unsubError = ad.addAdEventListener(AdEventType.ERROR, () => {
+      cleanup();
+      runOnce();
+    });
+
+    try {
+      ad.load();
+    } catch {
+      cleanup();
+      runOnce();
+      return;
+    }
+
+    setTimeout(() => {
+      cleanup();
+      runOnce();
+    }, 1500);
+  }, [canMatch, goCall, isPremium]);
+
+  const setLanguage = useCallback(
+    (lang: string) => {
+      const st: any = useAppStore.getState?.() ?? {};
+      const setPrefs = st.setPrefs;
+      const setPref = st.setPref;
+      const setPrefsField = st.setPrefsField;
+
+      if (typeof setPrefs === "function") {
+        setPrefs({ language: lang });
+      } else if (typeof setPref === "function") {
+        setPref("language", lang);
+      } else if (typeof setPrefsField === "function") {
+        setPrefsField("language", lang);
+      } else {
+        showGlobalModal("설정", "언어 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
+      }
+    },
+    [showGlobalModal]
+  );
+
+  const languageOptions = useMemo(
+    () => [
+      { key: "ko", label: "한국어" },
+      { key: "en", label: "English" },
+      { key: "ja", label: "日本語" },
+      { key: "zh", label: "中文" },
+      { key: "es", label: "Español" },
+    ],
+    []
+  );
+
+  return (
+    <View style={styles.root}>
+      <View style={styles.body}>
+        <View style={styles.center}>
+          <AppText style={styles.title}>랜덤 영상채팅</AppText>
+          <AppText style={styles.sub}>지역/언어/성별을 설정한 뒤 매칭을 시작하세요.</AppText>
+
+          {/* ✅ 버튼 박스 크게 */}
+          <View style={styles.matchBtnWrap}>
+            <PrimaryButton title="매칭하기" onPress={onPressMatch} />
+          </View>
+
+          {/* ✅ 설정 열기 → 권한 설정 */}
+          <Pressable
+            onPress={() => setPermModal(true)}
+            style={({ pressed }) => [styles.smallLink, pressed ? { opacity: 0.6 } : null]}
+          >
+            <AppText style={styles.smallLinkText}>권한 설정</AppText>
+          </Pressable>
+        </View>
+      </View>
+
+      {!isPremium ? (
+        <View style={[styles.banner, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+          <BannerBar />
+        </View>
+      ) : null}
+
+      <AppModal
+        visible={permModal}
+        title="권한이 필요합니다"
+        dismissible={false}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title={permBusy ? "요청 중..." : "권한 허용하기"} onPress={requestPermissions} disabled={permBusy} />
+            <PrimaryButton title="닫기" onPress={() => setPermModal(false)} variant="ghost" />
+          </View>
+        }
+      >
+        <AppText style={styles.modalText}>
+          아래 권한을 허용해야 영상채팅을 시작할 수 있습니다.{"\n"}
+          {"\n"}• 카메라{"\n"}• 마이크(소리){"\n"}• 위치(GPS: 나라 자동 설정)
+        </AppText>
+
+        <View style={{ height: 12 }} />
+
+        <PrimaryButton title="GPS로 나라 자동 설정" onPress={applyCountryFromGPS} variant="ghost" />
+      </AppModal>
+
+      <AppModal
+        visible={prefsModal}
+        title="설정"
+        dismissible={true}
+        onClose={() => setPrefsModal(false)}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title="닫기" onPress={() => setPrefsModal(false)} variant="ghost" />
+          </View>
+        }
+      >
+        <AppText style={styles.modalText}>지역/성별은 프로필에서 변경합니다.</AppText>
+
+        <View style={{ height: 12 }} />
+
+        <AppText style={styles.sectionTitle}>언어 선택</AppText>
+        <AppText style={styles.sectionSub}>매칭에 사용할 언어를 선택하세요. (현재: {String(prefs.language || "미설정")})</AppText>
+
+        <View style={{ height: 10 }} />
+
+        <View style={styles.langList}>
+          {languageOptions.map((opt) => {
+            const active = String(prefs.language || "") === opt.key;
+            return (
+              <Pressable
+                key={opt.key}
+                onPress={() => setLanguage(opt.key)}
+                style={({ pressed }) => [
+                  styles.langRow,
+                  active ? styles.langRowActive : null,
+                  pressed ? { opacity: 0.7 } : null,
+                ]}
+              >
+                <AppText style={[styles.langText, active ? styles.langTextActive : null]}>{opt.label}</AppText>
+                {active ? <AppText style={styles.langCheck}>✓</AppText> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={{ height: 16 }} />
+
+        <AppText style={styles.sectionTitle}>글자 크기</AppText>
+        <AppText style={styles.sectionSub}>바를 좌우로 드래그해서 조절하세요. ({Math.round(fontScale * 100)}%)</AppText>
+        <FontSizeSlider value={fontScale} onChange={setFontScale} />
+
+        <View style={{ height: 14 }} />
+
+        <PrimaryButton
+          title="프로필로 이동"
+          onPress={() => {
+            setPrefsModal(false);
+            navigation.navigate("Profile");
+          }}
+        />
+      </AppModal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.colors.bg },
+  body: { flex: 1, padding: theme.spacing.lg },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+  title: { fontSize: 26, fontWeight: "700", color: theme.colors.text },
+  sub: { fontSize: 14, color: theme.colors.sub, textAlign: "center", lineHeight: 20 },
+
+  // ✅ 매칭 버튼 크게(가로 꽉)
+  matchBtnWrap: { width: "100%", maxWidth: 420 },
+
+  banner: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.line,
+    backgroundColor: theme.colors.bg,
+    alignItems: "center",
+  },
+  headerBtn: { paddingHorizontal: 12, paddingVertical: 8 },
+  headerBtnText: { fontSize: 22, color: theme.colors.text, fontWeight: "700" },
+
+  smallLink: { paddingVertical: 8, paddingHorizontal: 8 },
+  smallLinkText: { color: theme.colors.sub, textDecorationLine: "underline" },
+
+  modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
+
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: theme.colors.text },
+  sectionSub: { fontSize: 12, fontWeight: "700", color: theme.colors.sub, lineHeight: 18 },
+
+  langList: { width: "100%", gap: 8, marginTop: 6 },
+  langRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.card,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  langRowActive: {
+    borderColor: theme.colors.pinkDeep,
+    backgroundColor: theme.colors.cardSoft,
+  },
+  langText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
+  langTextActive: { color: theme.colors.pinkDeep },
+  langCheck: { fontSize: 14, color: theme.colors.pinkDeep, fontWeight: "900" },
+});
+
+
+================================================================================
+ FILE: src\screens\ProfileScreen.tsx
+================================================================================
+
+﻿//C:\ranchat\src\screens\ProfileScreen.tsx
+import React, { useMemo, useState } from "react";
+import { Linking, ScrollView, StyleSheet, View } from "react-native";
+import AppModal from "../components/AppModal";
+import PrimaryButton from "../components/PrimaryButton";
+import { theme } from "../config/theme";
+import { useAppStore } from "../store/useAppStore";
+import { purchasePremium, refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
+import { APP_CONFIG, COUNTRY_OPTIONS } from "../config/app";
+import AppText from "../components/AppText";
+
+export default function ProfileScreen() {
+  const prefs = useAppStore((s) => s.prefs);
+  const sub = useAppStore((s) => s.sub);
+  const logoutAndWipe = useAppStore((s) => s.logoutAndWipe);
+
+  const setPrefs = useAppStore((s) => s.setPrefs);
+
+  const [prefsModal, setPrefsModal] = useState(false);
+  const [withdrawModal, setWithdrawModal] = useState(false);
+
+  const countryLabel = useMemo(() => {
+    const c = COUNTRY_OPTIONS.find((x) => x.code === prefs.country);
+    return c?.label ?? "-";
+  }, [prefs.country]);
+
+  const openPrivacy = async () => {
+    const url = APP_CONFIG.POLICY.privacyUrl;
+    if (!url) {
+      useAppStore.getState().showGlobalModal("정책", "개인정보처리방침 URL이 설정되지 않았습니다.");
+      return;
+    }
+    await Linking.openURL(url);
+  };
+
+  const doPurchase = async () => {
+    await purchasePremium();
+    await refreshSubscription();
+  };
+
+  const doWithdraw = async () => {
+    await logoutAndWipe();
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.wrap}>
+      <View style={styles.card}>
+        <AppText style={styles.h1}>구독 상태</AppText>
+        <AppText style={styles.p}>{sub.isPremium ? "프리미엄 이용 중" : "무료 이용 중"}</AppText>
+
+        <View style={{ height: 10 }} />
+
+        {!sub.isPremium ? <PrimaryButton title="프리미엄 신청" onPress={doPurchase} /> : null}
+        <View style={{ height: 10 }} />
+        <PrimaryButton title="구독 관리" onPress={openManageSubscriptions} variant="ghost" />
+      </View>
+
+      <View style={styles.card}>
+        <AppText style={styles.h1}>개인정보</AppText>
+
+        <View style={styles.row}>
+          <AppText style={styles.k}>언어</AppText>
+          <AppText style={styles.v}>{prefs.language === "ko" ? "한국어" : prefs.language === "en" ? "English" : "-"}</AppText>
+        </View>
+        <View style={styles.row}>
+          <AppText style={styles.k}>나라</AppText>
+          <AppText style={styles.v}>{countryLabel}</AppText>
+        </View>
+        <View style={styles.row}>
+          <AppText style={styles.k}>성별</AppText>
+          <AppText style={styles.v}>{prefs.gender === "male" ? "남성" : prefs.gender === "female" ? "여성" : "-"}</AppText>
+        </View>
+
+        <View style={{ height: 14 }} />
+
+        <PrimaryButton title="개인정보 변경" onPress={() => setPrefsModal(true)} variant="ghost" />
+      </View>
+
+      <View style={styles.card}>
+        <PrimaryButton title="개인정보 처리방침" onPress={openPrivacy} variant="ghost" />
+        <View style={{ height: 10 }} />
+        <PrimaryButton title="탈퇴하기" onPress={() => setWithdrawModal(true)} variant="danger" />
+      </View>
+
+      <PrefsModal visible={prefsModal} onClose={() => setPrefsModal(false)} prefs={prefs} setPrefs={setPrefs} />
+
+      <AppModal
+        visible={withdrawModal}
+        title="탈퇴하기"
+        onClose={() => setWithdrawModal(false)}
+        dismissible={true}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title="탈퇴" onPress={doWithdraw} variant="danger" />
+            <PrimaryButton title="취소" onPress={() => setWithdrawModal(false)} variant="ghost" />
+          </View>
+        }
+      >
+        <AppText style={styles.p}>탈퇴 시 로컬 데이터가 삭제되고 다시 인증이 필요합니다.</AppText>
+      </AppModal>
+    </ScrollView>
+  );
+}
+
+function PrefsModal({
+  visible,
+  onClose,
+  prefs,
+  setPrefs,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  prefs: any;
+  setPrefs: (p: any) => void;
+}) {
+  const [language, setLanguage] = useState(prefs.language);
+  const [country, setCountry] = useState(prefs.country);
+  const [gender, setGender] = useState(prefs.gender);
+
+  const save = () => {
+    if (!language || !country || !gender) return;
+    setPrefs({ language, country, gender });
+    onClose();
+  };
+
+  return (
+    <AppModal
+      visible={visible}
+      title="개인정보 변경"
+      onClose={onClose}
+      dismissible={true}
+      footer={
+        <View style={{ gap: 10 }}>
+          <PrimaryButton title="저장" onPress={save} disabled={!language || !country || !gender} />
+        </View>
+      }
+    >
+      <AppText style={styles.p}>언어/나라/성별을 변경할 수 있습니다.</AppText>
+
+      <View style={styles.pickerGroup}>
+        <AppText style={styles.pickerTitle}>언어</AppText>
+        <View style={styles.pickerRow}>
+          <PickChip active={language === "ko"} label="한국어" onPress={() => setLanguage("ko")} />
+          <PickChip active={language === "en"} label="English" onPress={() => setLanguage("en")} />
+        </View>
+      </View>
+
+      <View style={styles.pickerGroup}>
+        <AppText style={styles.pickerTitle}>나라</AppText>
+        <View style={styles.countryWrap}>
+          {COUNTRY_OPTIONS.map((c) => (
+            <PickChip key={c.code} active={country === c.code} label={c.label} onPress={() => setCountry(c.code)} />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.pickerGroup}>
+        <AppText style={styles.pickerTitle}>성별</AppText>
+        <View style={styles.pickerRow}>
+          <PickChip active={gender === "male"} label="남성" onPress={() => setGender("male")} />
+          <PickChip active={gender === "female"} label="여성" onPress={() => setGender("female")} />
+        </View>
+      </View>
+    </AppModal>
+  );
+}
+
+function PickChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <AppText onPress={onPress} style={[styles.chip, active ? styles.chipOn : styles.chipOff, styles.chipTxt]}>
+      {label}
+    </AppText>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    padding: theme.spacing.lg,
+    gap: theme.spacing.lg,
+  },
+  card: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.spacing.lg,
+    ...theme.shadow.card,
+  },
+  h1: { fontSize: 17, fontWeight: "700", color: theme.colors.text, marginBottom: 6 },
+  p: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
+
+  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8 },
+  k: { fontSize: 13, color: theme.colors.sub, fontWeight: "700" },
+  v: { fontSize: 13, color: theme.colors.text, fontWeight: "700" },
+
+  pickerGroup: { marginTop: 10 },
+  pickerTitle: { fontSize: 13, fontWeight: "700", color: theme.colors.text, marginBottom: 8 },
+  pickerRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  countryWrap: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  chipOn: { backgroundColor: theme.colors.pinkDeep, borderColor: theme.colors.pinkDeep, color: theme.colors.white },
+  chipOff: { backgroundColor: theme.colors.white, borderColor: theme.colors.line, color: theme.colors.text },
+  chipTxt: { fontSize: 13, fontWeight: "700" },
+});
+
+
+================================================================================
+ FILE: src\screens\_GlobalModalHost.tsx
+================================================================================
+
+﻿//C:\ranchat\src\screens\_GlobalModalHost.tsx
+import React from "react";
+import { View } from "react-native";
+import AppModal from "../components/AppModal";
+import PrimaryButton from "../components/PrimaryButton";
+import { useAppStore } from "../store/useAppStore";
+import { theme } from "../config/theme";
+import AppText from "../components/AppText";
+
+export default function GlobalModalHost() {
+  const m = useAppStore((s) => s.globalModal);
+  const hide = useAppStore((s) => s.hideGlobalModal);
+
+  return (
+    <AppModal
+      visible={m.visible}
+      title={m.title}
+      dismissible={true}
+      onClose={hide}
+      footer={
+        <View style={{ gap: 10 }}>
+          <PrimaryButton title="확인" onPress={hide} />
+        </View>
+      }
+    >
+      <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>{m.message}</AppText>
+    </AppModal>
+  );
+}
+
+
+================================================================================
+ FILE: src\services\ads\AdManager.tsx
+================================================================================
+
+﻿//C:\ranchat\src\services\ads\AdManager.tsx
+import React from "react";
+import { Platform } from "react-native";
+import mobileAds, { BannerAd, BannerAdSize, InterstitialAd, TestIds } from "react-native-google-mobile-ads";
+
+let _adsInited = false;
+
+export function initAds() {
+  if (_adsInited) return;
+  _adsInited = true;
+
+  try {
+    const p = mobileAds().initialize();
+    if (p && typeof (p as any).catch === "function") (p as any).catch(() => {});
+  } catch {}
+}
+
+function getBannerUnitId() {
+  const android = String(process.env.EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID ?? "").trim();
+  const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_BANNER_IOS ?? "").trim();
+  const envId = Platform.OS === "ios" ? ios : android;
+  return envId || TestIds.BANNER;
+}
+
+function getInterstitialUnitId() {
+  const android = String(process.env.EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_ANDROID ?? "").trim();
+  const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_IOS ?? "").trim();
+  const envId = Platform.OS === "ios" ? ios : android;
+  return envId || TestIds.INTERSTITIAL;
+}
+
+export function createInterstitial() {
+  const unitId = getInterstitialUnitId();
+  return InterstitialAd.createForAdRequest(unitId, { requestNonPersonalizedAdsOnly: false });
+}
+
+export function BannerBar() {
+  const unitId = getBannerUnitId();
+  return (
+    <BannerAd
+      unitId={unitId}
+      size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+      requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+    />
+  );
+}
+
+export default { initAds, createInterstitial, BannerBar };
+
+
+================================================================================
+ FILE: src\services\auth\AuthBootstrap.ts
+================================================================================
+
+﻿// C:\ranchat\src\services\auth\AuthBootstrap.ts
+import { getOrCreateDeviceKey } from "../device/DeviceKey";
+import { bindDeviceHttp } from "./DeviceBind";
+import { useAppStore } from "../../store/useAppStore";
+
+export async function bootstrapDeviceBinding(): Promise<void> {
+  const deviceKey = await getOrCreateDeviceKey();
+  useAppStore.getState().setDeviceKey(deviceKey);
+
+  const { token, userId } = await bindDeviceHttp(deviceKey);
+  useAppStore.getState().setAuth({ token, userId, verified: true });
+}
+
+
+================================================================================
+ FILE: src\services\auth\DeviceBind.ts
+================================================================================
+
+﻿// C:\ranchat\src\services\auth\DeviceBind.ts
+import { Platform } from "react-native";
+import { APP_CONFIG } from "../../config/app";
+
+type BindResponse = {
+  token: string;
+  userId: string;
+};
+
+async function postBind(url: string, deviceKey: string): Promise<BindResponse> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceKey,
+      platform: Platform.OS,
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    const err: any = new Error(`BIND_HTTP_${res.status}:${txt}`);
+    err.status = res.status;
+    err.body = txt;
+    throw err;
+  }
+
+  const data: any = await res.json();
+  const token = String(data?.token ?? "");
+  const userId = String(data?.userId ?? "");
+  if (!token || !userId) throw new Error("BIND_RESPONSE_INVALID");
+  return { token, userId };
+}
+
+export async function bindDeviceHttp(deviceKey: string): Promise<BindResponse> {
+  const baseRaw = String(APP_CONFIG.AUTH_HTTP_BASE_URL ?? "").trim();
+  if (!baseRaw) throw new Error("AUTH_BASE_URL_MISSING");
+
+  const base = baseRaw.replace(/\/$/, "");
+  const baseHasApi = /\/api$/i.test(base);
+
+  const paths = ["/device/bind", "/bind"];
+  if (!baseHasApi) {
+    paths.push("/api/device/bind", "/api/bind");
+  }
+
+  let last404: string = "";
+  for (const p of paths) {
+    const url = `${base}${p}`;
+    try {
+      return await postBind(url, deviceKey);
+    } catch (e: any) {
+      const status = Number(e?.status);
+      if (status === 404) {
+        last404 = String(e?.body ?? "");
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  throw new Error(`BIND_HTTP_404:${last404}`);
+}
+
+
+================================================================================
+ FILE: src\services\device\DeviceKey.ts
+================================================================================
+
+﻿// FILE: C:\ranchat\src\services\device\DeviceKey.ts
+import "react-native-get-random-values";
+import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { v4 as uuidv4 } from "uuid";
+
+const KEY = "ranchat_device_key_v1";
+
+async function getFromFallback(): Promise<string | null> {
+  try {
+    const v = await AsyncStorage.getItem(KEY);
+    return v ? String(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setToFallback(v: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEY, String(v));
+  } catch {}
+}
+
+export async function getOrCreateDeviceKey(): Promise<string> {
+  // 1) SecureStore 우선
+  try {
+    const existing = await SecureStore.getItemAsync(KEY);
+    if (existing && String(existing).trim().length > 0) return String(existing).trim();
+  } catch {
+    // 무시하고 fallback
+  }
+
+  // 2) AsyncStorage fallback
+  const fb = await getFromFallback();
+  if (fb && fb.trim().length > 0) return fb.trim();
+
+  // 3) 생성 후 저장
+  const next = uuidv4();
+
+  try {
+    await SecureStore.setItemAsync(KEY, next);
+  } catch {
+    // SecureStore 실패 시 fallback
+    await setToFallback(next);
+  }
+
+  return next;
+}
+
+
+================================================================================
+ FILE: src\services\purchases\PurchaseManager.ts
+================================================================================
+
+﻿import Purchases from "react-native-purchases";
+import { APP_CONFIG } from "../../config/app";
+import { useAppStore } from "../../store/useAppStore";
+
+let inited = false;
+
+export async function initPurchases() {
+  const key = APP_CONFIG.PURCHASES.revenueCatKey;
+  if (!key) return;
+
+  if (inited) return;
+  inited = true;
+
+  try {
+    Purchases.setLogLevel(Purchases.LOG_LEVEL.ERROR);
+    await Purchases.configure({ apiKey: key });
+    await refreshSubscription();
+  } catch {
+    // UI는 글로벌 모달에서 처리
+  }
+}
+
+export async function refreshSubscription() {
+  const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
+  try {
+    const customerInfo = await Purchases.getCustomerInfo();
+    const active = Boolean(customerInfo?.entitlements?.active?.[entitlementId]);
+    useAppStore.getState().setSub({
+      isPremium: active,
+      entitlementId: entitlementId,
+      lastCheckedAt: Date.now(),
+    });
+  } catch {
+    // 무응답
+  }
+}
+
+export async function purchasePremium() {
+  const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
+  try {
+    const offerings = await Purchases.getOfferings();
+    const current = offerings.current;
+    if (!current || current.availablePackages.length === 0) {
+      useAppStore.getState().showGlobalModal("구독", "현재 구매 가능한 상품을 불러오지 못했습니다.");
+      return;
+    }
+
+    // 실서비스에서는 RevenueCat Offering에서 정렬/패키지명을 맞추는 것을 전제로 합니다.
+    // 여기서는 가장 일반적인 패키지 우선순위: weekly -> monthly -> 6months (없으면 availablePackages 순서)
+    const pick =
+      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.WEEKLY) ||
+      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.MONTHLY) ||
+      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.SIX_MONTH) ||
+      current.availablePackages[0];
+
+    await Purchases.purchasePackage(pick);
+
+    const customerInfo = await Purchases.getCustomerInfo();
+    const active = Boolean(customerInfo?.entitlements?.active?.[entitlementId]);
+    useAppStore.getState().setSub({
+      isPremium: active,
+      entitlementId: entitlementId,
+      lastCheckedAt: Date.now(),
+    });
+  } catch (e: any) {
+    if (e?.userCancelled) return;
+    useAppStore.getState().showGlobalModal("구독", "결제를 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  }
+}
+
+export async function openManageSubscriptions() {
+  try {
+    // 일부 환경에서 미지원일 수 있어 예외 처리
+    // @ts-ignore
+    await Purchases.showManageSubscriptions();
+  } catch {
+    useAppStore.getState().showGlobalModal("구독관리", "기기에서 구독관리 화면을 열 수 없습니다.");
+  }
+}
+
+================================================================================
+ FILE: src\services\signal\SignalClient.ts
+================================================================================
+
+﻿// FILE: C:\ranchat\src\services\signal\SignalClient.ts
+import { Platform } from "react-native";
+import { getOrCreateDeviceKey } from "../device/DeviceKey";
+
+export type SignalMessage =
+  | { type: "queued" }
+  | { type: "match"; roomId: string; isCaller: boolean }
+  | { type: "offer"; sdp: any }
+  | { type: "answer"; sdp: any }
+  | { type: "ice"; candidate: any }
+  | { type: "end" }
+  | { type: "signal"; roomId: string; data: any }
+  | { type: "error"; message?: string };
+
+type Cb = {
+  onOpen: () => void;      // ✅ "registered" 이후에 호출되도록 변경(근본 not_registered 루프 방지)
+  onClose: () => void;
+  onMessage: (m: SignalMessage) => void;
+};
+
+type ServerMessage =
+  | { type: "hello" }
+  | { type: "registered"; sessionId: string }
+  | { type: "enqueued"; sessionId: string; queueSize?: number }
+  | { type: "dequeued"; sessionId: string; queueSize?: number }
+  | { type: "matched"; roomId: string; initiator: boolean; sessionId?: string; peerSessionId?: string }
+  | { type: "signal"; roomId: string; fromSessionId?: string; data: any }
+  | { type: "peer_left"; roomId?: string; sessionId?: string; peerSessionId?: string }
+  | { type: "left"; roomId?: string; sessionId?: string }
+  | { type: "error"; reason?: string; message?: string };
+
+export class SignalClient {
+  private ws: WebSocket | null = null;
+  private cb: Cb;
+
+  private token: string = "";
+  private sessionId: string = "";
+
+  private registered = false;
+  private openNotified = false;
+  private pending: any[] = [];
+
+  constructor(cb: Cb) {
+    this.cb = cb;
+  }
+
+  async connect(baseUrl: string, token: string | null) {
+    const deviceKey = await getOrCreateDeviceKey();
+    this.sessionId = String(deviceKey || "").trim();
+    this.token = String(token || "").trim();
+
+    this.registered = false;
+    this.openNotified = false;
+    this.pending = [];
+
+    this.ws = new WebSocket(baseUrl);
+
+    this.ws.onopen = () => {
+      // 서버 요구: register(token+sessionId) 먼저
+      if (!this.token || !this.sessionId) {
+        this.cb.onMessage({ type: "error", message: "REGISTER_REQUIRES_TOKEN_AND_SESSIONID" });
+        try {
+          this.ws?.close();
+        } catch {}
+        return;
+      }
+
+      // ✅ 여기서 onOpen 호출하지 않음(등록 확인 전 enqueue -> not_registered 루프 원인)
+      this.sendRaw({ type: "register", token: this.token, sessionId: this.sessionId });
+    };
+
+    this.ws.onclose = () => {
+      this.cb.onClose();
+    };
+
+    this.ws.onerror = () => {
+      this.cb.onClose();
+    };
+
+    this.ws.onmessage = (ev: any) => {
+      try {
+        const msg = JSON.parse(String(ev?.data ?? "{}")) as ServerMessage;
+
+        if (msg?.type === "registered") {
+          this.registered = true;
+
+          if (!this.openNotified) {
+            this.openNotified = true;
+            this.cb.onOpen();
+          }
+
+          // pending flush
+          const q = this.pending.slice();
+          this.pending = [];
+          q.forEach((x) => this.sendRaw(x));
+          return;
+        }
+
+        if (msg?.type === "enqueued") {
+          this.cb.onMessage({ type: "queued" });
+          return;
+        }
+
+        if (msg?.type === "matched") {
+          this.cb.onMessage({ type: "match", roomId: msg.roomId, isCaller: !!msg.initiator });
+          return;
+        }
+
+        if (msg?.type === "peer_left" || msg?.type === "left") {
+          this.cb.onMessage({ type: "end" });
+          return;
+        }
+
+        if (msg?.type === "signal") {
+          const d: any = msg.data;
+          const t = String(d?.type ?? d?.kind ?? "").toLowerCase();
+
+          if (t === "offer") {
+            this.cb.onMessage({ type: "offer", sdp: d });
+            return;
+          }
+          if (t === "answer") {
+            this.cb.onMessage({ type: "answer", sdp: d });
+            return;
+          }
+          if (t === "ice") {
+            const cand = d?.candidate ?? d;
+            this.cb.onMessage({ type: "ice", candidate: cand });
+            return;
+          }
+          if (t === "end" || t === "leave") {
+            this.cb.onMessage({ type: "end" });
+            return;
+          }
+
+          this.cb.onMessage({ type: "signal", roomId: msg.roomId, data: d });
+          return;
+        }
+
+        if (msg?.type === "error") {
+          const m = String(msg.message || msg.reason || "UNKNOWN_ERROR");
+          this.cb.onMessage({ type: "error", message: m });
+          return;
+        }
+      } catch {
+        this.cb.onMessage({ type: "error", message: "INVALID_MESSAGE" });
+      }
+    };
+  }
+
+  enqueue(country: string, gender: string) {
+    this.send({ type: "enqueue", country, gender, platform: Platform.OS });
+  }
+
+  // CallScreen.tsx 호환
+  sendOffer(roomId: string, sdp: any) {
+    this.relay(roomId, sdp);
+  }
+
+  sendAnswer(roomId: string, sdp: any) {
+    this.relay(roomId, sdp);
+  }
+
+  sendIce(roomId: string, candidate: any) {
+    this.relay(roomId, { type: "ice", candidate });
+  }
+
+  relay(roomId: string, data: any) {
+    this.send({ type: "signal", roomId, data });
+  }
+
+  leaveQueue() {
+    this.send({ type: "dequeue" });
+  }
+
+  // CallScreen.tsx에서 인자로 호출하므로 optional 처리
+  leaveRoom(roomId?: string) {
+    this.send({ type: "leave", roomId: roomId || undefined });
+  }
+
+  close() {
+    try {
+      this.ws?.close();
+    } catch {}
+    this.ws = null;
+
+    this.registered = false;
+    this.openNotified = false;
+    this.pending = [];
+  }
+
+  private send(obj: any) {
+    // ✅ registered 전이면 큐잉(등록 확인 전 enqueue로 not_registered 나는 것 방지)
+    if (!this.registered && obj?.type !== "register") {
+      if (this.pending.length < 50) this.pending.push(obj);
+      return;
+    }
+    this.sendRaw(obj);
+  }
+
+  private sendRaw(obj: any) {
+    try {
+      this.ws?.send(JSON.stringify(obj));
+    } catch {}
+  }
+}
+
+
+================================================================================
+ FILE: src\services\webrtc\WebRTCSession.ts
+================================================================================
+
+﻿// FILE: C:\ranchat\src\services\webrtc\WebRTCSession.ts
+import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from "react-native-webrtc";
+import { PermissionsAndroid, Platform } from "react-native";
+import { APP_CONFIG } from "../../config/app";
+
+type Callbacks = {
+  onLocalStream?: (s: MediaStream) => void;
+  onRemoteStream?: (s: MediaStream) => void;
+  onIceCandidate?: (c: any) => void;
+  onConnectionState?: (s: string) => void;
+
+  // ✅ CallScreen.tsx가 넘기는 콜백(없어서 TS 에러였음)
+  onOffer?: (sdp: any) => void;
+  onAnswer?: (sdp: any) => void;
+};
+
+export class WebRTCSession {
+  private pc: RTCPeerConnection;
+  private localStream: MediaStream | null = null;
+  private remoteStream: MediaStream | null = null;
+  private cb: Callbacks;
+
+  constructor(cb: Callbacks) {
+    this.cb = cb;
+
+    const turn = APP_CONFIG.TURN;
+    const iceServers = [
+      { urls: [`stun:${turn.host}:${turn.port}`] },
+      {
+        urls: [`turn:${turn.host}:${turn.port}?transport=udp`, `turn:${turn.host}:${turn.port}?transport=tcp`],
+        username: turn.username,
+        credential: turn.password,
+      },
+    ];
+
+    this.pc = new RTCPeerConnection({ iceServers } as any);
+
+    const pcAny: any = this.pc;
+
+    pcAny.onicecandidate = (e: any) => {
+      if (e?.candidate) this.cb.onIceCandidate?.(e.candidate);
+    };
+
+    pcAny.onconnectionstatechange = () => {
+      this.cb.onConnectionState?.(pcAny.connectionState);
+    };
+
+    pcAny.ontrack = (e: any) => {
+      const stream = (e?.streams && e.streams[0]) || null;
+      if (stream) {
+        this.remoteStream = stream;
+        this.cb.onRemoteStream?.(stream);
+      }
+    };
+  }
+
+  async ensurePermissions() {
+    if (Platform.OS !== "android") return;
+    const cam = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+    const mic = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    if (cam !== "granted" || mic !== "granted") throw new Error("PERMISSION_DENIED");
+  }
+
+  async startLocal() {
+    await this.ensurePermissions();
+    const stream = await mediaDevices.getUserMedia({
+      audio: true,
+      video: { facingMode: "user", frameRate: 30, width: 640, height: 960 },
+    } as any);
+
+    this.localStream = stream as any;
+    (stream as any).getTracks().forEach((t: any) => (this.pc as any).addTrack(t, stream));
+    this.cb.onLocalStream?.(stream as any);
+  }
+
+  async createOffer() {
+    const offer = await (this.pc as any).createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+    await (this.pc as any).setLocalDescription(offer);
+    return offer;
+  }
+
+  async acceptOfferAndCreateAnswer(offer: any) {
+    await (this.pc as any).setRemoteDescription(new RTCSessionDescription(offer));
+    const ans = await (this.pc as any).createAnswer();
+    await (this.pc as any).setLocalDescription(ans);
+    return ans;
+  }
+
+  async acceptAnswer(answer: any) {
+    await (this.pc as any).setRemoteDescription(new RTCSessionDescription(answer));
+  }
+
+  async addCandidate(candidate: any) {
+    try {
+      await (this.pc as any).addIceCandidate(new RTCIceCandidate(candidate));
+    } catch {}
+  }
+
+  // ✅ CallScreen.tsx 호환 메서드들(없어서 TS 에러였음)
+  async start({ isCaller }: { isCaller: boolean }) {
+    await this.startLocal();
+
+    if (isCaller) {
+      const offer = await this.createOffer();
+      this.cb.onOffer?.(offer);
+    }
+  }
+
+  async handleRemoteOffer(offer: any) {
+    const ans = await this.acceptOfferAndCreateAnswer(offer);
+    this.cb.onAnswer?.(ans);
+    return ans;
+  }
+
+  async handleRemoteAnswer(answer: any) {
+    await this.acceptAnswer(answer);
+  }
+
+  async handleRemoteIce(candidate: any) {
+    await this.addCandidate(candidate);
+  }
+
+  setLocalVideoEnabled(on: boolean) {
+    const v = (this.localStream as any)?.getVideoTracks?.() ?? [];
+    v.forEach((t: any) => (t.enabled = on));
+  }
+
+  setLocalAudioEnabled(on: boolean) {
+    const a = (this.localStream as any)?.getAudioTracks?.() ?? [];
+    a.forEach((t: any) => (t.enabled = on));
+  }
+
+  stop() {
+    try {
+      (this.localStream as any)?.getTracks?.()?.forEach((t: any) => t.stop?.());
+    } catch {}
+    try {
+      (this.pc as any).close?.();
+    } catch {}
+    this.localStream = null;
+    this.remoteStream = null;
+  }
+}
+
+
+================================================================================
+ FILE: src\store\useAppStore.ts
+================================================================================
+
+﻿//C:\ranchat\src\store\useAppStore.ts
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import type { Gender, Language } from "../config/app";
+
+type Prefs = {
+  language: Language | null;
+  country: string | null;
+  gender: Gender | null;
+};
+
+type Sub = {
+  isPremium: boolean;
+  entitlementId: string | null;
+  lastCheckedAt: number | null;
+};
+
+type Auth = {
+  verified: boolean;
+  token: string | null;
+  userId: string | null;
+  deviceKey: string | null;
+};
+
+type GlobalModal = {
+  visible: boolean;
+  title: string;
+  message: string;
+};
+
+type Ui = {
+  fontScale: number; // 0.85~1.25 권장
+};
+
+type Store = {
+  hasHydrated: boolean;
+  authNonce: number;
+
+  prefs: Prefs;
+  sub: Sub;
+  auth: Auth;
+
+  ui: Ui;
+
+  globalModal: GlobalModal;
+
+  setHasHydrated: (v: boolean) => void;
+  bumpAuthNonce: () => void;
+
+  setPrefs: (p: Partial<Prefs>) => void;
+
+  setPremium: (v: boolean) => void;
+  setSub: (p: Partial<Sub>) => void;
+
+  setDeviceKey: (k: string) => void;
+  setAuth: (a: Partial<Auth>) => void;
+
+  setFontScale: (v: number) => void;
+
+  logoutAndWipe: () => void;
+
+  showGlobalModal: (title: string, message: string) => void;
+  hideGlobalModal: () => void;
+};
+
+export const useAppStore = create<Store>()(
+  persist(
+    (set, get) => ({
+      hasHydrated: false,
+      authNonce: 0,
+
+      prefs: { language: null, country: null, gender: null },
+      sub: { isPremium: false, entitlementId: null, lastCheckedAt: null },
+      auth: { verified: false, token: null, userId: null, deviceKey: null },
+
+      ui: { fontScale: 1 },
+
+      globalModal: { visible: false, title: "", message: "" },
+
+      setHasHydrated: (v) => set({ hasHydrated: v }),
+      bumpAuthNonce: () => set({ authNonce: get().authNonce + 1 }),
+
+      setPrefs: (p) => set({ prefs: { ...get().prefs, ...p } }),
+
+      setPremium: (v) => set({ sub: { ...get().sub, isPremium: v } }),
+      setSub: (p) => set({ sub: { ...get().sub, ...p } }),
+
+      setDeviceKey: (k) => set({ auth: { ...get().auth, deviceKey: k } }),
+      setAuth: (a) => set({ auth: { ...get().auth, ...a } }),
+
+      setFontScale: (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return;
+        const clamped = Math.min(1.25, Math.max(0.85, n));
+        set({ ui: { ...get().ui, fontScale: Number(clamped.toFixed(2)) } });
+      },
+
+      logoutAndWipe: () => {
+        set({
+          auth: {
+            ...get().auth,
+            verified: false,
+            token: null,
+            userId: null,
+          },
+        });
+        get().bumpAuthNonce();
+      },
+
+      showGlobalModal: (title, message) => set({ globalModal: { visible: true, title, message } }),
+      hideGlobalModal: () => set({ globalModal: { visible: false, title: "", message: "" } }),
+    }),
+    {
+      name: "ranchat_store_v1",
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (s) => ({ prefs: s.prefs, sub: s.sub, auth: s.auth, ui: s.ui }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
+    }
+  )
+);
+
+
+================================================================================
+ FILE: src\utils\storage.ts
+================================================================================
+
+﻿import AsyncStorage from "@react-native-async-storage/async-storage";
+
+export const storage = {
+  get: async <T>(key: string): Promise<T | null> => {
+    const v = await AsyncStorage.getItem(key);
+    if (!v) return null;
+    return JSON.parse(v) as T;
+  },
+  set: async (key: string, value: any) => {
+    await AsyncStorage.setItem(key, JSON.stringify(value));
+  },
+  del: async (key: string) => {
+    await AsyncStorage.removeItem(key);
+  },
+  clear: async () => {
+    await AsyncStorage.clear();
+  },
+};
