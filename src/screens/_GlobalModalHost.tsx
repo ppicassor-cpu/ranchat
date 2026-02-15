@@ -1,11 +1,10 @@
 ﻿//C:\ranchat\src\screens\_GlobalModalHost.tsx
 import React from "react";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { useAppStore } from "../store/useAppStore";
 import { theme } from "../config/theme";
-import AppText from "../components/AppText";
 
 export default function GlobalModalHost() {
   const m = useAppStore((s) => s.globalModal);
@@ -23,7 +22,7 @@ export default function GlobalModalHost() {
         </View>
       }
     >
-      <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>{m.message}</AppText>
+      <Text style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>{m.message}</Text>
     </AppModal>
   );
 }
