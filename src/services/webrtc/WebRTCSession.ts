@@ -1,6 +1,8 @@
 ﻿import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from "react-native-webrtc";
 import { PermissionsAndroid, Platform } from "react-native";
 import { APP_CONFIG } from "../../config/app";
+// @ts-ignore
+import InCallManager from "react-native-incall-manager";
 
 type Callbacks = {
   onLocalStream?: (s: MediaStream) => void;
@@ -56,6 +58,7 @@ export class WebRTCSession {
   private localStream: MediaStream | null = null;
   private remoteStream: MediaStream | null = null;
   private cb: Callbacks;
+  private inCallStarted: boolean = false;
 
   constructor(cb: Callbacks) {
     this.cb = cb;
@@ -97,6 +100,34 @@ export class WebRTCSession {
         this.cb.onRemoteStream?.(stream);
       }
     };
+  }
+
+  private startSpeakerphone() {
+    try {
+      if (this.inCallStarted) return;
+      this.inCallStarted = true;
+
+      const IC: any = InCallManager as any;
+
+      IC.start?.({ media: "video" });
+      IC.setKeepScreenOn?.(true);
+
+      // 스피커폰 강제
+      IC.setForceSpeakerphoneOn?.(true);
+      IC.setSpeakerphoneOn?.(true);
+    } catch {}
+  }
+
+  private stopSpeakerphone() {
+    try {
+      if (!this.inCallStarted) return;
+      this.inCallStarted = false;
+
+      const IC: any = InCallManager as any;
+
+      IC.setKeepScreenOn?.(false);
+      IC.stop?.();
+    } catch {}
   }
 
   async ensurePermissions() {
@@ -141,6 +172,9 @@ export class WebRTCSession {
 
   async startLocal() {
     await this.ensurePermissions();
+
+    // ✅ 스피커폰 ON
+    this.startSpeakerphone();
 
     // 720p/24fps(과하지 않게) + 실패 시 한 단계 다운 폴백
     let stream: any = null;
@@ -243,6 +277,8 @@ export class WebRTCSession {
   }
 
   stop() {
+    this.stopSpeakerphone();
+
     try {
       (this.localStream as any)?.getTracks?.()?.forEach((t: any) => t.stop?.());
     } catch {}

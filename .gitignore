@@ -17,7 +17,16 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
-
+# Android release signing (do NOT commit)
+keystore.properties
+release.keystore
+*.keystore
+*.jks
+# If you keep signing files in a subfolder
+**/keystore.properties
+**/release.keystore
+**/*.keystore
+**/*.jks
 # Metro
 .metro-health-check*
 
