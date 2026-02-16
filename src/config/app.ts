@@ -17,19 +17,26 @@ const readNumber = (k: string, fallback: number): number => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-const freeRemoteVideoSeconds = readNumber("EXPO_PUBLIC_FREE_REMOTE_VIDEO_SECONDS", 30);
+const readPort = (k: string, fallback: number): number => {
+  const n = readNumber(k, fallback);
+  if (!Number.isFinite(n) || n < 1 || n > 65535) return fallback;
+  return Math.trunc(n);
+};
+
+const freeRemoteVideoSeconds = readNumber("EXPO_PUBLIC_FREE_REMOTE_VIDEO_SECONDS", 3000);
 
 export const APP_CONFIG = {
   SIGNALING_URL: read("EXPO_PUBLIC_SIGNALING_URL", "ws://152.67.213.225:3001"),
 
   TURN: {
     host: read("EXPO_PUBLIC_TURN_HOST", "152.67.213.225"),
-    port: Number(read("EXPO_PUBLIC_TURN_PORT", "3478")),
+    port: readPort("EXPO_PUBLIC_TURN_PORT", 3478),
     username: read("EXPO_PUBLIC_TURN_USERNAME", "testuser"),
     password: read("EXPO_PUBLIC_TURN_PASSWORD", "testpass"),
   },
 
-  AUTH_HTTP_BASE_URL: read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "http://152.67.213.225:4000"),
+  // ✅ 4000(다른 프로젝트) 안 건드리고, 기본값을 3001로 고정
+  AUTH_HTTP_BASE_URL: read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "http://152.67.213.225:3001"),
 
   ADS: {
     bannerAndroid: read("EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID", ""),
@@ -45,7 +52,6 @@ export const APP_CONFIG = {
     privacyUrl: read("EXPO_PUBLIC_PRIVACY_POLICY_URL", ""),
   },
 
-  // ✅ CallScreen.tsx가 참조하는 값(없어서 TS 에러였음)
   MATCH_TIMEOUT_MS: readNumber("EXPO_PUBLIC_MATCH_TIMEOUT_MS", 20000),
   FREE_CALL_LIMIT_MS: readNumber("EXPO_PUBLIC_FREE_CALL_LIMIT_MS", freeRemoteVideoSeconds * 1000),
 

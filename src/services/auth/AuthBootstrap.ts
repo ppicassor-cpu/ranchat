@@ -1,4 +1,4 @@
-﻿// C:\ranchat\src\services\auth\AuthBootstrap.ts
+﻿// FILE: C:\ranchat\src\services\auth\AuthBootstrap.ts
 import { getOrCreateDeviceKey } from "../device/DeviceKey";
 import { bindDeviceHttp } from "./DeviceBind";
 import { useAppStore } from "../../store/useAppStore";

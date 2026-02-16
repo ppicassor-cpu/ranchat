@@ -55,15 +55,20 @@ const styles = StyleSheet.create({
     ...theme.shadow.card,
   },
   title: {
+    width: "100%",
+    textAlign: "center",
     fontSize: 18,
     fontWeight: "700",
     color: theme.colors.text,
     marginBottom: theme.spacing.sm,
   },
   body: {
+    width: "100%",
+    alignItems: "center",
     gap: theme.spacing.sm,
   },
   footer: {
+    width: "100%",
     marginTop: theme.spacing.md,
   },
 });

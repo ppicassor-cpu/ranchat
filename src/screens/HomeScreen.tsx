@@ -1,6 +1,6 @@
 ﻿// FILE: C:\ranchat\src\screens\HomeScreen.tsx
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { PermissionsAndroid, Platform, Pressable, StyleSheet, View } from "react-native";
+import { PermissionsAndroid, Platform, Pressable, StyleSheet, View, ScrollView } from "react-native";
 import { theme } from "../config/theme";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
@@ -10,7 +10,6 @@ import { AdEventType } from "react-native-google-mobile-ads";
 import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Location from "expo-location";
 
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -26,6 +25,12 @@ export default function HomeScreen({ navigation }: any) {
   const [permBusy, setPermBusy] = useState(false);
 
   const [prefsModal, setPrefsModal] = useState(false);
+
+  const [langOpen, setLangOpen] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
+  const [genderOpen, setGenderOpen] = useState(false);
+
+  const [permState, setPermState] = useState({ cam: false, mic: false, loc: false });
 
   const interstitialRef = useRef<any>(null);
 
@@ -57,6 +62,16 @@ export default function HomeScreen({ navigation }: any) {
     });
   }, [navigation]);
 
+  const isoToFlag = useCallback((iso: string) => {
+    const cc = String(iso || "").toUpperCase();
+    if (cc.length !== 2) return "";
+    const A = 0x1f1e6;
+    const c1 = cc.charCodeAt(0);
+    const c2 = cc.charCodeAt(1);
+    if (c1 < 65 || c1 > 90 || c2 < 65 || c2 > 90) return "";
+    return String.fromCodePoint(A + (c1 - 65), A + (c2 - 65));
+  }, []);
+
   const hasAndroidPermission = useCallback(async (perm: string) => {
     try {
       const r = await PermissionsAndroid.check(perm as any);
@@ -66,41 +81,10 @@ export default function HomeScreen({ navigation }: any) {
     }
   }, []);
 
-  const applyCountryFromGPS = useCallback(async () => {
-    try {
-      const enabled = await Location.hasServicesEnabledAsync();
-      if (!enabled) return;
-
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== "granted") return;
-
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const rev = await Location.reverseGeocodeAsync({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-      });
-
-      const iso = String(rev?.[0]?.isoCountryCode || "").toUpperCase();
-      if (!iso) return;
-
-      const st: any = useAppStore.getState?.() ?? {};
-      const setPrefs = st.setPrefs;
-      const setPref = st.setPref;
-      const setPrefsField = st.setPrefsField;
-
-      if (typeof setPrefs === "function") {
-        setPrefs({ country: iso });
-      } else if (typeof setPref === "function") {
-        setPref("country", iso);
-      } else if (typeof setPrefsField === "function") {
-        setPrefsField("country", iso);
-      }
-    } catch {}
-  }, []);
-
   const checkPermissions = useCallback(async () => {
     if (Platform.OS !== "android") {
       setPermModal(false);
+      setPermState({ cam: true, mic: true, loc: true });
       return;
     }
 
@@ -110,13 +94,11 @@ export default function HomeScreen({ navigation }: any) {
       (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)) ||
       (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION));
 
+    setPermState({ cam, mic, loc });
+
     const ok = cam && mic && loc;
     setPermModal(!ok);
-
-    if (ok) {
-      applyCountryFromGPS();
-    }
-  }, [applyCountryFromGPS, hasAndroidPermission]);
+  }, [hasAndroidPermission]);
 
   useEffect(() => {
     checkPermissions();
@@ -129,26 +111,55 @@ export default function HomeScreen({ navigation }: any) {
     try {
       if (Platform.OS !== "android") {
         setPermModal(false);
+        setPermState({ cam: true, mic: true, loc: true });
         return;
       }
 
+      const camBefore = await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.CAMERA);
+      const micBefore = await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+      const locBefore =
+        (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)) ||
+        (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION));
+
+      const needs: string[] = [];
+      if (!camBefore) needs.push(PermissionsAndroid.PERMISSIONS.CAMERA);
+      if (!micBefore) needs.push(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+      if (!locBefore) needs.push(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+
       const results: Record<string, string> = {};
 
-      results.camera = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
-      results.mic = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-      results.loc = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+      if (needs.length > 0) {
+        const multi = await PermissionsAndroid.requestMultiple(needs as any);
+        results.camera = multi[PermissionsAndroid.PERMISSIONS.CAMERA];
+        results.mic = multi[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+        results.loc = multi[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+      }
 
-      const ok =
-        results.camera === PermissionsAndroid.RESULTS.GRANTED &&
-        results.mic === PermissionsAndroid.RESULTS.GRANTED &&
-        results.loc === PermissionsAndroid.RESULTS.GRANTED;
+      const cam =
+        camBefore ||
+        results.camera === PermissionsAndroid.RESULTS.GRANTED ||
+        (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.CAMERA));
+
+      const mic =
+        micBefore ||
+        results.mic === PermissionsAndroid.RESULTS.GRANTED ||
+        (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO));
+
+      const loc =
+        locBefore ||
+        results.loc === PermissionsAndroid.RESULTS.GRANTED ||
+        (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)) ||
+        (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION));
+
+      setPermState({ cam, mic, loc });
+
+      const ok = cam && mic && loc;
 
       if (!ok) {
-        showGlobalModal("권한", "카메라/마이크/위치(GPS) 권한이 필요합니다.");
+        showGlobalModal("권한허용이 필요합니다", "카메라/마이크/위치(GPS)권한을 설정에서 직접 켜야 합니다.");
         setPermModal(true);
       } else {
         setPermModal(false);
-        applyCountryFromGPS();
       }
     } catch {
       showGlobalModal("권한", "권한 요청에 실패했습니다.");
@@ -156,13 +167,150 @@ export default function HomeScreen({ navigation }: any) {
     } finally {
       setPermBusy(false);
     }
-  }, [applyCountryFromGPS, permBusy, showGlobalModal]);
+  }, [hasAndroidPermission, permBusy, showGlobalModal]);
 
   const goCall = useCallback(() => {
     navigation.navigate("Call");
   }, [navigation]);
 
+  const setLanguage = useCallback(
+    (lang: string) => {
+      const st: any = useAppStore.getState?.() ?? {};
+      const setPrefs = st.setPrefs;
+      const setPref = st.setPref;
+      const setPrefsField = st.setPrefsField;
+
+      if (typeof setPrefs === "function") {
+        setPrefs({ language: lang });
+      } else if (typeof setPref === "function") {
+        setPref("language", lang);
+      } else if (typeof setPrefsField === "function") {
+        setPrefsField("language", lang);
+      } else {
+        showGlobalModal("설정", "언어 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
+      }
+    },
+    [showGlobalModal]
+  );
+
+  const setCountry = useCallback(
+    (iso: string) => {
+      const st: any = useAppStore.getState?.() ?? {};
+      const setPrefs = st.setPrefs;
+      const setPref = st.setPref;
+      const setPrefsField = st.setPrefsField;
+
+      if (typeof setPrefs === "function") {
+        setPrefs({ country: iso });
+      } else if (typeof setPref === "function") {
+        setPref("country", iso);
+      } else if (typeof setPrefsField === "function") {
+        setPrefsField("country", iso);
+      } else {
+        showGlobalModal("설정", "나라 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
+      }
+    },
+    [showGlobalModal]
+  );
+
+  const setGender = useCallback(
+    (gender: string) => {
+      const st: any = useAppStore.getState?.() ?? {};
+      const setPrefs = st.setPrefs;
+      const setPref = st.setPref;
+      const setPrefsField = st.setPrefsField;
+
+      if (typeof setPrefs === "function") {
+        setPrefs({ gender });
+      } else if (typeof setPref === "function") {
+        setPref("gender", gender);
+      } else if (typeof setPrefsField === "function") {
+        setPrefsField("gender", gender);
+      } else {
+        showGlobalModal("설정", "성별 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
+      }
+    },
+    [showGlobalModal]
+  );
+
+  const languageOptions = useMemo(
+    () => [
+      { key: "ko", label: "한국어" },
+      { key: "en", label: "English" },
+      { key: "ja", label: "日本語" },
+      { key: "zh", label: "中文" },
+      { key: "es", label: "Español" },
+    ],
+    []
+  );
+
+  const countryOptions = useMemo(
+    () => [
+      { key: "KR", name: "Korea" },
+      { key: "US", name: "United States" },
+      { key: "JP", name: "Japan" },
+      { key: "CN", name: "China" },
+      { key: "TW", name: "Taiwan" },
+      { key: "HK", name: "Hong Kong" },
+      { key: "SG", name: "Singapore" },
+      { key: "TH", name: "Thailand" },
+      { key: "VN", name: "Vietnam" },
+      { key: "PH", name: "Philippines" },
+      { key: "ID", name: "Indonesia" },
+      { key: "MY", name: "Malaysia" },
+      { key: "IN", name: "India" },
+      { key: "AU", name: "Australia" },
+      { key: "CA", name: "Canada" },
+      { key: "GB", name: "United Kingdom" },
+      { key: "DE", name: "Germany" },
+      { key: "FR", name: "France" },
+      { key: "ES", name: "Spain" },
+      { key: "IT", name: "Italy" },
+      { key: "BR", name: "Brazil" },
+      { key: "MX", name: "Mexico" },
+    ],
+    []
+  );
+
+  const genderOptions = useMemo(
+    () => [
+      { key: "male", label: "남성" },
+      { key: "female", label: "여성" },
+    ],
+    []
+  );
+
+  const currentLanguageLabel = useMemo(() => {
+    const cur = String(prefs.language || "");
+    const found = languageOptions.find((x) => x.key === cur);
+    return found ? found.label : cur || "미설정";
+  }, [languageOptions, prefs.language]);
+
+  const currentCountryDisplay = useMemo(() => {
+    const cur = String(prefs.country || "").toUpperCase();
+    const found = countryOptions.find((x) => x.key === cur);
+    const nm = found ? found.name : cur || "미설정";
+    const cc = found ? found.key : cur;
+    const flag = isoToFlag(cc);
+    if (!cc) return nm;
+    return `${flag ? flag + " " : ""}${nm} (${cc})`;
+  }, [countryOptions, isoToFlag, prefs.country]);
+
+  const currentGenderLabel = useMemo(() => {
+    const cur = String(prefs.gender || "");
+    const found = genderOptions.find((x) => x.key === cur);
+    return found ? found.label : cur || "미설정";
+  }, [genderOptions, prefs.gender]);
+
+  const permOk = Boolean(permState.cam && permState.mic && permState.loc);
+
   const onPressMatch = useCallback(() => {
+    if (Platform.OS === "android" && !permOk) {
+      setPermModal(true);
+      requestPermissions();
+      return;
+    }
+
     if (!canMatch) {
       setPrefsModal(true);
       return;
@@ -233,38 +381,7 @@ export default function HomeScreen({ navigation }: any) {
       cleanup();
       runOnce();
     }, 1500);
-  }, [canMatch, goCall, isPremium]);
-
-  const setLanguage = useCallback(
-    (lang: string) => {
-      const st: any = useAppStore.getState?.() ?? {};
-      const setPrefs = st.setPrefs;
-      const setPref = st.setPref;
-      const setPrefsField = st.setPrefsField;
-
-      if (typeof setPrefs === "function") {
-        setPrefs({ language: lang });
-      } else if (typeof setPref === "function") {
-        setPref("language", lang);
-      } else if (typeof setPrefsField === "function") {
-        setPrefsField("language", lang);
-      } else {
-        showGlobalModal("설정", "언어 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
-      }
-    },
-    [showGlobalModal]
-  );
-
-  const languageOptions = useMemo(
-    () => [
-      { key: "ko", label: "한국어" },
-      { key: "en", label: "English" },
-      { key: "ja", label: "日本語" },
-      { key: "zh", label: "中文" },
-      { key: "es", label: "Español" },
-    ],
-    []
-  );
+  }, [canMatch, goCall, isPremium, permOk, requestPermissions]);
 
   return (
     <View style={styles.root}>
@@ -273,12 +390,10 @@ export default function HomeScreen({ navigation }: any) {
           <AppText style={styles.title}>랜덤 영상채팅</AppText>
           <AppText style={styles.sub}>지역/언어/성별을 설정한 뒤 매칭을 시작하세요.</AppText>
 
-          {/* ✅ 버튼 박스 크게 */}
           <View style={styles.matchBtnWrap}>
             <PrimaryButton title="매칭하기" onPress={onPressMatch} />
           </View>
 
-          {/* ✅ 설정 열기 → 권한 설정 */}
           <Pressable
             onPress={() => setPermModal(true)}
             style={({ pressed }) => [styles.smallLink, pressed ? { opacity: 0.6 } : null]}
@@ -296,80 +411,208 @@ export default function HomeScreen({ navigation }: any) {
 
       <AppModal
         visible={permModal}
-        title="권한이 필요합니다"
+        title=""
         dismissible={false}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title={permBusy ? "요청 중..." : "권한 허용하기"} onPress={requestPermissions} disabled={permBusy} />
+            <PrimaryButton
+              title={permBusy ? "요청 중..." : permOk ? "모든 권한 허용됨" : "권한 허용하기"}
+              onPress={requestPermissions}
+              disabled={permBusy || permOk}
+            />
             <PrimaryButton title="닫기" onPress={() => setPermModal(false)} variant="ghost" />
           </View>
         }
       >
-        <AppText style={styles.modalText}>
-          아래 권한을 허용해야 영상채팅을 시작할 수 있습니다.{"\n"}
-          {"\n"}• 카메라{"\n"}• 마이크(소리){"\n"}• 위치(GPS: 나라 자동 설정)
-        </AppText>
+        <AppText style={styles.permTitle}>권한이 필요합니다</AppText>
+        <AppText style={styles.modalText}>아래 권한을 허용해야 영상채팅을 시작할 수 있습니다.</AppText>
 
         <View style={{ height: 12 }} />
 
-        <PrimaryButton title="GPS로 나라 자동 설정" onPress={applyCountryFromGPS} variant="ghost" />
+        <View style={styles.permList}>
+          <View style={styles.permRow}>
+            <AppText style={[styles.permLeft, !permState.cam ? styles.permLeftNeed : null]}>• 카메라</AppText>
+            {!permState.cam ? <AppText style={styles.permNeed}>(권한허용필요)</AppText> : null}
+          </View>
+
+          <View style={styles.permRow}>
+            <AppText style={[styles.permLeft, !permState.mic ? styles.permLeftNeed : null]}>• 마이크(소리)</AppText>
+            {!permState.mic ? <AppText style={styles.permNeed}>(권한허용필요)</AppText> : null}
+          </View>
+
+          <View style={styles.permRow}>
+            <AppText style={[styles.permLeft, !permState.loc ? styles.permLeftNeed : null]}>• 위치(GPS)</AppText>
+            {!permState.loc ? <AppText style={styles.permNeed}>(권한허용필요)</AppText> : null}
+          </View>
+        </View>
       </AppModal>
 
       <AppModal
         visible={prefsModal}
         title="설정"
         dismissible={true}
-        onClose={() => setPrefsModal(false)}
+        onClose={() => {
+          setPrefsModal(false);
+          setLangOpen(false);
+          setCountryOpen(false);
+          setGenderOpen(false);
+        }}
         footer={
           <View style={{ gap: 10 }}>
             <PrimaryButton title="닫기" onPress={() => setPrefsModal(false)} variant="ghost" />
           </View>
         }
       >
-        <AppText style={styles.modalText}>지역/성별은 프로필에서 변경합니다.</AppText>
+        <AppText style={styles.modalText}>나라/언어/성별을 설정하세요.</AppText>
 
-        <View style={{ height: 12 }} />
+        <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>언어 선택</AppText>
-        <AppText style={styles.sectionSub}>매칭에 사용할 언어를 선택하세요. (현재: {String(prefs.language || "미설정")})</AppText>
+        <AppText style={styles.sectionTitle}>나라(지역)</AppText>
 
-        <View style={{ height: 10 }} />
+        <View style={{ height: 0 }} />
 
-        <View style={styles.langList}>
-          {languageOptions.map((opt) => {
-            const active = String(prefs.language || "") === opt.key;
-            return (
-              <Pressable
-                key={opt.key}
-                onPress={() => setLanguage(opt.key)}
-                style={({ pressed }) => [
-                  styles.langRow,
-                  active ? styles.langRowActive : null,
-                  pressed ? { opacity: 0.7 } : null,
-                ]}
-              >
-                <AppText style={[styles.langText, active ? styles.langTextActive : null]}>{opt.label}</AppText>
-                {active ? <AppText style={styles.langCheck}>✓</AppText> : null}
-              </Pressable>
-            );
-          })}
-        </View>
+        <Pressable
+          onPress={() => {
+            setCountryOpen((v) => !v);
+            setLangOpen(false);
+            setGenderOpen(false);
+          }}
+          style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}
+        >
+          <AppText style={styles.dropdownBtnText}>{currentCountryDisplay}</AppText>
+          <AppText style={styles.dropdownChevron}>{countryOpen ? "▲" : "▼"}</AppText>
+        </Pressable>
 
-        <View style={{ height: 16 }} />
+        {countryOpen ? (
+          <View style={styles.dropdownListWrap}>
+            <ScrollView
+              style={styles.dropdownScroll}
+              contentContainerStyle={styles.dropdownScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {countryOptions.map((opt) => {
+                const active = String(prefs.country || "").toUpperCase() === opt.key;
+                const flag = isoToFlag(opt.key);
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => {
+                      setCountry(opt.key);
+                      setCountryOpen(false);
+                    }}
+                    style={({ pressed }) => [
+                      styles.dropdownRow,
+                      active ? styles.dropdownRowActive : null,
+                      pressed ? { opacity: 0.75 } : null,
+                    ]}
+                  >
+                    <AppText style={[styles.dropdownText, active ? styles.dropdownTextActive : null]}>
+                      {flag ? `${flag} ` : ""}
+                      {opt.name}
+                    </AppText>
+
+                    <View style={styles.countryRight}>
+                      <AppText style={[styles.countryCode, active ? styles.countryCodeActive : null]}>({opt.key})</AppText>
+                      {active ? <AppText style={styles.dropdownCheck}>✓</AppText> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        <View style={{ height: 0 }} />
+
+        <AppText style={styles.sectionTitle}>언어</AppText>
+
+        <View style={{ height: 0 }} />
+
+        <Pressable
+          onPress={() => {
+            setLangOpen((v) => !v);
+            setCountryOpen(false);
+            setGenderOpen(false);
+          }}
+          style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}
+        >
+          <AppText style={styles.dropdownBtnText}>{currentLanguageLabel}</AppText>
+          <AppText style={styles.dropdownChevron}>{langOpen ? "▲" : "▼"}</AppText>
+        </Pressable>
+
+        {langOpen ? (
+          <View style={styles.dropdownList}>
+            {languageOptions.map((opt) => {
+              const active = String(prefs.language || "") === opt.key;
+              return (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => {
+                    setLanguage(opt.key);
+                    setLangOpen(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.dropdownRow,
+                    active ? styles.dropdownRowActive : null,
+                    pressed ? { opacity: 0.75 } : null,
+                  ]}
+                >
+                  <AppText style={[styles.dropdownText, active ? styles.dropdownTextActive : null]}>{opt.label}</AppText>
+                  {active ? <AppText style={styles.dropdownCheck}>✓</AppText> : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <View style={{ height: 0 }} />
+
+        <AppText style={styles.sectionTitle}>성별</AppText>
+
+        <View style={{ height: 0 }} />
+
+        <Pressable
+          onPress={() => {
+            setGenderOpen((v) => !v);
+            setCountryOpen(false);
+            setLangOpen(false);
+          }}
+          style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}
+        >
+          <AppText style={styles.dropdownBtnText}>{currentGenderLabel}</AppText>
+          <AppText style={styles.dropdownChevron}>{genderOpen ? "▲" : "▼"}</AppText>
+        </Pressable>
+
+        {genderOpen ? (
+          <View style={styles.dropdownList}>
+            {genderOptions.map((opt) => {
+              const active = String(prefs.gender || "") === opt.key;
+              return (
+                <Pressable
+                  key={opt.key}
+                  onPress={() => {
+                    setGender(opt.key);
+                    setGenderOpen(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.dropdownRow,
+                    active ? styles.dropdownRowActive : null,
+                    pressed ? { opacity: 0.75 } : null,
+                  ]}
+                >
+                  <AppText style={[styles.dropdownText, active ? styles.dropdownTextActive : null]}>{opt.label}</AppText>
+                  {active ? <AppText style={styles.dropdownCheck}>✓</AppText> : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <View style={{ height: 0 }} />
 
         <AppText style={styles.sectionTitle}>글자 크기</AppText>
-        <AppText style={styles.sectionSub}>바를 좌우로 드래그해서 조절하세요. ({Math.round(fontScale * 100)}%)</AppText>
+        <AppText style={styles.modalText}>바를 좌우로 드래그해서 조절하세요. ({Math.round(fontScale * 100)}%)</AppText>
         <FontSizeSlider value={fontScale} onChange={setFontScale} />
-
-        <View style={{ height: 14 }} />
-
-        <PrimaryButton
-          title="프로필로 이동"
-          onPress={() => {
-            setPrefsModal(false);
-            navigation.navigate("Profile");
-          }}
-        />
       </AppModal>
     </View>
   );
@@ -381,8 +624,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   title: { fontSize: 26, fontWeight: "700", color: theme.colors.text },
   sub: { fontSize: 14, color: theme.colors.sub, textAlign: "center", lineHeight: 20 },
-
-  // ✅ 매칭 버튼 크게(가로 꽉)
   matchBtnWrap: { width: "100%", maxWidth: 420 },
 
   banner: {
@@ -399,12 +640,18 @@ const styles = StyleSheet.create({
 
   modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
 
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: theme.colors.text },
-  sectionSub: { fontSize: 12, fontWeight: "700", color: theme.colors.sub, lineHeight: 18 },
+  permTitle: { fontSize: 18, fontWeight: "900", color: theme.colors.text, marginBottom: 6 },
+  permList: { width: "100%", gap: 8 },
+  permRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  permLeft: { fontSize: 14, color: theme.colors.text, fontWeight: "800" },
+  permLeftNeed: { color: "#ff4d4f" },
+  permNeed: { fontSize: 12, color: "#ff4d4f", fontWeight: "900" },
 
-  langList: { width: "100%", gap: 8, marginTop: 6 },
-  langRow: {
-    paddingVertical: 10,
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: theme.colors.text },
+
+  dropdownBtn: {
+    width: "100%",
+    paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
@@ -414,11 +661,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  langRowActive: {
+  dropdownBtnText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
+  dropdownChevron: { fontSize: 12, color: theme.colors.sub, fontWeight: "900" },
+
+  dropdownList: {
+    width: "100%",
+    marginTop: 8,
+    gap: 8,
+  },
+
+  dropdownListWrap: {
+    width: "100%",
+    marginTop: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  dropdownScroll: {
+    maxHeight: 210,
+  },
+  dropdownScrollContent: {
+    gap: 8,
+  },
+
+  dropdownRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.card,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdownRowActive: {
     borderColor: theme.colors.pinkDeep,
     backgroundColor: theme.colors.cardSoft,
   },
-  langText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
-  langTextActive: { color: theme.colors.pinkDeep },
-  langCheck: { fontSize: 14, color: theme.colors.pinkDeep, fontWeight: "900" },
+  dropdownText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
+  dropdownTextActive: { color: theme.colors.pinkDeep },
+  dropdownCheck: { fontSize: 14, color: theme.colors.pinkDeep, fontWeight: "900" },
+
+  countryRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  countryCode: { fontSize: 12, color: theme.colors.sub, fontWeight: "800" },
+  countryCodeActive: { color: theme.colors.pinkDeep },
 });

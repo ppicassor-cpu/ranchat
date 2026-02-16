@@ -9,11 +9,12 @@ export type SignalMessage =
   | { type: "answer"; sdp: any }
   | { type: "ice"; candidate: any }
   | { type: "end" }
+  | { type: "peer_cam"; enabled: boolean }
   | { type: "signal"; roomId: string; data: any }
   | { type: "error"; message?: string };
 
 type Cb = {
-  onOpen: () => void;      // ✅ "registered" 이후에 호출되도록 변경(근본 not_registered 루프 방지)
+  onOpen: () => void; // ✅ "registered" 이후에 호출되도록 유지(등록 전 enqueue -> not_registered 루프 방지)
   onClose: () => void;
   onMessage: (m: SignalMessage) => void;
 };
@@ -27,6 +28,7 @@ type ServerMessage =
   | { type: "signal"; roomId: string; fromSessionId?: string; data: any }
   | { type: "peer_left"; roomId?: string; sessionId?: string; peerSessionId?: string }
   | { type: "left"; roomId?: string; sessionId?: string }
+  | { type: "left_ok"; roomId?: string | null; sessionId?: string } // ✅ 서버가 떠난 사람에게 주는 ack(무시)
   | { type: "error"; reason?: string; message?: string };
 
 export class SignalClient {
@@ -38,6 +40,7 @@ export class SignalClient {
 
   private registered = false;
   private openNotified = false;
+  private closeNotified = false;
   private pending: any[] = [];
 
   constructor(cb: Cb) {
@@ -45,12 +48,19 @@ export class SignalClient {
   }
 
   async connect(baseUrl: string, token: string | null) {
+    // ✅ 기존 연결이 남아있으면 정리(중복 onClose/onError로 상태 꼬임 방지)
+    try {
+      this.ws?.close();
+    } catch {}
+    this.ws = null;
+
     const deviceKey = await getOrCreateDeviceKey();
     this.sessionId = String(deviceKey || "").trim();
     this.token = String(token || "").trim();
 
     this.registered = false;
     this.openNotified = false;
+    this.closeNotified = false;
     this.pending = [];
 
     this.ws = new WebSocket(baseUrl);
@@ -69,12 +79,24 @@ export class SignalClient {
       this.sendRaw({ type: "register", token: this.token, sessionId: this.sessionId });
     };
 
-    this.ws.onclose = () => {
+    const closeOnce = () => {
+      if (this.closeNotified) return;
+      this.closeNotified = true;
+
+      // 연결 끊기면 등록 상태도 초기화
+      this.registered = false;
+      this.openNotified = false;
+      this.pending = [];
+
       this.cb.onClose();
     };
 
+    this.ws.onclose = () => {
+      closeOnce();
+    };
+
     this.ws.onerror = () => {
-      this.cb.onClose();
+      closeOnce();
     };
 
     this.ws.onmessage = (ev: any) => {
@@ -106,6 +128,11 @@ export class SignalClient {
           return;
         }
 
+        // ✅ 떠난 사람에게 오는 ack는 무시(상대 종료로 오해하지 않기)
+        if (msg?.type === "left_ok") {
+          return;
+        }
+
         if (msg?.type === "peer_left" || msg?.type === "left") {
           this.cb.onMessage({ type: "end" });
           return;
@@ -133,6 +160,13 @@ export class SignalClient {
             return;
           }
 
+          // ✅ 상대 카메라 ON/OFF 상태(선택적으로 사용 가능)
+          if (t === "cam_state") {
+            const enabled = Boolean(d?.enabled ?? d?.on ?? d?.camOn ?? d?.videoEnabled ?? d?.videoOn);
+            this.cb.onMessage({ type: "peer_cam", enabled });
+            return;
+          }
+
           this.cb.onMessage({ type: "signal", roomId: msg.roomId, data: d });
           return;
         }
@@ -149,6 +183,7 @@ export class SignalClient {
   }
 
   enqueue(country: string, gender: string) {
+    // 서버가 country/gender를 무시해도 문제 없음(추가 필드 허용)
     this.send({ type: "enqueue", country, gender, platform: Platform.OS });
   }
 
@@ -165,6 +200,11 @@ export class SignalClient {
     this.relay(roomId, { type: "ice", candidate });
   }
 
+  // ✅ 내 카메라 ON/OFF 상태를 상대에게 알림(서버 최상위 타입 추가 없이 signal로 전송)
+  sendCamState(roomId: string, enabled: boolean) {
+    this.relay(roomId, { type: "cam_state", enabled: !!enabled });
+  }
+
   relay(roomId: string, data: any) {
     this.send({ type: "signal", roomId, data });
   }
@@ -175,6 +215,7 @@ export class SignalClient {
 
   // CallScreen.tsx에서 인자로 호출하므로 optional 처리
   leaveRoom(roomId?: string) {
+    // 서버는 roomId 없이도 처리하지만, 있어도 무방
     this.send({ type: "leave", roomId: roomId || undefined });
   }
 
@@ -186,6 +227,7 @@ export class SignalClient {
 
     this.registered = false;
     this.openNotified = false;
+    this.closeNotified = false;
     this.pending = [];
   }
 
