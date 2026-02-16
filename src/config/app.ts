@@ -23,10 +23,30 @@ const readPort = (k: string, fallback: number): number => {
   return Math.trunc(n);
 };
 
+function normalizeWssUrl(v: string): string {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  if (/^wss:\/\//i.test(s)) return s;
+  if (/^ws:\/\//i.test(s)) return s.replace(/^ws:\/\//i, "wss://");
+  if (/^https:\/\//i.test(s)) return s.replace(/^https:\/\//i, "wss://");
+  if (/^http:\/\//i.test(s)) return s.replace(/^http:\/\//i, "wss://");
+  return `wss://${s.replace(/^\/+/, "")}`;
+}
+
+function normalizeHttpsBase(v: string): string {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  if (/^https:\/\//i.test(s)) return s;
+  if (/^http:\/\//i.test(s)) return s.replace(/^http:\/\//i, "https://");
+  if (/^wss:\/\//i.test(s)) return s.replace(/^wss:\/\//i, "https://");
+  if (/^ws:\/\//i.test(s)) return s.replace(/^ws:\/\//i, "https://");
+  return `https://${s.replace(/^\/+/, "")}`;
+}
+
 const freeRemoteVideoSeconds = readNumber("EXPO_PUBLIC_FREE_REMOTE_VIDEO_SECONDS", 3000);
 
 export const APP_CONFIG = {
-  SIGNALING_URL: read("EXPO_PUBLIC_SIGNALING_URL", "ws://152.67.213.225:3001"),
+  SIGNALING_URL: normalizeWssUrl(read("EXPO_PUBLIC_SIGNALING_URL", "wss://comspc.duckdns.org")),
 
   TURN: {
     host: read("EXPO_PUBLIC_TURN_HOST", "152.67.213.225"),
@@ -36,7 +56,7 @@ export const APP_CONFIG = {
   },
 
   // ✅ 4000(다른 프로젝트) 안 건드리고, 기본값을 3001로 고정
-  AUTH_HTTP_BASE_URL: read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "http://152.67.213.225:3001"),
+  AUTH_HTTP_BASE_URL: normalizeHttpsBase(read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "https://comspc.duckdns.org")),
 
   ADS: {
     bannerAndroid: read("EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID", ""),

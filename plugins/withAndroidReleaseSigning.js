@@ -37,10 +37,15 @@ function ensureReleaseSigningConfig(gradle) {
   const rb = btInner.match(releaseBlockRegex);
   if (!rb) return gradle;
 
-  const rbBody = rb[1].replace(/^\s*signingConfig\s+signingConfigs\.(debug|release)\s*\n/gm, "");
+  let rbBody = rb[1].replace(/^\s*signingConfig\s+signingConfigs\.debug\s*\n/gm, "");
+  const hasReleaseSigning = /^\s*signingConfig\s+signingConfigs\.release\s*$/m.test(rbBody);
+
+  if (!hasReleaseSigning) {
+    rbBody = "            signingConfig signingConfigs.release\n" + rbBody;
+  }
+
   const fixedRelease =
     "release {\n" +
-    "            signingConfig signingConfigs.release\n" +
     rbBody +
     "\n        }";
 

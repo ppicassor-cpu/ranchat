@@ -236,6 +236,17 @@ export default function CallScreen({ navigation }: Props) {
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
 
     noMatchTimerRef.current = setTimeout(() => {
+      queueRunningRef.current = false;
+      enqueuedRef.current = false;
+
+      try {
+        wsRef.current?.leaveQueue();
+      } catch {}
+      try {
+        wsRef.current?.close();
+      } catch {}
+      wsRef.current = null;
+
       setNoMatchModal(true);
     }, MATCH_TIMEOUT_MS);
   };

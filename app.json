@@ -7,6 +7,14 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f6fabec8-bc52-4dc4-9088-0acb4d47a258",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -16,6 +24,7 @@
       "supportsTablet": true
     },
     "android": {
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -38,6 +47,7 @@
     },
     "plugins": [
       "./plugins/withAndroidReleaseSigning",
+      "./plugins/withAdIdPermission",
       [
         "react-native-google-mobile-ads",
         {
@@ -51,6 +61,13 @@
       "react-native-google-mobile-ads": {
         "androidAppId": "ca-app-pub-3940256099942544~3347511713",
         "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+      },
+      "eas": {
+        "projectId": "f6fabec8-bc52-4dc4-9088-0acb4d47a258"
+      },
+      "update": {
+        "channel": "production",
+        "branch": "main"
       }
     }
   }
