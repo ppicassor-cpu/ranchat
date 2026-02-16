@@ -19,14 +19,14 @@ function getBannerUnitId() {
   const android = String(process.env.EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID ?? "").trim();
   const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_BANNER_IOS ?? "").trim();
   const envId = Platform.OS === "ios" ? ios : android;
-  return envId || TestIds.BANNER;
+  return envId || (Platform.OS === "ios" ? TestIds.BANNER : "ca-app-pub-5144004139813427/1738956911");
 }
 
 function getInterstitialUnitId() {
   const android = String(process.env.EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_ANDROID ?? "").trim();
   const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_IOS ?? "").trim();
   const envId = Platform.OS === "ios" ? ios : android;
-  return envId || TestIds.INTERSTITIAL;
+  return envId || (Platform.OS === "ios" ? TestIds.INTERSTITIAL : "ca-app-pub-5144004139813427/9729127571");
 }
 
 export function createInterstitial() {

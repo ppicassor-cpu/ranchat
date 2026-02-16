@@ -1,4 +1,5 @@
-﻿import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from "react-native-webrtc";
+﻿//WebRTCSession.ts
+import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from "react-native-webrtc";
 import { PermissionsAndroid, Platform } from "react-native";
 import { APP_CONFIG } from "../../config/app";
 // @ts-ignore
