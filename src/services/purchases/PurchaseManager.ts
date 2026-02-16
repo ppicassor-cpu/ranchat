@@ -20,6 +20,21 @@ export async function initPurchases() {
   }
 }
 
+export async function purchasePremiumByProductId(productId: string) {
+  const offerings = await Purchases.getOfferings();
+  const current = offerings.current;
+  if (!current) throw new Error("No current offering");
+
+  const allPkgs = current.availablePackages ?? [];
+  const target = allPkgs.find((p) => p?.product?.identifier === productId);
+
+  if (!target) {
+    throw new Error(`Product not found in offering: ${productId}`);
+  }
+
+  await Purchases.purchasePackage(target);
+}
+
 export async function refreshSubscription() {
   const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
   try {
@@ -45,12 +60,10 @@ export async function purchasePremium() {
       return;
     }
 
-    // 실서비스에서는 RevenueCat Offering에서 정렬/패키지명을 맞추는 것을 전제로 합니다.
-    // 여기서는 가장 일반적인 패키지 우선순위: weekly -> monthly -> 6months (없으면 availablePackages 순서)
     const pick =
-      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.WEEKLY) ||
-      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.MONTHLY) ||
-      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.SIX_MONTH) ||
+      current.availablePackages.find((p) => p.packageType === Purchases.PACKAGE_TYPE.WEEKLY) ||
+      current.availablePackages.find((p) => p.packageType === Purchases.PACKAGE_TYPE.MONTHLY) ||
+      current.availablePackages.find((p) => p.packageType === Purchases.PACKAGE_TYPE.SIX_MONTH) ||
       current.availablePackages[0];
 
     await Purchases.purchasePackage(pick);

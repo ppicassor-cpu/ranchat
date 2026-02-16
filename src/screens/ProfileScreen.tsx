@@ -1,15 +1,17 @@
-﻿//C:\ranchat\src\screens\ProfileScreen.tsx
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { Linking, ScrollView, StyleSheet, View } from "react-native";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { theme } from "../config/theme";
 import { useAppStore } from "../store/useAppStore";
-import { purchasePremium, refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
+import { refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
 import { APP_CONFIG, COUNTRY_OPTIONS } from "../config/app";
 import AppText from "../components/AppText";
+import { useNavigation } from "@react-navigation/native";
 
 export default function ProfileScreen() {
+  const navigation = useNavigation<any>();
+
   const prefs = useAppStore((s) => s.prefs);
   const sub = useAppStore((s) => s.sub);
   const logoutAndWipe = useAppStore((s) => s.logoutAndWipe);
@@ -33,9 +35,9 @@ export default function ProfileScreen() {
     await Linking.openURL(url);
   };
 
-  const doPurchase = async () => {
-    await purchasePremium();
+  const goPremium = async () => {
     await refreshSubscription();
+    navigation.navigate("Premium");
   };
 
   const doWithdraw = async () => {
@@ -50,7 +52,7 @@ export default function ProfileScreen() {
 
         <View style={{ height: 10 }} />
 
-        {!sub.isPremium ? <PrimaryButton title="프리미엄 신청" onPress={doPurchase} /> : null}
+        {!sub.isPremium ? <PrimaryButton title="프리미엄 신청" onPress={goPremium} /> : null}
         <View style={{ height: 10 }} />
         <PrimaryButton title="구독 관리" onPress={openManageSubscriptions} variant="ghost" />
       </View>

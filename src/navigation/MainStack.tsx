@@ -1,15 +1,16 @@
-﻿//C:\ranchat\src\navigation\MainStack.tsx
-import React from "react";
+﻿import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "../screens/HomeScreen";
 import CallScreen from "../screens/CallScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import PremiumScreen from "../screens/PremiumScreen";
 import { theme } from "../config/theme";
 
 export type MainStackParamList = {
   Home: undefined;
   Call: undefined;
   Profile: undefined;
+  Premium: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -27,6 +28,7 @@ export default function MainStack() {
       <Stack.Screen name="Home" component={HomeScreen} options={{ title: "RanChat" }} />
       <Stack.Screen name="Call" component={CallScreen} options={{ title: "매칭" }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "프로필" }} />
+      <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: "프리미엄" }} />
     </Stack.Navigator>
   );
 }
