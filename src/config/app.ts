@@ -23,6 +23,22 @@ const readPort = (k: string, fallback: number): number => {
   return Math.trunc(n);
 };
 
+const readBool = (k: string, fallback: boolean): boolean => {
+  const raw = read(k, fallback ? "1" : "0").trim().toLowerCase();
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "y" || raw === "on") return true;
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "n" || raw === "off") return false;
+  return fallback;
+};
+
+const readList = (k: string): string[] => {
+  const raw = read(k, "").trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => String(s || "").trim())
+    .filter((s) => s.length > 0);
+};
+
 function normalizeWssUrl(v: string): string {
   const s = String(v || "").trim();
   if (!s) return "";
@@ -43,16 +59,42 @@ function normalizeHttpsBase(v: string): string {
   return `https://${s.replace(/^\/+/, "")}`;
 }
 
+function normalizeIceUrl(v: string, defaultScheme: "stun" | "turn" = "stun"): string {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  if (/^(stun|stuns|turn|turns):/i.test(s)) return s;
+  // "host:port" 같은 형태면 stun: 접두로 정규화
+  return `${defaultScheme}:${s.replace(/^\/+/, "")}`;
+}
+
 const freeRemoteVideoSeconds = readNumber("EXPO_PUBLIC_FREE_REMOTE_VIDEO_SECONDS", 3000);
+
+// ✅ STUN 분리 (2번 반영)
+// EXPO_PUBLIC_STUN_URLS="stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302" 형태
+const stunUrlsRaw = readList("EXPO_PUBLIC_STUN_URLS")
+  .map((u) => normalizeIceUrl(u, "stun"))
+  .filter((u) => u.length > 0);
+
+const stunUrls =
+  stunUrlsRaw.length > 0
+    ? stunUrlsRaw
+    : ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"];
 
 export const APP_CONFIG = {
   SIGNALING_URL: normalizeWssUrl(read("EXPO_PUBLIC_SIGNALING_URL", "wss://comspc.duckdns.org")),
+
+  // ✅ ICE 설정(클라 WebRTC에서 사용)
+  ICE: {
+    stunUrls,
+  },
 
   TURN: {
     host: read("EXPO_PUBLIC_TURN_HOST", "152.67.213.225"),
     port: readPort("EXPO_PUBLIC_TURN_PORT", 3478),
     username: read("EXPO_PUBLIC_TURN_USERNAME", "testuser"),
     password: read("EXPO_PUBLIC_TURN_PASSWORD", "testpass"),
+    // ✅ 3번 반영: 기본은 TCP 후보 사용 안 함(딜레이 큰 TCP 릴레이 회피)
+    tcpEnabled: readBool("EXPO_PUBLIC_TURN_TCP_ENABLED", false),
   },
 
   // ✅ 4000(다른 프로젝트) 안 건드리고, 기본값을 3001로 고정
@@ -72,7 +114,7 @@ export const APP_CONFIG = {
     privacyUrl: read("EXPO_PUBLIC_PRIVACY_POLICY_URL", ""),
   },
 
-  MATCH_TIMEOUT_MS: readNumber("EXPO_PUBLIC_MATCH_TIMEOUT_MS", 20000),
+  MATCH_TIMEOUT_MS: readNumber("EXPO_PUBLIC_MATCH_TIMEOUT_MS", 1200000),
   FREE_CALL_LIMIT_MS: readNumber("EXPO_PUBLIC_FREE_CALL_LIMIT_MS", freeRemoteVideoSeconds * 1000),
 
   FREE_LIMITS: {

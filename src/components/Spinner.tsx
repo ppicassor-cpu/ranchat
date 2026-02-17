@@ -18,6 +18,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
+    transform: [{ translateY: 50 }],
   },
   text: {
     color: "rgba(112, 112, 112, 0.85)",

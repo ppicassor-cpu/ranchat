@@ -1,6 +1,6 @@
 ﻿// FILE: C:\ranchat\src\screens\CallScreen.tsx
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { StyleSheet, View, Pressable, Dimensions, ScrollView } from "react-native";
+import { StyleSheet, View, Pressable, Dimensions, ScrollView, Text } from "react-native";
 import { RTCView } from "react-native-webrtc";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,8 +13,8 @@ import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
 import { useAppStore } from "../store/useAppStore";
 import { SignalClient, SignalMessage } from "../services/signal/SignalClient";
 import { WebRTCSession } from "../services/webrtc/WebRTCSession";
-import { BannerBar, createInterstitial } from "../services/ads/AdManager";
-import { AdEventType, NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, NativeMediaAspectRatio, TestIds } from "react-native-google-mobile-ads";
+import { BannerBar, createInterstitial, initAds } from "../services/ads/AdManager";
+import mobileAds, { AdEventType, NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, NativeMediaAspectRatio, TestIds } from "react-native-google-mobile-ads";
 import { purchasePremium, refreshSubscription } from "../services/purchases/PurchaseManager";
 import type { MainStackParamList } from "../navigation/MainStack";
 import AppText from "../components/AppText";
@@ -28,7 +28,7 @@ type Phase = "connecting" | "queued" | "matched" | "calling" | "ended";
 // ✅ APP_CONFIG 타입에 값이 없어도 TS 에러 없이 동작하도록 fallback 상수로 사용
 const MATCH_TIMEOUT_MS = (() => {
   const v = Number((APP_CONFIG as any)?.MATCH_TIMEOUT_MS);
-  return Number.isFinite(v) ? v : 20000;
+  return Number.isFinite(v) ? v : 60000;
 })();
 
 // ✅ 무료 30초 제한을 3000초로 변경(사실상 비활성 수준)
@@ -43,7 +43,7 @@ const FREE_CALL_LIMIT_MS = (() => {
 })();
 
 // ✅ 전면광고 재노출 쿨다운(3분)
-const INTERSTITIAL_COOLDOWN_MS = 3 * 60 * 1000;
+const INTERSTITIAL_COOLDOWN_MS = 4 * 60 * 1000;
 
 function countryCodeToFlagEmoji(code: string) {
   const cc = String(code || "").trim().toUpperCase();
@@ -66,7 +66,7 @@ function normalizeLanguageLabel(v: string) {
   return s;
 }
 
-const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").trim() || TestIds.NATIVE;
+const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").trim() || "ca-app-pub-5144004139813427/8416045900";
 
 function QueueNativeAd256x144() {
   const [nativeAd, setNativeAd] = useState<NativeAd | null>(null);
@@ -100,12 +100,14 @@ function QueueNativeAd256x144() {
   if (!nativeAd) return null;
 
   return (
-    <NativeAdView nativeAd={nativeAd} style={[styles.nativeAd256, { width: 360, height: 202 }]}>
+    <NativeAdView nativeAd={nativeAd} style={[styles.nativeAd256, { width: W, height: Math.round((W * 202) / 360) }]}>
       <View style={styles.nativeAdInner}>
         <NativeMediaView style={styles.nativeAdMedia} resizeMode="cover" />
         <View style={styles.nativeAdFooter}>
           <NativeAsset assetType={NativeAssetType.HEADLINE}>
-            <AppText style={styles.nativeAdHeadline}>{nativeAd.headline}</AppText>
+            <Text style={styles.nativeAdHeadline} numberOfLines={1}>
+              {nativeAd.headline}
+            </Text>
           </NativeAsset>
           <AppText style={styles.nativeAdTag}>광고</AppText>
         </View>
@@ -143,6 +145,7 @@ export default function CallScreen({ navigation }: Props) {
 
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [noMatchModal, setNoMatchModal] = useState(false);
+  const [fastMatchHint, setFastMatchHint] = useState(false);
 
   const [reMatchText, setReMatchText] = useState<string>("");
 
@@ -167,14 +170,76 @@ export default function CallScreen({ navigation }: Props) {
   const noMatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requeueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const premiumNoMatchAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noMatchShownThisCycleRef = useRef(false);
+
   const canStart = useRef(false);
+
+  const [adsReady, setAdsReady] = useState(false);
+  const adsReadyRef = useRef(false);
+  const adsAliveRef = useRef(true);
+  const adsInitPromiseRef = useRef<Promise<any> | null>(null);
+  const [bannerMountKey, setBannerMountKey] = useState(0);
 
   const adAllowedRef = useRef(false);
   const interstitialTokenRef = useRef(0);
   const interstitialCleanupRef = useRef<(() => void) | null>(null);
   const interstitialTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const iceStatsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastIceInfoRef = useRef<any>(null);
+  const [iceInfoText, setIceInfoText] = useState<string>("");
+
   const [peerInfo, setPeerInfo] = useState<any>(null);
+
+  // ✅ 최신 상태 참조용 ref들(통화 중 ws close 시 재매칭/종료 방지)
+  const phaseRef = useRef<Phase>("connecting");
+  const roomIdRef = useRef<string | null>(null);
+  const myCamOnRef = useRef<boolean>(true);
+  const mySoundOnRef = useRef<boolean>(true);
+
+  const manualCloseRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
+
+  const webrtcDownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const webrtcDownTokenRef = useRef(0);
+
+  const [signalUnstable, setSignalUnstable] = useState(false);
+
+  const waitAdsReady = useCallback(async (maxWaitMs = 1000) => {
+    if (adsReadyRef.current) return true;
+
+    try {
+      initAds();
+    } catch {}
+
+    if (!adsInitPromiseRef.current) {
+      try {
+        const p = mobileAds().initialize();
+        adsInitPromiseRef.current = Promise.resolve(p as any);
+
+        (p as any)?.then?.(() => {
+          if (adsReadyRef.current) return;
+          adsReadyRef.current = true;
+          if (!adsAliveRef.current) return;
+          setAdsReady(true);
+        }).catch?.(() => {});
+      } catch {}
+    }
+
+    const p = adsInitPromiseRef.current;
+    if (!p) return adsReadyRef.current;
+
+    try {
+      await Promise.race([
+        p,
+        new Promise((resolve) => setTimeout(resolve, Math.max(0, maxWaitMs))),
+      ]);
+    } catch {}
+
+    return adsReadyRef.current;
+  }, []);
 
   const peerCountryRaw = useMemo(() => String((peerInfo as any)?.country ?? ""), [peerInfo]);
   const peerLangRaw = useMemo(() => String((peerInfo as any)?.language ?? (peerInfo as any)?.lang ?? ""), [peerInfo]);
@@ -231,11 +296,55 @@ export default function CallScreen({ navigation }: Props) {
     canStart.current = Boolean(String(prefs.country || "").length > 0 && String(prefs.gender || "").length > 0);
   }, [prefs.country, prefs.gender]);
 
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
+
+  useEffect(() => {
+    myCamOnRef.current = myCamOn;
+  }, [myCamOn]);
+
+  useEffect(() => {
+    mySoundOnRef.current = mySoundOn;
+  }, [mySoundOn]);
+
+  useEffect(() => {
+    adsAliveRef.current = true;
+    waitAdsReady(1000);
+    return () => {
+      adsAliveRef.current = false;
+    };
+  }, [waitAdsReady]);
+
+  useEffect(() => {
+    if (!adsReady) return;
+    setBannerMountKey((k) => k + 1);
+  }, [adsReady]);
+
   const startNoMatchTimer = () => {
-    if (isPremium) return;
+    if (noMatchShownThisCycleRef.current) return;
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
 
     noMatchTimerRef.current = setTimeout(() => {
+      if (noMatchShownThisCycleRef.current) return;
+      noMatchShownThisCycleRef.current = true;
+
+      if (isPremium) {
+        setFastMatchHint(true);
+        setNoMatchModal(true);
+
+        if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
+        premiumNoMatchAutoCloseRef.current = setTimeout(() => {
+          setNoMatchModal(false);
+        }, 3000);
+
+        return;
+      }
+
       queueRunningRef.current = false;
       enqueuedRef.current = false;
 
@@ -243,6 +352,7 @@ export default function CallScreen({ navigation }: Props) {
         wsRef.current?.leaveQueue();
       } catch {}
       try {
+        manualCloseRef.current = true;
         wsRef.current?.close();
       } catch {}
       wsRef.current = null;
@@ -254,7 +364,56 @@ export default function CallScreen({ navigation }: Props) {
   const clearNoMatchTimer = () => {
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
     noMatchTimerRef.current = null;
+
+    if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
+    premiumNoMatchAutoCloseRef.current = null;
   };
+
+  const clearIceStatsTimer = () => {
+    if (iceStatsTimerRef.current) clearInterval(iceStatsTimerRef.current);
+    iceStatsTimerRef.current = null;
+  };
+
+  const clearReconnectTimer = () => {
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = null;
+    reconnectAttemptRef.current = 0;
+  };
+
+  const clearWebrtcDownTimer = () => {
+    if (webrtcDownTimerRef.current) clearTimeout(webrtcDownTimerRef.current);
+    webrtcDownTimerRef.current = null;
+    webrtcDownTokenRef.current += 1;
+  };
+
+  const updateIceInfo = useCallback(async () => {
+    try {
+      const info = await (rtcRef.current as any)?.getIcePathInfo?.();
+      if (!info) return;
+
+      lastIceInfoRef.current = info;
+
+      const lc = String(info.localCandidateType ?? "").trim();
+      const rc = String(info.remoteCandidateType ?? "").trim();
+      const lp = String(info.localProtocol ?? "").trim();
+      const rp = String(info.remoteProtocol ?? "").trim();
+
+      const rttMs = Number.isFinite(Number(info.currentRoundTripTimeMs)) ? `${Math.round(Number(info.currentRoundTripTimeMs))}ms` : "";
+      const outKbps = Number.isFinite(Number(info.availableOutgoingBitrate))
+        ? `${Math.max(0, Math.round(Number(info.availableOutgoingBitrate) / 1000))}kbps`
+        : "";
+
+      const parts: string[] = [];
+      if (lc || lp) parts.push(`L:${lc || "?"}${lp ? `/${lp}` : ""}`);
+      if (rc || rp) parts.push(`R:${rc || "?"}${rp ? `/${rp}` : ""}`);
+      if (rttMs) parts.push(`RTT:${rttMs}`);
+      if (outKbps) parts.push(`OUT:${outKbps}`);
+
+      const text = parts.length ? `ICE ${parts.join(" · ")}` : "";
+
+      setIceInfoText((prev) => (prev === text ? prev : text));
+    } catch {}
+  }, []);
 
   const stopAll = () => {
     adAllowedRef.current = false;
@@ -275,6 +434,18 @@ export default function CallScreen({ navigation }: Props) {
 
     clearNoMatchTimer();
 
+    clearIceStatsTimer();
+    lastIceInfoRef.current = null;
+    setIceInfoText("");
+
+    clearReconnectTimer();
+    clearWebrtcDownTimer();
+
+    setSignalUnstable(false);
+
+    noMatchShownThisCycleRef.current = false;
+    setFastMatchHint(false);
+
     queueRunningRef.current = false;
     enqueuedRef.current = false;
 
@@ -282,6 +453,7 @@ export default function CallScreen({ navigation }: Props) {
       wsRef.current?.leaveQueue();
     } catch {}
     try {
+      manualCloseRef.current = true;
       wsRef.current?.close();
     } catch {}
     wsRef.current = null;
@@ -364,6 +536,13 @@ export default function CallScreen({ navigation }: Props) {
         return;
       }
 
+      const ready = await waitAdsReady(1000);
+      if (!ready) {
+        adAllowedRef.current = false;
+        after();
+        return;
+      }
+
       const ad = createInterstitial();
 
       let done = false;
@@ -436,18 +615,59 @@ export default function CallScreen({ navigation }: Props) {
         onIceCandidate: (c) => ws.sendIce(rid, c),
         onAnswer: (sdp) => ws.sendAnswer(rid, sdp),
         onOffer: (sdp) => ws.sendOffer(rid, sdp),
+        onConnectionState: (s) => {
+          const st = String(s || "").toLowerCase();
+
+          if (st === "connected") {
+            clearWebrtcDownTimer();
+
+            if (!iceStatsTimerRef.current) {
+              updateIceInfo();
+              iceStatsTimerRef.current = setInterval(() => {
+                updateIceInfo();
+              }, 2000);
+            }
+            return;
+          }
+
+          if (st === "failed" || st === "disconnected" || st === "closed") {
+            clearIceStatsTimer();
+            updateIceInfo();
+
+            const tokenNow = webrtcDownTokenRef.current + 1;
+            webrtcDownTokenRef.current = tokenNow;
+
+            if (webrtcDownTimerRef.current) clearTimeout(webrtcDownTimerRef.current);
+            webrtcDownTimerRef.current = setTimeout(() => {
+              if (webrtcDownTokenRef.current !== tokenNow) return;
+              if (phaseRef.current !== "calling") return;
+
+              // ✅ 실제 WebRTC 끊김이 일정 시간 지속될 때만 재매칭
+              endCallAndRequeue("disconnect");
+            }, 8000);
+
+            return;
+          }
+        },
       });
 
       rtcRef.current = rtc;
       await rtc.start({ isCaller: caller });
 
+      // ✅ 사용자가 꺼둔 상태(카메라/마이크)를 새 세션에도 즉시 적용
+      try {
+        rtcRef.current?.setLocalVideoEnabled(Boolean(myCamOnRef.current));
+      } catch {}
+      try {
+        rtcRef.current?.setLocalAudioEnabled(Boolean(mySoundOnRef.current));
+      } catch {}
+
       setReMatchText("");
       setPhase("calling");
 
       try {
-        ws.relay(rid, { type: "cam", enabled: Boolean(myCamOn) });
+        ws.relay(rid, { type: "cam", enabled: Boolean(myCamOnRef.current) });
       } catch {}
-
 
       if (!isPremium) {
         if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
@@ -458,7 +678,9 @@ export default function CallScreen({ navigation }: Props) {
       }
     } catch (e) {
       useAppStore.getState().showGlobalModal("통화", "통화를 시작할 수 없습니다.");
-      ws.leaveRoom(rid);
+      try {
+        ws.leaveRoom(rid);
+      } catch {}
       stopAll();
       navigation.goBack();
     }
@@ -489,6 +711,13 @@ export default function CallScreen({ navigation }: Props) {
     queueRunningRef.current = true;
     enqueuedRef.current = false;
 
+    manualCloseRef.current = false;
+    clearReconnectTimer();
+    clearWebrtcDownTimer();
+
+    noMatchShownThisCycleRef.current = false;
+    setFastMatchHint(false);
+
     if (!canStart.current) {
       useAppStore.getState().showGlobalModal("매칭", "필터(나라/성별)가 설정되지 않았습니다.");
       queueRunningRef.current = false;
@@ -504,6 +733,35 @@ export default function CallScreen({ navigation }: Props) {
 
     const ws = new SignalClient({
       onOpen: () => {
+        // ✅ 재연결 성공 시(통화 중 포함) 네트워크 불안정 표시 해제 + backoff 초기화
+        setSignalUnstable(false);
+        reconnectAttemptRef.current = 0;
+
+        // ✅ 통화 중 재연결은 "재매칭/재큐잉" 금지, 상태만 동기화
+        if (phaseRef.current === "calling") {
+          const rid = roomIdRef.current;
+
+          if (rid) {
+            try {
+              ws.relay(rid, {
+                type: "peer_info",
+                country: myCountryRaw,
+                language: myLangRaw,
+                gender: myGenderRaw,
+                flag: myFlag,
+                languageLabel: myLangLabel,
+                genderLabel: myGenderLabel,
+              });
+            } catch {}
+
+            try {
+              ws.relay(rid, { type: "cam", enabled: Boolean(myCamOnRef.current) });
+            } catch {}
+          }
+
+          return;
+        }
+
         setPhase("queued");
 
         if (enqueuedRef.current) return;
@@ -513,6 +771,32 @@ export default function CallScreen({ navigation }: Props) {
         ws.enqueue(String(prefs.country), String(prefs.gender));
       },
       onClose: () => {
+        if (manualCloseRef.current) return;
+
+        // ✅ 통화 중에는 재매칭/종료 금지 -> 재연결(backoff)만 수행 + "네트워크 불안정" 표시
+        if (phaseRef.current === "calling") {
+          setSignalUnstable(true);
+
+          if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+          const attempt = reconnectAttemptRef.current + 1;
+          reconnectAttemptRef.current = attempt;
+
+          const base = Math.min(15000, 500 * Math.pow(2, attempt - 1));
+          const jitter = Math.floor(Math.random() * 250);
+          const delay = Math.min(30000, base + jitter);
+
+          reconnectTimerRef.current = setTimeout(() => {
+            if (manualCloseRef.current) return;
+            if (phaseRef.current !== "calling") return;
+            if (wsRef.current !== ws) return;
+
+            const tokenNow = useAppStore.getState().auth.token;
+            ws.connect(APP_CONFIG.SIGNALING_URL, tokenNow);
+          }, delay);
+
+          return;
+        }
+
         if (queueRunningRef.current) {
           endCallAndRequeue("disconnect");
         }
@@ -525,7 +809,18 @@ export default function CallScreen({ navigation }: Props) {
         }
 
         if (msg.type === "match") {
+          // ✅ 통화 중에는 재매칭 금지(순간 재연결/중복 match 방지)
+          if (phaseRef.current === "calling") {
+            return;
+          }
+
           clearNoMatchTimer();
+          setNoMatchModal(false);
+          setFastMatchHint(false);
+
+          // ✅ 매칭되면 더 이상 "큐가 돈다"로 취급하지 않음(WS close로 재매칭 트리거 방지)
+          queueRunningRef.current = false;
+          enqueuedRef.current = false;
 
           setRoomId(msg.roomId);
           setIsCaller(Boolean(msg.isCaller));
@@ -591,6 +886,11 @@ export default function CallScreen({ navigation }: Props) {
         if (msg.type === "error") {
           const reason = String(msg.message ?? "").trim();
           const reasonLower = reason.toLowerCase();
+
+          // ✅ 재연결/중복 요청 등으로 나올 수 있는 서버 응답은 무시(모달/통화 실패 방지)
+          if (reasonLower === "already_in_room" || reasonLower === "not_in_room") {
+            return;
+          }
 
           if (reasonLower === "not_registered") {
             if (rebindOnceRef.current) {
@@ -684,6 +984,8 @@ export default function CallScreen({ navigation }: Props) {
   };
 
   const dismissNoMatch = () => {
+    if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
+    premiumNoMatchAutoCloseRef.current = null;
     setNoMatchModal(false);
   };
 
@@ -898,7 +1200,7 @@ export default function CallScreen({ navigation }: Props) {
         ) : null}
 
         {!isPremium && phase !== "calling" ? (
-          <View style={[styles.queueAdDock, { top: insets.top + 96 }]}>
+          <View style={[styles.queueAdDock, { top: insets.top + 55 }]}>
             <QueueNativeAd256x144 />
           </View>
         ) : null}
@@ -913,6 +1215,8 @@ export default function CallScreen({ navigation }: Props) {
 
             {reMatchText ? (
               <AppText style={styles.centerText}>{reMatchText}</AppText>
+            ) : fastMatchHint ? (
+              <AppText style={styles.centerText}>빠른 매칭 중...</AppText>
             ) : phase === "connecting" ? (
               <AppText style={styles.centerText}>연결 중...</AppText>
             ) : phase === "matched" ? (
@@ -923,22 +1227,34 @@ export default function CallScreen({ navigation }: Props) {
         ) : null}
 
 
-        {/* ✅ 우측하단 배너 + 그 위 내 나라/국기/언어 + 아이콘(다른상대찾기) */}
-        {!isPremium ? (
-          <View style={[styles.bannerDock, { paddingBottom: Math.max(insets.bottom, 8), left: 0, right: 0 }]}>
-            <View style={styles.myInfoRow}>
-              <View style={styles.myInfoCenter}>
-                {peerInfoText ? <AppText style={styles.myInfoText}>{peerInfoText}</AppText> : null}
-              </View>
+        {/* ✅ 새로고침 버튼은 프리미엄이어도 항상 보여야 함 (배너 유무에 따라 아래로 내려옴) */}
+        <Pressable
+          onPress={onPressFindOther}
+          style={({ pressed }) => [
+            styles.findOtherBtn,
+            {
+              right: 12,
+              bottom: Math.max(insets.bottom, 8) + (isPremium ? 8 : 8 + (adsReady ? BANNER_RESERVED_HEIGHT : 0)),
+            },
+            pressed ? { opacity: 0.7 } : null,
+          ]}
+        >
+          <Ionicons name="sync-circle" size={60} color="rgba(255, 205, 230, 0.84)" />
+        </Pressable>
 
-              <Pressable onPress={onPressFindOther} style={({ pressed }) => [styles.findOtherBtn, pressed ? { opacity: 0.7 } : null]}>
-                <Ionicons name="sync-circle" size={60} color="rgba(255, 205, 230, 0.84)" />
-              </Pressable>
+        {/* ✅ 우측하단 배너 + 그 위 내 나라/국기/언어 */}
+        <View style={[styles.bannerDock, { paddingBottom: Math.max(insets.bottom, 8), left: 0, right: 0 }]}>
+          <View style={styles.myInfoRow}>
+            <View style={styles.myInfoCenter}>
+              {peerInfoText ? <AppText style={styles.myInfoText}>{peerInfoText}</AppText> : null}
+              {phase === "calling" && iceInfoText ? <AppText style={styles.myIceText}>{iceInfoText}</AppText> : null}
+              {phase === "calling" && signalUnstable ? <AppText style={styles.netUnstableText}>네트워크 불안정</AppText> : null}
             </View>
-
-            <BannerBar />
           </View>
-        ) : null}
+
+
+          {!isPremium && adsReady ? <BannerBar key={`banner_${bannerMountKey}`} /> : null}
+        </View>
       </View>
 
       <AppModal
@@ -977,19 +1293,31 @@ export default function CallScreen({ navigation }: Props) {
 
       <AppModal
         visible={noMatchModal}
-        title="매칭이 지연되고 있습니다"
+        title={isPremium ? "빠른 매칭 중" : "매칭이 지연되고 있습니다"}
         dismissible={true}
         onClose={dismissNoMatch}
         footer={
-          <View style={{ gap: 10 }}>
-            <PrimaryButton title="다시 시도" onPress={retry} />
-            <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
-          </View>
+          isPremium ? (
+            <View style={{ gap: 10 }}>
+              <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              <PrimaryButton title="다시 시도" onPress={retry} />
+              <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+            </View>
+          )
         }
       >
-        <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-          조금만 기다렸다가 다시 시도해 주세요.
-        </AppText>
+        {isPremium ? (
+          <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
+            빠른 매칭 중입니다.{"\n"}(이 창은 자동으로 닫힙니다)
+          </AppText>
+        ) : (
+          <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
+            조금만 기다렸다가 다시 시도해 주세요.
+          </AppText>
+        )}
       </AppModal>
 
       <AppModal
@@ -1164,7 +1492,7 @@ export default function CallScreen({ navigation }: Props) {
 }
 
 const W = Dimensions.get("window").width;
-
+const BANNER_RESERVED_HEIGHT = 60;
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
 
@@ -1342,15 +1670,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  myIceText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+
+  netUnstableText: {
+    color: "rgba(255, 170, 170, 0.92)",
+    fontSize: 11,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+
   findOtherBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     position: "absolute",
-    right: 12,
-    top: -40,
-    bottom: 0,
+    zIndex: 13,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 
   modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },

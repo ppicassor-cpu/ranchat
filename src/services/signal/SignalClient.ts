@@ -35,24 +35,45 @@ export class SignalClient {
   private ws: WebSocket | null = null;
   private cb: Cb;
 
+  private baseUrl: string = "";
   private token: string = "";
   private sessionId: string = "";
 
   private registered = false;
   private openNotified = false;
   private closeNotified = false;
+
   private pending: any[] = [];
+
+  // ✅ reconnect/backoff
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempt = 0;
+  private manualClose = false;
+
+  private socketSeq = 0;
+  private currentSocketId = 0;
+
+  // ✅ 큐 유지(재연결 후 자동 enqueue 용)
+  private wantEnqueue = false;
+  private lastEnqueuePayload: { country: string; gender: string; platform: string } | null = null;
 
   constructor(cb: Cb) {
     this.cb = cb;
   }
 
   async connect(baseUrl: string, token: string | null) {
-    // ✅ 기존 연결이 남아있으면 정리(중복 onClose/onError로 상태 꼬임 방지)
+    // ✅ 기존 reconnect 예약이 있으면 취소
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+
+    // ✅ 기존 ws 정리(중복 이벤트로 상태 꼬임 방지)
     try {
       this.ws?.close();
     } catch {}
     this.ws = null;
+
+    this.baseUrl = String(baseUrl || "").trim();
+    this.manualClose = false;
 
     const deviceKey = await getOrCreateDeviceKey();
     this.sessionId = String(deviceKey || "").trim();
@@ -63,14 +84,67 @@ export class SignalClient {
     this.closeNotified = false;
     this.pending = [];
 
-    this.ws = new WebSocket(baseUrl);
+    this.wantEnqueue = false;
+    this.lastEnqueuePayload = null;
 
-    this.ws.onopen = () => {
+    this.reconnectAttempt = 0;
+
+    this.openSocket();
+  }
+
+  private openSocket() {
+    if (!this.baseUrl) {
+      this.cb.onMessage({ type: "error", message: "MISSING_SIGNALING_URL" });
+      return;
+    }
+
+    const socketId = ++this.socketSeq;
+    this.currentSocketId = socketId;
+
+    // ✅ 이전 ws 정리
+    try {
+      this.ws?.close();
+    } catch {}
+    this.ws = null;
+
+    this.registered = false;
+    this.closeNotified = false;
+
+    const ws = new WebSocket(this.baseUrl);
+    this.ws = ws;
+
+    const closeOrErrorOnce = () => {
+      if (this.currentSocketId !== socketId) return; // stale
+      if (this.closeNotified) return;
+      this.closeNotified = true;
+
+      // ✅ 연결 끊기면 등록 상태만 초기화(통화/매칭 종료는 CallScreen에서 판단)
+      this.registered = false;
+
+      // ✅ ws 참조 제거
+      try {
+        this.ws?.close();
+      } catch {}
+      this.ws = null;
+
+      // ✅ 수동 close가 아니면 자동 재연결(backoff)
+      if (!this.manualClose) {
+        this.scheduleReconnect();
+        return;
+      }
+
+      // ✅ 수동 close면 기존 동작 유지(필요 시 UI 정리)
+      this.cb.onClose();
+    };
+
+    ws.onopen = () => {
+      if (this.currentSocketId !== socketId) return; // stale
+
       // 서버 요구: register(token+sessionId) 먼저
       if (!this.token || !this.sessionId) {
         this.cb.onMessage({ type: "error", message: "REGISTER_REQUIRES_TOKEN_AND_SESSIONID" });
         try {
-          this.ws?.close();
+          ws.close();
         } catch {}
         return;
       }
@@ -79,42 +153,40 @@ export class SignalClient {
       this.sendRaw({ type: "register", token: this.token, sessionId: this.sessionId });
     };
 
-    const closeOnce = () => {
-      if (this.closeNotified) return;
-      this.closeNotified = true;
-
-      // 연결 끊기면 등록 상태도 초기화
-      this.registered = false;
-      this.openNotified = false;
-      this.pending = [];
-
-      this.cb.onClose();
+    ws.onclose = () => {
+      closeOrErrorOnce();
     };
 
-    this.ws.onclose = () => {
-      closeOnce();
+    ws.onerror = () => {
+      closeOrErrorOnce();
     };
 
-    this.ws.onerror = () => {
-      closeOnce();
-    };
+    ws.onmessage = (ev: any) => {
+      if (this.currentSocketId !== socketId) return; // stale
 
-    this.ws.onmessage = (ev: any) => {
       try {
         const msg = JSON.parse(String(ev?.data ?? "{}")) as ServerMessage;
 
         if (msg?.type === "registered") {
           this.registered = true;
+          this.reconnectAttempt = 0;
 
           if (!this.openNotified) {
             this.openNotified = true;
             this.cb.onOpen();
           }
 
-          // pending flush
+          // ✅ 재연결 시에도 통화/대기 로직이 꼬이지 않도록:
+          // 1) pending flush
           const q = this.pending.slice();
           this.pending = [];
           q.forEach((x) => this.sendRaw(x));
+
+          // 2) 큐 유지가 필요한 경우(대기 중 끊김) 자동 enqueue
+          if (this.wantEnqueue && this.lastEnqueuePayload) {
+            this.sendRaw({ type: "enqueue", ...this.lastEnqueuePayload });
+          }
+
           return;
         }
 
@@ -124,6 +196,10 @@ export class SignalClient {
         }
 
         if (msg?.type === "matched") {
+          // ✅ 매칭되면 더 이상 큐 유지/자동 enqueue 하지 않음
+          this.wantEnqueue = false;
+          this.lastEnqueuePayload = null;
+
           this.cb.onMessage({ type: "match", roomId: msg.roomId, isCaller: !!msg.initiator });
           return;
         }
@@ -182,9 +258,41 @@ export class SignalClient {
     };
   }
 
+  private scheduleReconnect() {
+    if (this.manualClose) return;
+
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+
+    // backoff: 500ms * 2^n (cap 10s) + jitter(0~250ms)
+    const base = 500;
+    const cap = 10_000;
+    const pow = Math.min(10, Math.max(0, this.reconnectAttempt));
+    const backoff = Math.min(cap, base * Math.pow(2, pow));
+    const jitter = Math.floor(Math.random() * 250);
+    const delay = backoff + jitter;
+
+    this.reconnectAttempt += 1;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.manualClose) return;
+
+      // ✅ 다시 소켓 열기
+      this.openSocket();
+    }, delay);
+  }
+
   enqueue(country: string, gender: string) {
-    // 서버가 country/gender를 무시해도 문제 없음(추가 필드 허용)
-    this.send({ type: "enqueue", country, gender, platform: Platform.OS });
+    // ✅ 재연결 후 자동으로 다시 enqueue되게 유지
+    this.wantEnqueue = true;
+    this.lastEnqueuePayload = { country, gender, platform: Platform.OS };
+
+    // ✅ 서버가 country/gender를 무시해도 문제 없음(추가 필드 허용)
+    // ✅ registered 전이면 등록 후 자동 enqueue로 처리(중복 enqueue 방지)
+    if (!this.registered) return;
+
+    this.sendRaw({ type: "enqueue", ...this.lastEnqueuePayload });
   }
 
   // CallScreen.tsx 호환
@@ -210,16 +318,30 @@ export class SignalClient {
   }
 
   leaveQueue() {
+    // ✅ 재연결 후 자동 enqueue 하지 않도록 해제
+    this.wantEnqueue = false;
+    this.lastEnqueuePayload = null;
+
     this.send({ type: "dequeue" });
   }
 
   // CallScreen.tsx에서 인자로 호출하므로 optional 처리
   leaveRoom(roomId?: string) {
+    // ✅ 룸을 떠나면 큐 유지 플래그도 해제
+    this.wantEnqueue = false;
+    this.lastEnqueuePayload = null;
+
     // 서버는 roomId 없이도 처리하지만, 있어도 무방
     this.send({ type: "leave", roomId: roomId || undefined });
   }
 
   close() {
+    // ✅ 수동 종료: 재연결 금지
+    this.manualClose = true;
+
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+
     try {
       this.ws?.close();
     } catch {}
@@ -229,20 +351,39 @@ export class SignalClient {
     this.openNotified = false;
     this.closeNotified = false;
     this.pending = [];
+
+    this.wantEnqueue = false;
+    this.lastEnqueuePayload = null;
+
+    this.reconnectAttempt = 0;
   }
 
   private send(obj: any) {
     // ✅ registered 전이면 큐잉(등록 확인 전 enqueue로 not_registered 나는 것 방지)
     if (!this.registered && obj?.type !== "register") {
-      if (this.pending.length < 50) this.pending.push(obj);
+      if (this.pending.length < 100) this.pending.push(obj);
       return;
     }
+
+    // ✅ ws가 잠깐 끊긴 상태면(재연결 중) pending으로 보관
+    if (!this.ws || (this.ws as any).readyState !== 1) {
+      if (obj?.type !== "register" && this.pending.length < 100) this.pending.push(obj);
+      return;
+    }
+
     this.sendRaw(obj);
   }
 
   private sendRaw(obj: any) {
     try {
       this.ws?.send(JSON.stringify(obj));
-    } catch {}
+    } catch {
+      // ✅ 전송 실패(끊김)면 pending으로 보관(재연결 후 flush)
+      if (obj?.type !== "register" && this.pending.length < 100) this.pending.push(obj);
+      try {
+        // 재연결 예약
+        if (!this.manualClose) this.scheduleReconnect();
+      } catch {}
+    }
   }
 }

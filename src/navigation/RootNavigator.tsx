@@ -1,12 +1,9 @@
-﻿// C:\ranchat\src\navigation\RootNavigator.tsx
+﻿// FILE: C:\ranchat\src\navigation\RootNavigator.tsx
 import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
-
 import MainStack from "./MainStack";
 import { useAppStore } from "../store/useAppStore";
 
-import { initAds } from "../services/ads/AdManager";
-import { initPurchases } from "../services/purchases/PurchaseManager";
 import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
 import GlobalModalHost from "../screens/_GlobalModalHost";
 
@@ -22,11 +19,6 @@ export default function RootNavigator() {
 
   const setAuth = useAppStore((s) => s.setAuth);
   const showGlobalModal = useAppStore((s) => s.showGlobalModal);
-
-  useEffect(() => {
-    initAds();
-    initPurchases();
-  }, []);
 
   useEffect(() => {
     if (!hasHydrated) return;

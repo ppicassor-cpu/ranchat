@@ -1,6 +1,6 @@
 ==================================================
    N_BBANG PROJECT SOURCE CODE
-   Exported at: 2026-02-17 00:41:35
+   Exported at: 2026-02-17 10:52:55
 ==================================================
 
 
@@ -21,9 +21,14 @@
       "policy": "appVersion"
     },
     "updates": {
+      "enabled": true,
       "url": "https://u.expo.dev/f6fabec8-bc52-4dc4-9088-0acb4d47a258",
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "useNativeDebug": false,
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -34,7 +39,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -61,16 +66,16 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "androidAppId": "ca-app-pub-5144004139813427~4624974702",
           "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
       ],
       "expo-secure-store",
       "expo-font"
-    ],    
+    ],
     "extra": {
       "react-native-google-mobile-ads": {
-        "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+        "androidAppId": "ca-app-pub-5144004139813427~4624974702",
         "iosAppId": "ca-app-pub-3940256099942544~1458002511"
       },
       "eas": {
@@ -167,6 +172,7 @@ registerRootComponent(App);
     "expo-secure-store": "~15.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
+    "expo-updates": "~29.0.16",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
@@ -216,6 +222,18 @@ registerRootComponent(App);
   ]
 }
 
+
+================================================================================
+ FILE: dist\assetmap.json
+================================================================================
+
+{"dbc3af23c3cbbe45d326afc1d31c2e92":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets","httpServerLocation":"/assets/node_modules/@react-navigation/elements/lib/module/assets","width":24,"height":24,"scales":[1,2,3,4],"files":["C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon@1x.android.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon@2x.android.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon@3x.android.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon@4x.android.png"],"hash":"dbc3af23c3cbbe45d326afc1d31c2e92","name":"back-icon","type":"png","fileHashes":["778ffc9fe8773a878e9c30a6304784de","c79c3606a1cf168006ad3979763c7e0c","02bc1fa7c0313217bde2d65ccbff40c9","35ba0eaec5a4f5ed12ca16fabeae451d"]},"0a328cd9c1afd0afe8e3b1ec5165b1b4":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets","httpServerLocation":"/assets/node_modules/@react-navigation/elements/lib/module/assets","width":50,"height":85,"scales":[1],"files":["C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\back-icon-mask.png"],"hash":"0a328cd9c1afd0afe8e3b1ec5165b1b4","name":"back-icon-mask","type":"png","fileHashes":["0a328cd9c1afd0afe8e3b1ec5165b1b4"]},"61378328a719f21f093de82dd89ecfb0":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets","httpServerLocation":"/assets/node_modules/@react-navigation/elements/lib/module/assets","width":64,"height":64,"scales":[1,1,2,3,4],"files":["C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon@1x.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon@2x.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon@3x.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\clear-icon@4x.png"],"hash":"61378328a719f21f093de82dd89ecfb0","name":"clear-icon","type":"png","fileHashes":["3cd68ccdb8938e3711da2e8831b85493","61ca7e64b7d605716c57706cef640b9a","aff2c65b39a296d4f7e96d0f58169170","d8e7601e3df962f83c62371ac14964d8","3cd68ccdb8938e3711da2e8831b85493"]},"3162e8a244d8f6fbd259e79043e23ce4":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets","httpServerLocation":"/assets/node_modules/@react-navigation/elements/lib/module/assets","width":96,"height":96,"scales":[1,1,2,3,4],"files":["C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon@1x.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon@2x.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon@3x.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\close-icon@4x.png"],"hash":"3162e8a244d8f6fbd259e79043e23ce4","name":"close-icon","type":"png","fileHashes":["0747a1317bbe9c6fc340b889ef8ab3ae","d84e297c3b3e49a614248143d53e40ca","1190ab078c57159f4245a328118fcd9a","78c625386b4d0690b421eb0fc78f7b9c","0747a1317bbe9c6fc340b889ef8ab3ae"]},"940453dc5cbfaa96cf907b3aa7791ece":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets","httpServerLocation":"/assets/node_modules/@react-navigation/elements/lib/module/assets","width":24,"height":24,"scales":[1,2,3,4],"files":["C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\search-icon@1x.android.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\search-icon@2x.android.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\search-icon@3x.android.png","C:\\ranchat\\node_modules\\@react-navigation\\elements\\lib\\module\\assets\\search-icon@4x.android.png"],"hash":"940453dc5cbfaa96cf907b3aa7791ece","name":"search-icon","type":"png","fileHashes":["4403c6117ec30c859bc95d70ce4a71d3","069d99eb1fa6712c0b9034a58c6b57dd","c3273c9e5321f20d1e42c2efae2578c4","286d67d3f74808a60a78d3ebf1a5fb57"]},"3f78af31cca60105799838a1a7a59fbd":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\AntDesign.ttf"],"hash":"3f78af31cca60105799838a1a7a59fbd","name":"AntDesign","type":"ttf","fileHashes":["3f78af31cca60105799838a1a7a59fbd"]},"31b5ffea3daddc69dd01a1f3d6cf63c5":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Entypo.ttf"],"hash":"31b5ffea3daddc69dd01a1f3d6cf63c5","name":"Entypo","type":"ttf","fileHashes":["31b5ffea3daddc69dd01a1f3d6cf63c5"]},"140c53a7643ea949007aa9a282153849":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\EvilIcons.ttf"],"hash":"140c53a7643ea949007aa9a282153849","name":"EvilIcons","type":"ttf","fileHashes":["140c53a7643ea949007aa9a282153849"]},"ca4b48e04dc1ce10bfbddb262c8b835f":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Feather.ttf"],"hash":"ca4b48e04dc1ce10bfbddb262c8b835f","name":"Feather","type":"ttf","fileHashes":["ca4b48e04dc1ce10bfbddb262c8b835f"]},"b49ae8ab2dbccb02c4d11caaacf09eab":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Fontisto.ttf"],"hash":"b49ae8ab2dbccb02c4d11caaacf09eab","name":"Fontisto","type":"ttf","fileHashes":["b49ae8ab2dbccb02c4d11caaacf09eab"]},"b06871f281fee6b241d60582ae9369b9":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome.ttf"],"hash":"b06871f281fee6b241d60582ae9369b9","name":"FontAwesome","type":"ttf","fileHashes":["b06871f281fee6b241d60582ae9369b9"]},"1f77739ca9ff2188b539c36f30ffa2be":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome5_Regular.ttf"],"hash":"1f77739ca9ff2188b539c36f30ffa2be","name":"FontAwesome5_Regular","type":"ttf","fileHashes":["1f77739ca9ff2188b539c36f30ffa2be"]},"605ed7926cf39a2ad5ec2d1f9d391d3d":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome5_Solid.ttf"],"hash":"605ed7926cf39a2ad5ec2d1f9d391d3d","name":"FontAwesome5_Solid","type":"ttf","fileHashes":["605ed7926cf39a2ad5ec2d1f9d391d3d"]},"3b89dd103490708d19a95adcae52210e":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome5_Brands.ttf"],"hash":"3b89dd103490708d19a95adcae52210e","name":"FontAwesome5_Brands","type":"ttf","fileHashes":["3b89dd103490708d19a95adcae52210e"]},"370dd5af19f8364907b6e2c41f45dbbf":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome6_Regular.ttf"],"hash":"370dd5af19f8364907b6e2c41f45dbbf","name":"FontAwesome6_Regular","type":"ttf","fileHashes":["370dd5af19f8364907b6e2c41f45dbbf"]},"adec7d6f310bc577f05e8fe06a5daccf":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome6_Solid.ttf"],"hash":"adec7d6f310bc577f05e8fe06a5daccf","name":"FontAwesome6_Solid","type":"ttf","fileHashes":["adec7d6f310bc577f05e8fe06a5daccf"]},"56c8d80832e37783f12c05db7c8849e2":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\FontAwesome6_Brands.ttf"],"hash":"56c8d80832e37783f12c05db7c8849e2","name":"FontAwesome6_Brands","type":"ttf","fileHashes":["56c8d80832e37783f12c05db7c8849e2"]},"e20945d7c929279ef7a6f1db184a4470":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Foundation.ttf"],"hash":"e20945d7c929279ef7a6f1db184a4470","name":"Foundation","type":"ttf","fileHashes":["e20945d7c929279ef7a6f1db184a4470"]},"b4eb097d35f44ed943676fd56f6bdc51":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Ionicons.ttf"],"hash":"b4eb097d35f44ed943676fd56f6bdc51","name":"Ionicons","type":"ttf","fileHashes":["b4eb097d35f44ed943676fd56f6bdc51"]},"6e435534bd35da5fef04168860a9b8fa":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\MaterialCommunityIcons.ttf"],"hash":"6e435534bd35da5fef04168860a9b8fa","name":"MaterialCommunityIcons","type":"ttf","fileHashes":["6e435534bd35da5fef04168860a9b8fa"]},"4e85bc9ebe07e0340c9c4fc2f6c38908":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\MaterialIcons.ttf"],"hash":"4e85bc9ebe07e0340c9c4fc2f6c38908","name":"MaterialIcons","type":"ttf","fileHashes":["4e85bc9ebe07e0340c9c4fc2f6c38908"]},"871378c6eab492a3e689a9385dc45a12":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Octicons.ttf"],"hash":"871378c6eab492a3e689a9385dc45a12","name":"Octicons","type":"ttf","fileHashes":["871378c6eab492a3e689a9385dc45a12"]},"d2285965fe34b05465047401b8595dd0":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\SimpleLineIcons.ttf"],"hash":"d2285965fe34b05465047401b8595dd0","name":"SimpleLineIcons","type":"ttf","fileHashes":["d2285965fe34b05465047401b8595dd0"]},"1681f34aaca71b8dfb70756bca331eb2":{"__packager_asset":true,"fileSystemLocation":"C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts","httpServerLocation":"/assets/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts","scales":[1],"files":["C:\\ranchat\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Zocial.ttf"],"hash":"1681f34aaca71b8dfb70756bca331eb2","name":"Zocial","type":"ttf","fileHashes":["1681f34aaca71b8dfb70756bca331eb2"]}}
+
+================================================================================
+ FILE: dist\metadata.json
+================================================================================
+
+{"version":0,"bundler":"metro","fileMetadata":{"android":{"bundle":"_expo/static/js/android/index-4c53d1a1f48f2cd58aa685883d585291.hbc","assets":[{"path":"assets\\778ffc9fe8773a878e9c30a6304784de","ext":"png"},{"path":"assets\\c79c3606a1cf168006ad3979763c7e0c","ext":"png"},{"path":"assets\\02bc1fa7c0313217bde2d65ccbff40c9","ext":"png"},{"path":"assets\\35ba0eaec5a4f5ed12ca16fabeae451d","ext":"png"},{"path":"assets\\0a328cd9c1afd0afe8e3b1ec5165b1b4","ext":"png"},{"path":"assets\\3cd68ccdb8938e3711da2e8831b85493","ext":"png"},{"path":"assets\\61ca7e64b7d605716c57706cef640b9a","ext":"png"},{"path":"assets\\aff2c65b39a296d4f7e96d0f58169170","ext":"png"},{"path":"assets\\d8e7601e3df962f83c62371ac14964d8","ext":"png"},{"path":"assets\\3cd68ccdb8938e3711da2e8831b85493","ext":"png"},{"path":"assets\\0747a1317bbe9c6fc340b889ef8ab3ae","ext":"png"},{"path":"assets\\d84e297c3b3e49a614248143d53e40ca","ext":"png"},{"path":"assets\\1190ab078c57159f4245a328118fcd9a","ext":"png"},{"path":"assets\\78c625386b4d0690b421eb0fc78f7b9c","ext":"png"},{"path":"assets\\0747a1317bbe9c6fc340b889ef8ab3ae","ext":"png"},{"path":"assets\\4403c6117ec30c859bc95d70ce4a71d3","ext":"png"},{"path":"assets\\069d99eb1fa6712c0b9034a58c6b57dd","ext":"png"},{"path":"assets\\c3273c9e5321f20d1e42c2efae2578c4","ext":"png"},{"path":"assets\\286d67d3f74808a60a78d3ebf1a5fb57","ext":"png"},{"path":"assets\\3f78af31cca60105799838a1a7a59fbd","ext":"ttf"},{"path":"assets\\31b5ffea3daddc69dd01a1f3d6cf63c5","ext":"ttf"},{"path":"assets\\140c53a7643ea949007aa9a282153849","ext":"ttf"},{"path":"assets\\ca4b48e04dc1ce10bfbddb262c8b835f","ext":"ttf"},{"path":"assets\\b49ae8ab2dbccb02c4d11caaacf09eab","ext":"ttf"},{"path":"assets\\b06871f281fee6b241d60582ae9369b9","ext":"ttf"},{"path":"assets\\1f77739ca9ff2188b539c36f30ffa2be","ext":"ttf"},{"path":"assets\\605ed7926cf39a2ad5ec2d1f9d391d3d","ext":"ttf"},{"path":"assets\\3b89dd103490708d19a95adcae52210e","ext":"ttf"},{"path":"assets\\370dd5af19f8364907b6e2c41f45dbbf","ext":"ttf"},{"path":"assets\\adec7d6f310bc577f05e8fe06a5daccf","ext":"ttf"},{"path":"assets\\56c8d80832e37783f12c05db7c8849e2","ext":"ttf"},{"path":"assets\\e20945d7c929279ef7a6f1db184a4470","ext":"ttf"},{"path":"assets\\b4eb097d35f44ed943676fd56f6bdc51","ext":"ttf"},{"path":"assets\\6e435534bd35da5fef04168860a9b8fa","ext":"ttf"},{"path":"assets\\4e85bc9ebe07e0340c9c4fc2f6c38908","ext":"ttf"},{"path":"assets\\871378c6eab492a3e689a9385dc45a12","ext":"ttf"},{"path":"assets\\d2285965fe34b05465047401b8595dd0","ext":"ttf"},{"path":"assets\\1681f34aaca71b8dfb70756bca331eb2","ext":"ttf"}]}}}
 
 ================================================================================
  FILE: plugins\withAdIdPermission.js
@@ -708,6 +726,131 @@ const styles = StyleSheet.create({
 
 
 ================================================================================
+ FILE: src\components\PremiumPaywallModal.tsx
+================================================================================
+
+﻿import React from "react";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { theme } from "../config/theme";
+import AppText from "./AppText";
+import PrimaryButton from "./PrimaryButton";
+
+export default function PremiumPaywallModal({
+  visible,
+  onClose,
+  title,
+  price,
+  discountText,
+  benefitLines,
+  busy,
+  onConfirm,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  price: string;
+  discountText?: string;
+  benefitLines: string[];
+  busy: boolean;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+
+      <View style={styles.sheetWrap} pointerEvents="box-none">
+        <View style={styles.sheet}>
+          <View style={styles.top}>
+            <AppText style={styles.title}>{title}</AppText>
+            <AppText onPress={onClose} style={styles.close}>
+              닫기
+            </AppText>
+          </View>
+
+          <View style={{ height: 8 }} />
+
+          <View style={styles.priceBox}>
+            <AppText style={styles.price}>{price}</AppText>
+            {discountText ? <AppText style={styles.discount}>{discountText}</AppText> : null}
+          </View>
+
+          <View style={{ height: 10 }} />
+
+          <View style={styles.benefits}>
+            {benefitLines.map((t, i) => (
+              <View key={i} style={styles.bRow}>
+                <View style={styles.dot} />
+                <AppText style={styles.bTxt}>{t}</AppText>
+              </View>
+            ))}
+          </View>
+
+          <View style={{ height: 14 }} />
+
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title={busy ? "결제 처리 중..." : "결제 진행"} onPress={onConfirm} disabled={busy} />
+            <PrimaryButton title="취소" onPress={onClose} variant="ghost" />
+          </View>
+
+          <View style={{ height: 10 }} />
+
+          <AppText style={styles.notice}>
+            결제는 스토어 정책에 따라 처리되며, 구독은 언제든지 스토어에서 관리할 수 있습니다.
+          </AppText>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.55)" },
+
+  sheetWrap: {
+    flex: 1,
+    justifyContent: "flex-end",
+    padding: theme.spacing.lg,
+  },
+  sheet: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.spacing.lg,
+    ...theme.shadow.card,
+  },
+
+  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  title: { fontSize: 17, fontWeight: "900", color: theme.colors.text },
+  close: { fontSize: 13, fontWeight: "900", color: theme.colors.pinkDeep },
+
+  priceBox: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.spacing.lg,
+  },
+  price: { fontSize: 18, fontWeight: "900", color: theme.colors.text, marginBottom: 6 },
+  discount: { fontSize: 13, fontWeight: "900", color: theme.colors.pinkDeep },
+
+  benefits: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    paddingVertical: 8,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  bRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
+  dot: { width: 8, height: 8, borderRadius: 99, backgroundColor: theme.colors.pinkDeep },
+  bTxt: { fontSize: 13, fontWeight: "800", color: theme.colors.text },
+
+  notice: { fontSize: 12, color: theme.colors.sub, lineHeight: 18 },
+});
+
+
+================================================================================
  FILE: src\components\PrimaryButton.tsx
 ================================================================================
 
@@ -785,6 +928,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
+    transform: [{ translateY: 50 }],
   },
   text: {
     color: "rgba(112, 112, 112, 0.85)",
@@ -951,18 +1095,19 @@ export const COUNTRY_OPTIONS: { code: string; label: string; dial?: string }[] =
  FILE: src\navigation\MainStack.tsx
 ================================================================================
 
-﻿//C:\ranchat\src\navigation\MainStack.tsx
-import React from "react";
+﻿import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "../screens/HomeScreen";
 import CallScreen from "../screens/CallScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import PremiumScreen from "../screens/PremiumScreen";
 import { theme } from "../config/theme";
 
 export type MainStackParamList = {
   Home: undefined;
   Call: undefined;
   Profile: undefined;
+  Premium: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -980,6 +1125,7 @@ export default function MainStack() {
       <Stack.Screen name="Home" component={HomeScreen} options={{ title: "RanChat" }} />
       <Stack.Screen name="Call" component={CallScreen} options={{ title: "매칭" }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "프로필" }} />
+      <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: "프리미엄" }} />
     </Stack.Navigator>
   );
 }
@@ -1047,7 +1193,7 @@ export default function RootNavigator() {
 
 ﻿// FILE: C:\ranchat\src\screens\CallScreen.tsx
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { StyleSheet, View, Pressable, Dimensions, ScrollView } from "react-native";
+import { StyleSheet, View, Pressable, Dimensions, ScrollView, Text } from "react-native";
 import { RTCView } from "react-native-webrtc";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -1075,7 +1221,7 @@ type Phase = "connecting" | "queued" | "matched" | "calling" | "ended";
 // ✅ APP_CONFIG 타입에 값이 없어도 TS 에러 없이 동작하도록 fallback 상수로 사용
 const MATCH_TIMEOUT_MS = (() => {
   const v = Number((APP_CONFIG as any)?.MATCH_TIMEOUT_MS);
-  return Number.isFinite(v) ? v : 20000;
+  return Number.isFinite(v) ? v : 60000;
 })();
 
 // ✅ 무료 30초 제한을 3000초로 변경(사실상 비활성 수준)
@@ -1090,7 +1236,7 @@ const FREE_CALL_LIMIT_MS = (() => {
 })();
 
 // ✅ 전면광고 재노출 쿨다운(3분)
-const INTERSTITIAL_COOLDOWN_MS = 3 * 60 * 1000;
+const INTERSTITIAL_COOLDOWN_MS = 4 * 60 * 1000;
 
 function countryCodeToFlagEmoji(code: string) {
   const cc = String(code || "").trim().toUpperCase();
@@ -1113,7 +1259,7 @@ function normalizeLanguageLabel(v: string) {
   return s;
 }
 
-const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").trim() || TestIds.NATIVE;
+const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").trim() || "ca-app-pub-5144004139813427/8416045900";
 
 function QueueNativeAd256x144() {
   const [nativeAd, setNativeAd] = useState<NativeAd | null>(null);
@@ -1147,12 +1293,14 @@ function QueueNativeAd256x144() {
   if (!nativeAd) return null;
 
   return (
-    <NativeAdView nativeAd={nativeAd} style={[styles.nativeAd256, { width: 360, height: 202 }]}>
+    <NativeAdView nativeAd={nativeAd} style={[styles.nativeAd256, { width: W, height: Math.round((W * 202) / 360) }]}>
       <View style={styles.nativeAdInner}>
         <NativeMediaView style={styles.nativeAdMedia} resizeMode="cover" />
         <View style={styles.nativeAdFooter}>
           <NativeAsset assetType={NativeAssetType.HEADLINE}>
-            <AppText style={styles.nativeAdHeadline}>{nativeAd.headline}</AppText>
+            <Text style={styles.nativeAdHeadline} numberOfLines={1}>
+              {nativeAd.headline}
+            </Text>
           </NativeAsset>
           <AppText style={styles.nativeAdTag}>광고</AppText>
         </View>
@@ -1190,6 +1338,7 @@ export default function CallScreen({ navigation }: Props) {
 
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [noMatchModal, setNoMatchModal] = useState(false);
+  const [fastMatchHint, setFastMatchHint] = useState(false);
 
   const [reMatchText, setReMatchText] = useState<string>("");
 
@@ -1213,6 +1362,9 @@ export default function CallScreen({ navigation }: Props) {
 
   const noMatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requeueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const premiumNoMatchAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noMatchShownThisCycleRef = useRef(false);
 
   const canStart = useRef(false);
 
@@ -1279,10 +1431,25 @@ export default function CallScreen({ navigation }: Props) {
   }, [prefs.country, prefs.gender]);
 
   const startNoMatchTimer = () => {
-    if (isPremium) return;
+    if (noMatchShownThisCycleRef.current) return;
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
 
     noMatchTimerRef.current = setTimeout(() => {
+      if (noMatchShownThisCycleRef.current) return;
+      noMatchShownThisCycleRef.current = true;
+
+      if (isPremium) {
+        setFastMatchHint(true);
+        setNoMatchModal(true);
+
+        if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
+        premiumNoMatchAutoCloseRef.current = setTimeout(() => {
+          setNoMatchModal(false);
+        }, 3000);
+
+        return;
+      }
+
       queueRunningRef.current = false;
       enqueuedRef.current = false;
 
@@ -1301,6 +1468,9 @@ export default function CallScreen({ navigation }: Props) {
   const clearNoMatchTimer = () => {
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
     noMatchTimerRef.current = null;
+
+    if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
+    premiumNoMatchAutoCloseRef.current = null;
   };
 
   const stopAll = () => {
@@ -1321,6 +1491,9 @@ export default function CallScreen({ navigation }: Props) {
     requeueTimerRef.current = null;
 
     clearNoMatchTimer();
+
+    noMatchShownThisCycleRef.current = false;
+    setFastMatchHint(false);
 
     queueRunningRef.current = false;
     enqueuedRef.current = false;
@@ -1536,6 +1709,9 @@ export default function CallScreen({ navigation }: Props) {
     queueRunningRef.current = true;
     enqueuedRef.current = false;
 
+    noMatchShownThisCycleRef.current = false;
+    setFastMatchHint(false);
+
     if (!canStart.current) {
       useAppStore.getState().showGlobalModal("매칭", "필터(나라/성별)가 설정되지 않았습니다.");
       queueRunningRef.current = false;
@@ -1573,6 +1749,8 @@ export default function CallScreen({ navigation }: Props) {
 
         if (msg.type === "match") {
           clearNoMatchTimer();
+          setNoMatchModal(false);
+          setFastMatchHint(false);
 
           setRoomId(msg.roomId);
           setIsCaller(Boolean(msg.isCaller));
@@ -1731,6 +1909,8 @@ export default function CallScreen({ navigation }: Props) {
   };
 
   const dismissNoMatch = () => {
+    if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
+    premiumNoMatchAutoCloseRef.current = null;
     setNoMatchModal(false);
   };
 
@@ -1945,7 +2125,7 @@ export default function CallScreen({ navigation }: Props) {
         ) : null}
 
         {!isPremium && phase !== "calling" ? (
-          <View style={[styles.queueAdDock, { top: insets.top + 96 }]}>
+          <View style={[styles.queueAdDock, { top: insets.top + 55 }]}>
             <QueueNativeAd256x144 />
           </View>
         ) : null}
@@ -1960,6 +2140,8 @@ export default function CallScreen({ navigation }: Props) {
 
             {reMatchText ? (
               <AppText style={styles.centerText}>{reMatchText}</AppText>
+            ) : fastMatchHint ? (
+              <AppText style={styles.centerText}>빠른 매칭 중...</AppText>
             ) : phase === "connecting" ? (
               <AppText style={styles.centerText}>연결 중...</AppText>
             ) : phase === "matched" ? (
@@ -1970,22 +2152,31 @@ export default function CallScreen({ navigation }: Props) {
         ) : null}
 
 
-        {/* ✅ 우측하단 배너 + 그 위 내 나라/국기/언어 + 아이콘(다른상대찾기) */}
-        {!isPremium ? (
-          <View style={[styles.bannerDock, { paddingBottom: Math.max(insets.bottom, 8), left: 0, right: 0 }]}>
-            <View style={styles.myInfoRow}>
-              <View style={styles.myInfoCenter}>
-                {peerInfoText ? <AppText style={styles.myInfoText}>{peerInfoText}</AppText> : null}
-              </View>
+        {/* ✅ 새로고침 버튼은 프리미엄이어도 항상 보여야 함 (배너 유무에 따라 아래로 내려옴) */}
+        <Pressable
+          onPress={onPressFindOther}
+          style={({ pressed }) => [
+            styles.findOtherBtn,
+            {
+              right: 12,
+              bottom: Math.max(insets.bottom, 8) + (isPremium ? 8 : 8 + BANNER_RESERVED_HEIGHT),
+            },
+            pressed ? { opacity: 0.7 } : null,
+          ]}
+        >
+          <Ionicons name="sync-circle" size={60} color="rgba(255, 205, 230, 0.84)" />
+        </Pressable>
 
-              <Pressable onPress={onPressFindOther} style={({ pressed }) => [styles.findOtherBtn, pressed ? { opacity: 0.7 } : null]}>
-                <Ionicons name="sync-circle" size={60} color="rgba(255, 205, 230, 0.84)" />
-              </Pressable>
+        {/* ✅ 우측하단 배너 + 그 위 내 나라/국기/언어 */}
+        <View style={[styles.bannerDock, { paddingBottom: Math.max(insets.bottom, 8), left: 0, right: 0 }]}>
+          <View style={styles.myInfoRow}>
+            <View style={styles.myInfoCenter}>
+              {peerInfoText ? <AppText style={styles.myInfoText}>{peerInfoText}</AppText> : null}
             </View>
-
-            <BannerBar />
           </View>
-        ) : null}
+
+          {!isPremium ? <BannerBar /> : null}
+        </View>
       </View>
 
       <AppModal
@@ -2024,19 +2215,31 @@ export default function CallScreen({ navigation }: Props) {
 
       <AppModal
         visible={noMatchModal}
-        title="매칭이 지연되고 있습니다"
+        title={isPremium ? "빠른 매칭 중" : "매칭이 지연되고 있습니다"}
         dismissible={true}
         onClose={dismissNoMatch}
         footer={
-          <View style={{ gap: 10 }}>
-            <PrimaryButton title="다시 시도" onPress={retry} />
-            <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
-          </View>
+          isPremium ? (
+            <View style={{ gap: 10 }}>
+              <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              <PrimaryButton title="다시 시도" onPress={retry} />
+              <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+            </View>
+          )
         }
       >
-        <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-          조금만 기다렸다가 다시 시도해 주세요.
-        </AppText>
+        {isPremium ? (
+          <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
+            빠른 매칭 중입니다.{"\n"}(이 창은 자동으로 닫힙니다)
+          </AppText>
+        ) : (
+          <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
+            조금만 기다렸다가 다시 시도해 주세요.
+          </AppText>
+        )}
       </AppModal>
 
       <AppModal
@@ -2211,7 +2414,7 @@ export default function CallScreen({ navigation }: Props) {
 }
 
 const W = Dimensions.get("window").width;
-
+const BANNER_RESERVED_HEIGHT = 60;
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
 
@@ -2390,14 +2593,12 @@ const styles = StyleSheet.create({
   },
 
   findOtherBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     position: "absolute",
-    right: 12,
-    top: -40,
-    bottom: 0,
+    zIndex: 13,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 
   modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
@@ -3178,34 +3379,398 @@ const styles = StyleSheet.create({
 
 
 ================================================================================
+ FILE: src\screens\PremiumScreen.tsx
+================================================================================
+
+﻿import React, { useMemo, useState } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { theme } from "../config/theme";
+import AppText from "../components/AppText";
+import PrimaryButton from "../components/PrimaryButton";
+import PremiumPaywallModal from "../components/PremiumPaywallModal";
+import { purchasePremiumByProductId, refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
+import { useAppStore } from "../store/useAppStore";
+
+const PRODUCT_IDS = {
+  weekly: "ranchat_premium:weekly_-plan",
+  monthly: "ranchat_premium:monthly2_-plan",
+  yearly: "ranchat_premium:yearly2_-plan",
+} as const;
+
+type PlanKey = keyof typeof PRODUCT_IDS;
+
+const PRICES = {
+  weekly: 4900,
+  monthly: 14900,
+  yearly: 89000,
+} as const;
+
+function formatWon(n: number) {
+  return n.toLocaleString("ko-KR") + "원";
+}
+
+function calcDiscountPercent(base: number, target: number) {
+  if (base <= 0) return 0;
+  const p = Math.round(((base - target) / base) * 100);
+  return p < 0 ? 0 : p;
+}
+
+export default function PremiumScreen() {
+  const sub = useAppStore((s) => s.sub);
+
+  const [payModal, setPayModal] = useState(false);
+  const [selected, setSelected] = useState<PlanKey>("monthly");
+  const [busy, setBusy] = useState(false);
+
+  const weeklyVsMonthlyDiscount = useMemo(() => {
+    const base = PRICES.weekly * 4;
+    return calcDiscountPercent(base, PRICES.monthly);
+  }, []);
+
+  const monthlyVsYearlyDiscount = useMemo(() => {
+    const base = PRICES.monthly * 12;
+    return calcDiscountPercent(base, PRICES.yearly);
+  }, []);
+
+  const onSelect = (k: PlanKey) => {
+    setSelected(k);
+    setPayModal(true);
+  };
+
+  const onPay = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const productId = PRODUCT_IDS[selected];
+      await purchasePremiumByProductId(productId);
+      await refreshSubscription();
+      setPayModal(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.wrap}>
+      <View style={styles.hero}>
+        <AppText style={styles.heroTitle}>프리미엄</AppText>
+        <AppText style={styles.heroDesc}>
+          광고 없이 깔끔하게, 더 빠르고 쾌적한 랜덤 영상채팅 경험을 제공합니다.
+        </AppText>
+
+        <View style={{ height: 14 }} />
+
+        <View style={styles.badgeRow}>
+          <View style={styles.badge}>
+            <AppText style={styles.badgeTop}>광고 제거</AppText>
+            <AppText style={styles.badgeBottom}>배너/전면 광고 OFF</AppText>
+          </View>
+          <View style={styles.badge}>
+            <AppText style={styles.badgeTop}>가벼운 UX</AppText>
+            <AppText style={styles.badgeBottom}>집중도  피로도 </AppText>
+          </View>
+        </View>
+
+        <View style={{ height: 10 }} />
+
+        {sub.isPremium ? (
+          <View style={styles.premiumOn}>
+            <AppText style={styles.premiumOnTxt}>현재 프리미엄 이용 중</AppText>
+          </View>
+        ) : (
+          <View style={styles.premiumOff}>
+            <AppText style={styles.premiumOffTxt}>현재 무료 이용 중</AppText>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <AppText style={styles.h1}>플랜 선택</AppText>
+
+        <View style={{ height: 10 }} />
+
+        <View style={styles.planBox}>
+          <View style={styles.planTop}>
+            <AppText style={styles.planName}>주간</AppText>
+            <View style={styles.pill}>
+              <AppText style={styles.pillTxt}>라이트</AppText>
+            </View>
+          </View>
+          <View style={styles.planMid}>
+            <AppText style={styles.planPrice}>{formatWon(PRICES.weekly)}</AppText>
+            <AppText style={styles.planUnit}>/ 주</AppText>
+          </View>
+          <PrimaryButton title="주간으로 시작" onPress={() => onSelect("weekly")} />
+        </View>
+
+        <View style={{ height: 12 }} />
+
+        <View style={[styles.planBox, styles.planHot]}>
+          <View style={styles.planTop}>
+            <AppText style={styles.planName}>월간</AppText>
+            <View style={[styles.pill, styles.pillHot]}>
+              <AppText style={[styles.pillTxt, styles.pillTxtHot]}>추천</AppText>
+            </View>
+            <View style={[styles.discountTag]}>
+              <AppText style={styles.discountTxt}>약 {weeklyVsMonthlyDiscount}% 할인</AppText>
+            </View>
+          </View>
+          <View style={styles.planMid}>
+            <AppText style={styles.planPrice}>{formatWon(PRICES.monthly)}</AppText>
+            <AppText style={styles.planUnit}>/ 월</AppText>
+          </View>
+          <PrimaryButton title="월간으로 결제" onPress={() => onSelect("monthly")} />
+        </View>
+
+        <View style={{ height: 12 }} />
+
+        <View style={styles.planBox}>
+          <View style={styles.planTop}>
+            <AppText style={styles.planName}>연간</AppText>
+            <View style={[styles.discountTag]}>
+              <AppText style={styles.discountTxt}>약 {monthlyVsYearlyDiscount}% 할인</AppText>
+            </View>
+          </View>
+          <View style={styles.planMid}>
+            <AppText style={styles.planPrice}>{formatWon(PRICES.yearly)}</AppText>
+            <AppText style={styles.planUnit}>/ 년</AppText>
+          </View>
+          <PrimaryButton title="연간으로 결제" onPress={() => onSelect("yearly")} />
+        </View>
+
+        <View style={{ height: 14 }} />
+
+        <PrimaryButton title="구독 관리" onPress={openManageSubscriptions} variant="ghost" />
+      </View>
+
+      <View style={styles.card}>
+        <AppText style={styles.h1}>광고 제거 혜택</AppText>
+        <View style={{ height: 8 }} />
+        <View style={styles.benefitRow}>
+          <View style={styles.dot} />
+          <AppText style={styles.benefitTxt}>배너 광고 제거</AppText>
+        </View>
+        <View style={styles.benefitRow}>
+          <View style={styles.dot} />
+          <AppText style={styles.benefitTxt}>전면 광고 제거</AppText>
+        </View>
+        <View style={styles.benefitRow}>
+          <View style={styles.dot} />
+          <AppText style={styles.benefitTxt}>몰입감 있는 풀스크린 경험</AppText>
+        </View>
+      </View>
+
+      <PremiumPaywallModal
+        visible={payModal}
+        onClose={() => setPayModal(false)}
+        title={selected === "weekly" ? "주간 결제" : selected === "monthly" ? "월간 결제" : "연간 결제"}
+        price={
+          selected === "weekly"
+            ? `${formatWon(PRICES.weekly)} / 주`
+            : selected === "monthly"
+              ? `${formatWon(PRICES.monthly)} / 월`
+              : `${formatWon(PRICES.yearly)} / 년`
+        }
+        discountText={
+          selected === "monthly"
+            ? `주간 대비 약 ${weeklyVsMonthlyDiscount}% 할인`
+            : selected === "yearly"
+              ? `월간 대비 약 ${monthlyVsYearlyDiscount}% 할인`
+              : undefined
+        }
+        benefitLines={[
+          "광고 제거로 더 깔끔하게",
+          "더 몰입감 있는 사용 경험",
+          "언제든지 구독 관리에서 변경/해지 가능",
+        ]}
+        busy={busy}
+        onConfirm={onPay}
+      />
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    padding: theme.spacing.lg,
+    gap: theme.spacing.lg,
+  },
+
+  hero: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.spacing.lg,
+    ...theme.shadow.card,
+  },
+  heroTitle: { fontSize: 22, fontWeight: "900", color: theme.colors.text, marginBottom: 6 },
+  heroDesc: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
+
+  badgeRow: { flexDirection: "row", gap: 10 },
+  badge: {
+    flex: 1,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  badgeTop: { fontSize: 14, fontWeight: "900", color: theme.colors.text, marginBottom: 2 },
+  badgeBottom: { fontSize: 12, fontWeight: "700", color: theme.colors.sub },
+
+  premiumOn: {
+    marginTop: 12,
+    borderRadius: 999,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.pinkDeep,
+    backgroundColor: theme.colors.pinkDeep,
+    alignItems: "center",
+  },
+  premiumOnTxt: { fontSize: 13, fontWeight: "900", color: theme.colors.white },
+
+  premiumOff: {
+    marginTop: 12,
+    borderRadius: 999,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.white,
+    alignItems: "center",
+  },
+  premiumOffTxt: { fontSize: 13, fontWeight: "900", color: theme.colors.text },
+
+  card: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.spacing.lg,
+    ...theme.shadow.card,
+  },
+  h1: { fontSize: 17, fontWeight: "900", color: theme.colors.text, marginBottom: 6 },
+
+  planBox: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    padding: theme.spacing.lg,
+  },
+  planHot: {
+    borderColor: theme.colors.pinkDeep,
+  },
+  planTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  planName: { fontSize: 16, fontWeight: "900", color: theme.colors.text },
+
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.white,
+  },
+  pillHot: { borderColor: theme.colors.pinkDeep, backgroundColor: theme.colors.pinkDeep },
+  pillTxt: { fontSize: 12, fontWeight: "900", color: theme.colors.text },
+  pillTxtHot: { color: theme.colors.white },
+
+  discountTag: {
+    marginLeft: "auto",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.pinkDeep,
+    backgroundColor: theme.colors.white,
+  },
+  discountTxt: { fontSize: 12, fontWeight: "900", color: theme.colors.pinkDeep },
+
+  planMid: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginBottom: 12 },
+  planPrice: { fontSize: 20, fontWeight: "900", color: theme.colors.text },
+  planUnit: { fontSize: 13, fontWeight: "900", color: theme.colors.sub, paddingBottom: 2 },
+
+  benefitRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
+  dot: { width: 8, height: 8, borderRadius: 99, backgroundColor: theme.colors.pinkDeep },
+  benefitTxt: { fontSize: 14, fontWeight: "800", color: theme.colors.text },
+});
+
+
+================================================================================
  FILE: src\screens\ProfileScreen.tsx
 ================================================================================
 
-﻿//C:\ranchat\src\screens\ProfileScreen.tsx
-import React, { useMemo, useState } from "react";
+﻿// C:\ranchat\src\screens\ProfileScreen.tsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Linking, ScrollView, StyleSheet, View } from "react-native";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { theme } from "../config/theme";
 import { useAppStore } from "../store/useAppStore";
-import { purchasePremium, refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
+import { refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
 import { APP_CONFIG, COUNTRY_OPTIONS } from "../config/app";
 import AppText from "../components/AppText";
+import { useNavigation } from "@react-navigation/native";
+import * as Updates from "expo-updates";
+
+function toErrMsg(e: unknown) {
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object" && "message" in e) return String((e as any).message || "UNKNOWN_ERROR");
+  return "UNKNOWN_ERROR";
+}
 
 export default function ProfileScreen() {
+  const navigation = useNavigation<any>();
+
   const prefs = useAppStore((s) => s.prefs);
   const sub = useAppStore((s) => s.sub);
   const logoutAndWipe = useAppStore((s) => s.logoutAndWipe);
 
   const setPrefs = useAppStore((s) => s.setPrefs);
+  const showGlobalModal = useAppStore((s) => s.showGlobalModal);
 
   const [prefsModal, setPrefsModal] = useState(false);
   const [withdrawModal, setWithdrawModal] = useState(false);
+
+  const [updateModal, setUpdateModal] = useState(false);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const updateCheckedRef = useRef(false);
 
   const countryLabel = useMemo(() => {
     const c = COUNTRY_OPTIONS.find((x) => x.code === prefs.country);
     return c?.label ?? "-";
   }, [prefs.country]);
+
+  useEffect(() => {
+    if (__DEV__) return;
+    if (!Updates.isEnabled) return;
+    if (updateCheckedRef.current) return;
+    updateCheckedRef.current = true;
+
+    (async () => {
+      try {
+        const r = await Updates.checkForUpdateAsync();
+        if (r.isAvailable) setUpdateModal(true);
+      } catch {
+        // 조용히 무시 (필요 시 글로벌 모달로 바꿔도 됨)
+      }
+    })();
+  }, []);
+
+  const doApplyUpdate = async () => {
+    if (updateBusy) return;
+    setUpdateBusy(true);
+
+    try {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    } catch (e) {
+      setUpdateBusy(false);
+      showGlobalModal("업데이트", toErrMsg(e));
+    }
+  };
 
   const openPrivacy = async () => {
     const url = APP_CONFIG.POLICY.privacyUrl;
@@ -3216,9 +3781,9 @@ export default function ProfileScreen() {
     await Linking.openURL(url);
   };
 
-  const doPurchase = async () => {
-    await purchasePremium();
+  const goPremium = async () => {
     await refreshSubscription();
+    navigation.navigate("Premium");
   };
 
   const doWithdraw = async () => {
@@ -3233,7 +3798,7 @@ export default function ProfileScreen() {
 
         <View style={{ height: 10 }} />
 
-        {!sub.isPremium ? <PrimaryButton title="프리미엄 신청" onPress={doPurchase} /> : null}
+        {!sub.isPremium ? <PrimaryButton title="프리미엄 신청" onPress={goPremium} /> : null}
         <View style={{ height: 10 }} />
         <PrimaryButton title="구독 관리" onPress={openManageSubscriptions} variant="ghost" />
       </View>
@@ -3266,6 +3831,29 @@ export default function ProfileScreen() {
       </View>
 
       <PrefsModal visible={prefsModal} onClose={() => setPrefsModal(false)} prefs={prefs} setPrefs={setPrefs} />
+
+      <AppModal
+        visible={updateModal}
+        title="업데이트"
+        onClose={() => {
+          if (updateBusy) return;
+          setUpdateModal(false);
+        }}
+        dismissible={!updateBusy}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title={updateBusy ? "업데이트 적용 중..." : "업데이트 적용"} onPress={doApplyUpdate} disabled={updateBusy} />
+            <PrimaryButton
+              title="나중에"
+              onPress={() => setUpdateModal(false)}
+              variant="ghost"
+              disabled={updateBusy}
+            />
+          </View>
+        }
+      >
+        <AppText style={styles.p}>새 버전이 준비되었습니다. 업데이트를 적용하면 앱이 재시작됩니다.</AppText>
+      </AppModal>
 
       <AppModal
         visible={withdrawModal}
@@ -3453,14 +4041,14 @@ function getBannerUnitId() {
   const android = String(process.env.EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID ?? "").trim();
   const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_BANNER_IOS ?? "").trim();
   const envId = Platform.OS === "ios" ? ios : android;
-  return envId || TestIds.BANNER;
+  return envId || (Platform.OS === "ios" ? TestIds.BANNER : "ca-app-pub-5144004139813427/1738956911");
 }
 
 function getInterstitialUnitId() {
   const android = String(process.env.EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_ANDROID ?? "").trim();
   const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_IOS ?? "").trim();
   const envId = Platform.OS === "ios" ? ios : android;
-  return envId || TestIds.INTERSTITIAL;
+  return envId || (Platform.OS === "ios" ? TestIds.INTERSTITIAL : "ca-app-pub-5144004139813427/9729127571");
 }
 
 export function createInterstitial() {
@@ -3688,6 +4276,21 @@ export async function initPurchases() {
   }
 }
 
+export async function purchasePremiumByProductId(productId: string) {
+  const offerings = await Purchases.getOfferings();
+  const current = offerings.current;
+  if (!current) throw new Error("No current offering");
+
+  const allPkgs = current.availablePackages ?? [];
+  const target = allPkgs.find((p) => p?.product?.identifier === productId);
+
+  if (!target) {
+    throw new Error(`Product not found in offering: ${productId}`);
+  }
+
+  await Purchases.purchasePackage(target);
+}
+
 export async function refreshSubscription() {
   const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
   try {
@@ -3713,12 +4316,10 @@ export async function purchasePremium() {
       return;
     }
 
-    // 실서비스에서는 RevenueCat Offering에서 정렬/패키지명을 맞추는 것을 전제로 합니다.
-    // 여기서는 가장 일반적인 패키지 우선순위: weekly -> monthly -> 6months (없으면 availablePackages 순서)
     const pick =
-      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.WEEKLY) ||
-      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.MONTHLY) ||
-      current.availablePackages.find(p => p.packageType === Purchases.PACKAGE_TYPE.SIX_MONTH) ||
+      current.availablePackages.find((p) => p.packageType === Purchases.PACKAGE_TYPE.WEEKLY) ||
+      current.availablePackages.find((p) => p.packageType === Purchases.PACKAGE_TYPE.MONTHLY) ||
+      current.availablePackages.find((p) => p.packageType === Purchases.PACKAGE_TYPE.SIX_MONTH) ||
       current.availablePackages[0];
 
     await Purchases.purchasePackage(pick);
@@ -3745,6 +4346,7 @@ export async function openManageSubscriptions() {
     useAppStore.getState().showGlobalModal("구독관리", "기기에서 구독관리 화면을 열 수 없습니다.");
   }
 }
+
 
 ================================================================================
  FILE: src\services\signal\SignalClient.ts

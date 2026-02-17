@@ -1,4 +1,4 @@
-﻿//WebRTCSession.ts
+﻿// FILE: C:\ranchat\src\services\webrtc\WebRTCSession.ts
 import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from "react-native-webrtc";
 import { PermissionsAndroid, Platform } from "react-native";
 import { APP_CONFIG } from "../../config/app";
@@ -54,6 +54,40 @@ function preferH264InSdp(sdp: string) {
   }
 }
 
+type IcePathInfo = {
+  selectedPairId?: string;
+  localCandidateType?: string;
+  remoteCandidateType?: string;
+  localProtocol?: string;
+  remoteProtocol?: string;
+  localAddress?: string;
+  localPort?: number;
+  remoteAddress?: string;
+  remotePort?: number;
+  currentRoundTripTimeMs?: number;
+  availableOutgoingBitrate?: number;
+  bytesSent?: number;
+  bytesReceived?: number;
+};
+
+function forEachStat(report: any, fn: (s: any) => void) {
+  if (!report) return;
+
+  if (typeof report.forEach === "function") {
+    report.forEach((v: any) => fn(v));
+    return;
+  }
+
+  if (Array.isArray(report)) {
+    report.forEach((v) => fn(v));
+    return;
+  }
+
+  if (typeof report === "object") {
+    Object.values(report).forEach((v) => fn(v));
+  }
+}
+
 export class WebRTCSession {
   private pc: RTCPeerConnection;
   private localStream: MediaStream | null = null;
@@ -65,10 +99,24 @@ export class WebRTCSession {
     this.cb = cb;
 
     const turn = APP_CONFIG.TURN;
+
+    // ✅ 2번 반영: STUN을 TURN과 분리 (srflx 후보 확보)
+    const stunUrls = (APP_CONFIG as any)?.ICE?.stunUrls ?? [];
+    const stunServer =
+      Array.isArray(stunUrls) && stunUrls.length > 0
+        ? { urls: stunUrls }
+        : { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] };
+
+    // ✅ 3번 반영: 기본은 TURN TCP 후보 제외(딜레이 큰 TCP 릴레이 회피)
+    const turnUrls = [`turn:${turn.host}:${turn.port}?transport=udp`];
+    if ((turn as any).tcpEnabled === true) {
+      turnUrls.push(`turn:${turn.host}:${turn.port}?transport=tcp`);
+    }
+
     const iceServers = [
-      { urls: [`stun:${turn.host}:${turn.port}`] },
+      stunServer,
       {
-        urls: [`turn:${turn.host}:${turn.port}?transport=udp`, `turn:${turn.host}:${turn.port}?transport=tcp`],
+        urls: turnUrls,
         username: turn.username,
         credential: turn.password,
       },
@@ -101,6 +149,80 @@ export class WebRTCSession {
         this.cb.onRemoteStream?.(stream);
       }
     };
+  }
+
+  // ✅ 1번 반영: 연결 경로( relay/srflx/host ) 확인용
+  async getIcePathInfo(): Promise<IcePathInfo> {
+    try {
+      const pcAny: any = this.pc as any;
+      if (typeof pcAny.getStats !== "function") return {};
+
+      const report = await pcAny.getStats();
+      const stats: any[] = [];
+      forEachStat(report, (s) => stats.push(s));
+
+      const byId = new Map<string, any>();
+      for (const s of stats) {
+        if (s && typeof s.id === "string") byId.set(s.id, s);
+      }
+
+      // 1) transport에서 selectedCandidatePairId 우선 탐색
+      let selectedPairId: string | undefined = undefined;
+      for (const s of stats) {
+        if (s?.type === "transport" && typeof s.selectedCandidatePairId === "string") {
+          selectedPairId = s.selectedCandidatePairId;
+          break;
+        }
+      }
+
+      // 2) 없으면 candidate-pair 중 selected/nominated 찾아서 선택
+      let pair: any = selectedPairId ? byId.get(selectedPairId) : null;
+      if (!pair) {
+        const candidates = stats.filter((s) => s?.type === "candidate-pair");
+        pair =
+          candidates.find((p) => p?.selected === true) ||
+          candidates.find((p) => p?.nominated === true) ||
+          null;
+
+        if (pair?.id && typeof pair.id === "string") selectedPairId = pair.id;
+      }
+
+      if (!pair) return { selectedPairId };
+
+      const localId = pair.localCandidateId;
+      const remoteId = pair.remoteCandidateId;
+
+      const local = typeof localId === "string" ? byId.get(localId) : null;
+      const remote = typeof remoteId === "string" ? byId.get(remoteId) : null;
+
+      const info: IcePathInfo = {
+        selectedPairId,
+        currentRoundTripTimeMs: Number.isFinite(pair.currentRoundTripTime)
+          ? Math.round(pair.currentRoundTripTime * 1000)
+          : undefined,
+        availableOutgoingBitrate: Number.isFinite(pair.availableOutgoingBitrate) ? pair.availableOutgoingBitrate : undefined,
+        bytesSent: Number.isFinite(pair.bytesSent) ? pair.bytesSent : undefined,
+        bytesReceived: Number.isFinite(pair.bytesReceived) ? pair.bytesReceived : undefined,
+      };
+
+      if (local) {
+        info.localCandidateType = typeof local.candidateType === "string" ? local.candidateType : undefined;
+        info.localProtocol = typeof local.protocol === "string" ? local.protocol : undefined;
+        info.localAddress = typeof local.address === "string" ? local.address : typeof local.ip === "string" ? local.ip : undefined;
+        info.localPort = Number.isFinite(local.port) ? local.port : undefined;
+      }
+
+      if (remote) {
+        info.remoteCandidateType = typeof remote.candidateType === "string" ? remote.candidateType : undefined;
+        info.remoteProtocol = typeof remote.protocol === "string" ? remote.protocol : undefined;
+        info.remoteAddress = typeof remote.address === "string" ? remote.address : typeof remote.ip === "string" ? remote.ip : undefined;
+        info.remotePort = Number.isFinite(remote.port) ? remote.port : undefined;
+      }
+
+      return info;
+    } catch {
+      return {};
+    }
   }
 
   private startSpeakerphone() {
@@ -214,6 +336,7 @@ export class WebRTCSession {
     const offer = await (this.pc as any).createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
 
     if (offer?.sdp) {
+      // ✅ 5번 반영: H264 우선 정렬
       offer.sdp = preferH264InSdp(offer.sdp);
     }
 
@@ -226,6 +349,7 @@ export class WebRTCSession {
     const ans = await (this.pc as any).createAnswer();
 
     if (ans?.sdp) {
+      // ✅ 5번 반영: H264 우선 정렬
       ans.sdp = preferH264InSdp(ans.sdp);
     }
 
