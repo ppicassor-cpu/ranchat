@@ -1,5 +1,4 @@
-﻿//C:\ranchat\src\components\AppModal.tsx
-import React from "react";
+﻿import React from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";

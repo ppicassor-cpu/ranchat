@@ -2,7 +2,7 @@
   "expo": {
     "name": "ranchat",
     "slug": "ranchat",
-    "version": "1.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -29,7 +29,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -74,7 +74,9 @@
       "update": {
         "channel": "production",
         "branch": "main"
-      }
+      },
+      "EXPO_PUBLIC_REVENUECAT_PUBLIC_SDK_KEY": "goog_uUnNMCAjkegLjEYuqDCYwvwPTGX",
+      "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID": "ranchat_premium"
     }
   }
 }

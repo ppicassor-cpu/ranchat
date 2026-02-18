@@ -1,6 +1,6 @@
 ==================================================
    N_BBANG PROJECT SOURCE CODE
-   Exported at: 2026-02-17 10:52:55
+   Exported at: 2026-02-18 12:10:08
 ==================================================
 
 
@@ -39,7 +39,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -94,12 +94,30 @@
  FILE: App.tsx
 ================================================================================
 
-﻿//App.tsx
-import React from "react";
+﻿// FILE: C:\ranchat\App.tsx
+import React, { useEffect, useRef } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import RootNavigator from "./src/navigation/RootNavigator";
 
+import { initAds } from "./src/services/ads/AdManager";
+import { initPurchases } from "./src/services/purchases/PurchaseManager";
+
 export default function App() {
+  const didInitRef = useRef(false);
+
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+
+    // ✅ 앱 부팅 시 광고/결제 SDK 초기화 1회 보장
+    try {
+      initAds();
+    } catch {}
+    try {
+      initPurchases();
+    } catch {}
+  }, []);
+
   return (
     <SafeAreaProvider>
       <RootNavigator />
@@ -233,7 +251,7 @@ registerRootComponent(App);
  FILE: dist\metadata.json
 ================================================================================
 
-{"version":0,"bundler":"metro","fileMetadata":{"android":{"bundle":"_expo/static/js/android/index-4c53d1a1f48f2cd58aa685883d585291.hbc","assets":[{"path":"assets\\778ffc9fe8773a878e9c30a6304784de","ext":"png"},{"path":"assets\\c79c3606a1cf168006ad3979763c7e0c","ext":"png"},{"path":"assets\\02bc1fa7c0313217bde2d65ccbff40c9","ext":"png"},{"path":"assets\\35ba0eaec5a4f5ed12ca16fabeae451d","ext":"png"},{"path":"assets\\0a328cd9c1afd0afe8e3b1ec5165b1b4","ext":"png"},{"path":"assets\\3cd68ccdb8938e3711da2e8831b85493","ext":"png"},{"path":"assets\\61ca7e64b7d605716c57706cef640b9a","ext":"png"},{"path":"assets\\aff2c65b39a296d4f7e96d0f58169170","ext":"png"},{"path":"assets\\d8e7601e3df962f83c62371ac14964d8","ext":"png"},{"path":"assets\\3cd68ccdb8938e3711da2e8831b85493","ext":"png"},{"path":"assets\\0747a1317bbe9c6fc340b889ef8ab3ae","ext":"png"},{"path":"assets\\d84e297c3b3e49a614248143d53e40ca","ext":"png"},{"path":"assets\\1190ab078c57159f4245a328118fcd9a","ext":"png"},{"path":"assets\\78c625386b4d0690b421eb0fc78f7b9c","ext":"png"},{"path":"assets\\0747a1317bbe9c6fc340b889ef8ab3ae","ext":"png"},{"path":"assets\\4403c6117ec30c859bc95d70ce4a71d3","ext":"png"},{"path":"assets\\069d99eb1fa6712c0b9034a58c6b57dd","ext":"png"},{"path":"assets\\c3273c9e5321f20d1e42c2efae2578c4","ext":"png"},{"path":"assets\\286d67d3f74808a60a78d3ebf1a5fb57","ext":"png"},{"path":"assets\\3f78af31cca60105799838a1a7a59fbd","ext":"ttf"},{"path":"assets\\31b5ffea3daddc69dd01a1f3d6cf63c5","ext":"ttf"},{"path":"assets\\140c53a7643ea949007aa9a282153849","ext":"ttf"},{"path":"assets\\ca4b48e04dc1ce10bfbddb262c8b835f","ext":"ttf"},{"path":"assets\\b49ae8ab2dbccb02c4d11caaacf09eab","ext":"ttf"},{"path":"assets\\b06871f281fee6b241d60582ae9369b9","ext":"ttf"},{"path":"assets\\1f77739ca9ff2188b539c36f30ffa2be","ext":"ttf"},{"path":"assets\\605ed7926cf39a2ad5ec2d1f9d391d3d","ext":"ttf"},{"path":"assets\\3b89dd103490708d19a95adcae52210e","ext":"ttf"},{"path":"assets\\370dd5af19f8364907b6e2c41f45dbbf","ext":"ttf"},{"path":"assets\\adec7d6f310bc577f05e8fe06a5daccf","ext":"ttf"},{"path":"assets\\56c8d80832e37783f12c05db7c8849e2","ext":"ttf"},{"path":"assets\\e20945d7c929279ef7a6f1db184a4470","ext":"ttf"},{"path":"assets\\b4eb097d35f44ed943676fd56f6bdc51","ext":"ttf"},{"path":"assets\\6e435534bd35da5fef04168860a9b8fa","ext":"ttf"},{"path":"assets\\4e85bc9ebe07e0340c9c4fc2f6c38908","ext":"ttf"},{"path":"assets\\871378c6eab492a3e689a9385dc45a12","ext":"ttf"},{"path":"assets\\d2285965fe34b05465047401b8595dd0","ext":"ttf"},{"path":"assets\\1681f34aaca71b8dfb70756bca331eb2","ext":"ttf"}]}}}
+{"version":0,"bundler":"metro","fileMetadata":{"android":{"bundle":"_expo/static/js/android/index-a6810af1a898cc323fece45eddf6fbfe.hbc","assets":[{"path":"assets\\778ffc9fe8773a878e9c30a6304784de","ext":"png"},{"path":"assets\\c79c3606a1cf168006ad3979763c7e0c","ext":"png"},{"path":"assets\\02bc1fa7c0313217bde2d65ccbff40c9","ext":"png"},{"path":"assets\\35ba0eaec5a4f5ed12ca16fabeae451d","ext":"png"},{"path":"assets\\0a328cd9c1afd0afe8e3b1ec5165b1b4","ext":"png"},{"path":"assets\\3cd68ccdb8938e3711da2e8831b85493","ext":"png"},{"path":"assets\\61ca7e64b7d605716c57706cef640b9a","ext":"png"},{"path":"assets\\aff2c65b39a296d4f7e96d0f58169170","ext":"png"},{"path":"assets\\d8e7601e3df962f83c62371ac14964d8","ext":"png"},{"path":"assets\\3cd68ccdb8938e3711da2e8831b85493","ext":"png"},{"path":"assets\\0747a1317bbe9c6fc340b889ef8ab3ae","ext":"png"},{"path":"assets\\d84e297c3b3e49a614248143d53e40ca","ext":"png"},{"path":"assets\\1190ab078c57159f4245a328118fcd9a","ext":"png"},{"path":"assets\\78c625386b4d0690b421eb0fc78f7b9c","ext":"png"},{"path":"assets\\0747a1317bbe9c6fc340b889ef8ab3ae","ext":"png"},{"path":"assets\\4403c6117ec30c859bc95d70ce4a71d3","ext":"png"},{"path":"assets\\069d99eb1fa6712c0b9034a58c6b57dd","ext":"png"},{"path":"assets\\c3273c9e5321f20d1e42c2efae2578c4","ext":"png"},{"path":"assets\\286d67d3f74808a60a78d3ebf1a5fb57","ext":"png"},{"path":"assets\\3f78af31cca60105799838a1a7a59fbd","ext":"ttf"},{"path":"assets\\31b5ffea3daddc69dd01a1f3d6cf63c5","ext":"ttf"},{"path":"assets\\140c53a7643ea949007aa9a282153849","ext":"ttf"},{"path":"assets\\ca4b48e04dc1ce10bfbddb262c8b835f","ext":"ttf"},{"path":"assets\\b49ae8ab2dbccb02c4d11caaacf09eab","ext":"ttf"},{"path":"assets\\b06871f281fee6b241d60582ae9369b9","ext":"ttf"},{"path":"assets\\1f77739ca9ff2188b539c36f30ffa2be","ext":"ttf"},{"path":"assets\\605ed7926cf39a2ad5ec2d1f9d391d3d","ext":"ttf"},{"path":"assets\\3b89dd103490708d19a95adcae52210e","ext":"ttf"},{"path":"assets\\370dd5af19f8364907b6e2c41f45dbbf","ext":"ttf"},{"path":"assets\\adec7d6f310bc577f05e8fe06a5daccf","ext":"ttf"},{"path":"assets\\56c8d80832e37783f12c05db7c8849e2","ext":"ttf"},{"path":"assets\\e20945d7c929279ef7a6f1db184a4470","ext":"ttf"},{"path":"assets\\b4eb097d35f44ed943676fd56f6bdc51","ext":"ttf"},{"path":"assets\\6e435534bd35da5fef04168860a9b8fa","ext":"ttf"},{"path":"assets\\4e85bc9ebe07e0340c9c4fc2f6c38908","ext":"ttf"},{"path":"assets\\871378c6eab492a3e689a9385dc45a12","ext":"ttf"},{"path":"assets\\d2285965fe34b05465047401b8595dd0","ext":"ttf"},{"path":"assets\\1681f34aaca71b8dfb70756bca331eb2","ext":"ttf"}]}}}
 
 ================================================================================
  FILE: plugins\withAdIdPermission.js
@@ -729,11 +747,13 @@ const styles = StyleSheet.create({
  FILE: src\components\PremiumPaywallModal.tsx
 ================================================================================
 
-﻿import React from "react";
+﻿// FILE: C:\ranchat\src\components\PremiumPaywallModal.tsx
+import React from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 import PrimaryButton from "./PrimaryButton";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 export default function PremiumPaywallModal({
   visible,
@@ -754,6 +774,8 @@ export default function PremiumPaywallModal({
   busy: boolean;
   onConfirm: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -763,7 +785,7 @@ export default function PremiumPaywallModal({
           <View style={styles.top}>
             <AppText style={styles.title}>{title}</AppText>
             <AppText onPress={onClose} style={styles.close}>
-              닫기
+              {t("common.close")}
             </AppText>
           </View>
 
@@ -777,10 +799,10 @@ export default function PremiumPaywallModal({
           <View style={{ height: 10 }} />
 
           <View style={styles.benefits}>
-            {benefitLines.map((t, i) => (
+            {benefitLines.map((text, i) => (
               <View key={i} style={styles.bRow}>
                 <View style={styles.dot} />
-                <AppText style={styles.bTxt}>{t}</AppText>
+                <AppText style={styles.bTxt}>{text}</AppText>
               </View>
             ))}
           </View>
@@ -788,14 +810,14 @@ export default function PremiumPaywallModal({
           <View style={{ height: 14 }} />
 
           <View style={{ gap: 10 }}>
-            <PrimaryButton title={busy ? "결제 처리 중..." : "결제 진행"} onPress={onConfirm} disabled={busy} />
-            <PrimaryButton title="취소" onPress={onClose} variant="ghost" />
+            <PrimaryButton title={busy ? t("payment.processing") : t("payment.proceed")} onPress={onConfirm} disabled={busy} />
+            <PrimaryButton title={t("common.cancel")} onPress={onClose} variant="ghost" />
           </View>
 
           <View style={{ height: 10 }} />
 
           <AppText style={styles.notice}>
-            결제는 스토어 정책에 따라 처리되며, 구독은 언제든지 스토어에서 관리할 수 있습니다.
+            {t("payment.notice")}
           </AppText>
         </View>
       </View>
@@ -848,7 +870,6 @@ const styles = StyleSheet.create({
 
   notice: { fontSize: 12, color: theme.colors.sub, lineHeight: 18 },
 });
-
 
 ================================================================================
  FILE: src\components\PrimaryButton.tsx
@@ -908,15 +929,19 @@ const styles = StyleSheet.create({
  FILE: src\components\Spinner.tsx
 ================================================================================
 
-﻿import React from "react";
+﻿// FILE: C:\ranchat\src\components\Spinner.tsx
+import React from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 export default function Spinner() {
+  const { t } = useTranslation();
+
   return (
     <View style={styles.wrap}>
-      <AppText style={styles.text}>매칭 연결중</AppText>
+      <AppText style={styles.text}>{t("spinner.matching")}</AppText>
       <ActivityIndicator size={48} />
     </View>
   );
@@ -937,7 +962,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-
 
 ================================================================================
  FILE: src\config\app.ts
@@ -968,6 +992,22 @@ const readPort = (k: string, fallback: number): number => {
   return Math.trunc(n);
 };
 
+const readBool = (k: string, fallback: boolean): boolean => {
+  const raw = read(k, fallback ? "1" : "0").trim().toLowerCase();
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "y" || raw === "on") return true;
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "n" || raw === "off") return false;
+  return fallback;
+};
+
+const readList = (k: string): string[] => {
+  const raw = read(k, "").trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => String(s || "").trim())
+    .filter((s) => s.length > 0);
+};
+
 function normalizeWssUrl(v: string): string {
   const s = String(v || "").trim();
   if (!s) return "";
@@ -988,19 +1028,39 @@ function normalizeHttpsBase(v: string): string {
   return `https://${s.replace(/^\/+/, "")}`;
 }
 
+function normalizeIceUrl(v: string, defaultScheme: "stun" | "turn" = "stun"): string {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  if (/^(stun|stuns|turn|turns):/i.test(s)) return s;
+  return `${defaultScheme}:${s.replace(/^\/+/, "")}`;
+}
+
 const freeRemoteVideoSeconds = readNumber("EXPO_PUBLIC_FREE_REMOTE_VIDEO_SECONDS", 3000);
+
+const stunUrlsRaw = readList("EXPO_PUBLIC_STUN_URLS")
+  .map((u) => normalizeIceUrl(u, "stun"))
+  .filter((u) => u.length > 0);
+
+const stunUrls =
+  stunUrlsRaw.length > 0
+    ? stunUrlsRaw
+    : ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"];
 
 export const APP_CONFIG = {
   SIGNALING_URL: normalizeWssUrl(read("EXPO_PUBLIC_SIGNALING_URL", "wss://comspc.duckdns.org")),
+
+  ICE: {
+    stunUrls,
+  },
 
   TURN: {
     host: read("EXPO_PUBLIC_TURN_HOST", "152.67.213.225"),
     port: readPort("EXPO_PUBLIC_TURN_PORT", 3478),
     username: read("EXPO_PUBLIC_TURN_USERNAME", "testuser"),
     password: read("EXPO_PUBLIC_TURN_PASSWORD", "testpass"),
+    tcpEnabled: readBool("EXPO_PUBLIC_TURN_TCP_ENABLED", false),
   },
 
-  // ✅ 4000(다른 프로젝트) 안 건드리고, 기본값을 3001로 고정
   AUTH_HTTP_BASE_URL: normalizeHttpsBase(read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "https://comspc.duckdns.org")),
 
   ADS: {
@@ -1017,7 +1077,7 @@ export const APP_CONFIG = {
     privacyUrl: read("EXPO_PUBLIC_PRIVACY_POLICY_URL", ""),
   },
 
-  MATCH_TIMEOUT_MS: readNumber("EXPO_PUBLIC_MATCH_TIMEOUT_MS", 20000),
+  MATCH_TIMEOUT_MS: readNumber("EXPO_PUBLIC_MATCH_TIMEOUT_MS", 1200000),
   FREE_CALL_LIMIT_MS: readNumber("EXPO_PUBLIC_FREE_CALL_LIMIT_MS", freeRemoteVideoSeconds * 1000),
 
   FREE_LIMITS: {
@@ -1032,21 +1092,33 @@ export const APP_CONFIG = {
 } as const;
 
 export type Gender = "male" | "female";
-export type Language = "ko" | "en";
+export type Language = "ko" | "en" | "ja" | "zh" | "es" | "de" | "fr" | "it" | "ru";
 
 export const COUNTRY_OPTIONS: { code: string; label: string; dial?: string }[] = [
   { code: "KR", label: "대한민국", dial: "+82" },
   { code: "JP", label: "일본", dial: "+81" },
+  { code: "CN", label: "중국", dial: "+86" },
+  { code: "TW", label: "대만", dial: "+886" },
+  { code: "HK", label: "홍콩", dial: "+852" },
+  { code: "SG", label: "싱가포르", dial: "+65" },
+  { code: "TH", label: "태국", dial: "+66" },
+  { code: "VN", label: "베트남", dial: "+84" },
+  { code: "ID", label: "인도네시아", dial: "+62" },
+  { code: "PH", label: "필리핀", dial: "+63" },
+  { code: "MY", label: "말레이시아", dial: "+60" },
+  { code: "IN", label: "인도", dial: "+91" },
   { code: "US", label: "미국", dial: "+1" },
   { code: "CA", label: "캐나다", dial: "+1" },
   { code: "GB", label: "영국", dial: "+44" },
   { code: "AU", label: "호주", dial: "+61" },
   { code: "DE", label: "독일", dial: "+49" },
   { code: "FR", label: "프랑스", dial: "+33" },
-  { code: "SG", label: "싱가포르", dial: "+65" },
-  { code: "TH", label: "태국", dial: "+66" },
+  { code: "RU", label: "러시아", dial: "+7" },
+  { code: "ES", label: "스페인", dial: "+34" },
+  { code: "IT", label: "이탈리아", dial: "+39" },
+  { code: "BR", label: "브라질", dial: "+55" },
+  { code: "MX", label: "멕시코", dial: "+52" },
 ];
-
 
 ================================================================================
  FILE: src\config\theme.ts
@@ -1092,16 +1164,649 @@ export const COUNTRY_OPTIONS: { code: string; label: string; dial?: string }[] =
 };
 
 ================================================================================
+ FILE: src\i18n\LanguageProvider.tsx
+================================================================================
+
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { useAppStore } from "../store/useAppStore";
+import { translations } from "./translations";
+
+type LanguageContextType = {
+  currentLang: keyof typeof translations;
+  t: (key: string, params?: Record<string, any>) => string;
+  setLanguage: (lang: keyof typeof translations) => void;
+};
+
+const LanguageContext = createContext<LanguageContextType | null>(null);
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const prefsLang = useAppStore((s) => s.prefs.language);
+  const setPrefs = useAppStore((s) => s.setPrefs);
+
+  const [currentLang, setCurrentLang] = useState<keyof typeof translations>("ko");
+
+  useEffect(() => {
+    const lang = prefsLang && translations[prefsLang as keyof typeof translations] ? (prefsLang as keyof typeof translations) : "ko";
+    setCurrentLang(lang);
+  }, [prefsLang]);
+
+  const t = (key: string, params?: Record<string, any>): string => {
+    const dict = translations[currentLang] || translations.ko;
+    let text = (dict as any)[key] || key;
+
+    if (params) {
+      Object.keys(params).forEach((k) => {
+        text = text.replace(`{${k}}`, String(params[k]));
+      });
+    }
+    return text;
+  };
+
+  const setLanguage = (lang: keyof typeof translations) => {
+    setCurrentLang(lang);
+    setPrefs({ language: lang });
+  };
+
+  return (
+    <LanguageContext.Provider value={{ currentLang, t, setLanguage }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+}
+
+export const useTranslation = () => {
+  const context = useContext(LanguageContext);
+  if (!context) throw new Error("useTranslation must be used within LanguageProvider");
+  return context;
+};
+
+================================================================================
+ FILE: src\i18n\translations.ts
+================================================================================
+
+export const translations = {
+  ko: {
+    "home.title": "랜덤 영상채팅",
+    "home.subtitle": "지역/언어/성별을 설정한 뒤 매칭을 시작하세요.",
+    "home.match_button": "매칭하기",
+    "home.permission_setting": "권한 설정",
+    "perm.title": "권한이 필요합니다",
+    "perm.message": "아래 권한을 허용해야 영상채팅을 시작할 수 있습니다.",
+    "perm.all_granted": "모든 권한 허용됨",
+    "perm.allow": "권한 허용하기",
+    "perm.camera": "카메라",
+    "perm.mic": "마이크(소리)",
+    "perm.location": "위치(GPS)",
+    "perm.required": "권한허용필요",
+    "setting.title": "설정",
+    "setting.description": "나라/언어/성별을 설정하세요.",
+    "setting.country": "나라(지역)",
+    "setting.language": "언어",
+    "setting.gender": "성별",
+    "setting.font_size": "글자 크기",
+    "setting.font_size_desc": "바를 좌우로 드래그해서 조절하세요. ({percent}%)",
+    "common.save": "저장",
+    "common.close": "닫기",
+    "common.loading": "요청 중...",
+    "common.not_set": "미설정",
+    "profile.title": "프로필",
+    "profile.subscription_status": "구독 상태",
+    "profile.premium_active": "프리미엄 이용 중",
+    "profile.free_active": "무료 이용 중",
+    "profile.apply_premium": "프리미엄 신청하기",
+    "profile.manage_subscription": "구독 관리",
+    "profile.language_section": "언어 설정",
+    "profile.current_language": "현재 언어: {language}",
+    "profile.change_language": "언어 변경",
+    "profile.terms_and_policies": "이용약관 및 정책",
+    "profile.withdraw": "회원탈퇴",
+    "modal.prefs.title": "설정",
+    "modal.prefs.body": "나라/언어/성별을 설정하세요.",
+    "prefs.current_country": "현재 나라",
+    "prefs.current_gender": "현재 성별",
+    "prefs.country_title": "나라(지역)",
+    "prefs.gender_title": "성별",
+    "modal.lang.title": "언어 선택",
+    "modal.lang.body": "사용할 언어를 선택하세요.",
+    "prefs.language_title": "언어",
+    "modal.update.title": "업데이트 있음",
+    "modal.update.body": "새 버전이 있습니다. 지금 업데이트하시겠습니까?",
+    "modal.update.applying": "업데이트 적용 중...",
+    "modal.update.apply": "지금 업데이트",
+    "modal.update.later": "나중에",
+    "modal.withdraw.title": "회원탈퇴",
+    "modal.withdraw.body": "정말 탈퇴하시겠습니까? 모든 데이터가 삭제됩니다.",
+    "modal.withdraw.confirm": "탈퇴하기",
+    "modal.withdraw.cancel": "취소",
+    "modal.policy.title": "정책",
+    "modal.policy.terms": "이용약관",
+    "modal.policy.privacy": "개인정보처리방침",
+    "modal.policy.operation": "운영정책",
+    "policy.title": "정책",
+    "policy.url_missing": "정책 URL이 없습니다.",
+    "gender.male": "남성",
+    "gender.female": "여성",
+    "common.hyphen": "-"
+  },
+  en: {
+    "home.title": "Random Video Chat",
+    "home.subtitle": "Set region/language/gender then start matching.",
+    "home.match_button": "Start Matching",
+    "home.permission_setting": "Permission Settings",
+    "perm.title": "Permissions Required",
+    "perm.message": "You need to allow the following permissions to start video chat.",
+    "perm.all_granted": "All permissions granted",
+    "perm.allow": "Allow Permissions",
+    "perm.camera": "Camera",
+    "perm.mic": "Microphone",
+    "perm.location": "Location (GPS)",
+    "perm.required": "(Required)",
+    "setting.title": "Settings",
+    "setting.description": "Set country / language / gender.",
+    "setting.country": "Country",
+    "setting.language": "Language",
+    "setting.gender": "Gender",
+    "setting.font_size": "Font Size",
+    "setting.font_size_desc": "Drag the bar to adjust. ({percent}%)",
+    "common.save": "Save",
+    "common.close": "Close",
+    "common.loading": "Loading...",
+    "common.not_set": "Not set",
+    "profile.title": "Profile",
+    "profile.subscription_status": "Subscription Status",
+    "profile.premium_active": "Premium Active",
+    "profile.free_active": "Free Active",
+    "profile.apply_premium": "Apply Premium",
+    "profile.manage_subscription": "Manage Subscription",
+    "profile.language_section": "Language",
+    "profile.current_language": "Current language: {language}",
+    "profile.change_language": "Change Language",
+    "profile.terms_and_policies": "Terms & Policies",
+    "profile.withdraw": "Withdraw",
+    "modal.prefs.title": "Settings",
+    "modal.prefs.body": "Set country / language / gender.",
+    "prefs.current_country": "Current Country",
+    "prefs.current_gender": "Current Gender",
+    "prefs.country_title": "Country",
+    "prefs.gender_title": "Gender",
+    "modal.lang.title": "Select Language",
+    "modal.lang.body": "Choose your language.",
+    "prefs.language_title": "Language",
+    "modal.update.title": "Update Available",
+    "modal.update.body": "New version available. Update now?",
+    "modal.update.applying": "Applying...",
+    "modal.update.apply": "Update Now",
+    "modal.update.later": "Later",
+    "modal.withdraw.title": "Withdraw Account",
+    "modal.withdraw.body": "All data will be deleted. Confirm?",
+    "modal.withdraw.confirm": "Withdraw",
+    "modal.withdraw.cancel": "Cancel",
+    "modal.policy.title": "Policies",
+    "modal.policy.terms": "Terms of Service",
+    "modal.policy.privacy": "Privacy Policy",
+    "modal.policy.operation": "Operation Policy",
+    "policy.title": "Policy",
+    "policy.url_missing": "Policy URL missing.",
+    "gender.male": "Male",
+    "gender.female": "Female",
+    "common.hyphen": "-"
+  },
+  ja: {
+    "home.title": "ランダムビデオチャット",
+    "home.subtitle": "地域/言語/性別を設定してからマッチングを開始してください。",
+    "home.match_button": "マッチング開始",
+    "home.permission_setting": "権限設定",
+    "perm.title": "権限が必要です",
+    "perm.message": "ビデオチャットを開始するには以下の権限を許可する必要があります。",
+    "perm.all_granted": "すべての権限が許可されました",
+    "perm.allow": "権限を許可する",
+    "perm.camera": "カメラ",
+    "perm.mic": "マイク",
+    "perm.location": "位置情報(GPS)",
+    "perm.required": "(必要)",
+    "setting.title": "設定",
+    "setting.description": "国/言語/性別を設定してください。",
+    "setting.country": "国・地域",
+    "setting.language": "言語",
+    "setting.gender": "性別",
+    "setting.font_size": "文字サイズ",
+    "setting.font_size_desc": "バーを左右にドラッグして調整してください。({percent}%)",
+    "common.save": "保存",
+    "common.close": "閉じる",
+    "common.loading": "リクエスト中...",
+    "common.not_set": "未設定",
+    "profile.title": "プロフィール",
+    "profile.subscription_status": "サブスクリプション状況",
+    "profile.premium_active": "プレミアム利用中",
+    "profile.free_active": "無料利用中",
+    "profile.apply_premium": "プレミアムを申し込む",
+    "profile.manage_subscription": "サブスクリプション管理",
+    "profile.language_section": "言語設定",
+    "profile.current_language": "現在の言語: {language}",
+    "profile.change_language": "言語を変更",
+    "profile.terms_and_policies": "利用規約・ポリシー",
+    "profile.withdraw": "退会",
+    "modal.prefs.title": "設定",
+    "modal.prefs.body": "国/言語/性別を設定してください。",
+    "prefs.current_country": "現在の国",
+    "prefs.current_gender": "現在の性別",
+    "prefs.country_title": "国・地域",
+    "prefs.gender_title": "性別",
+    "modal.lang.title": "言語選択",
+    "modal.lang.body": "使用する言語を選択してください。",
+    "prefs.language_title": "言語",
+    "modal.update.title": "アップデートあり",
+    "modal.update.body": "新しいバージョンがあります。今すぐ更新しますか？",
+    "modal.update.applying": "適用中...",
+    "modal.update.apply": "今すぐ更新",
+    "modal.update.later": "後で",
+    "modal.withdraw.title": "退会",
+    "modal.withdraw.body": "すべてのデータが削除されます。よろしいですか？",
+    "modal.withdraw.confirm": "退会する",
+    "modal.withdraw.cancel": "キャンセル",
+    "modal.policy.title": "ポリシー",
+    "modal.policy.terms": "利用規約",
+    "modal.policy.privacy": "プライバシーポリシー",
+    "modal.policy.operation": "運営ポリシー",
+    "policy.title": "ポリシー",
+    "policy.url_missing": "ポリシーURLがありません。",
+    "gender.male": "男性",
+    "gender.female": "女性",
+    "common.hyphen": "-"
+  },
+  zh: {
+    "home.title": "随机视频聊天",
+    "home.subtitle": "设置地区/语言/性别后开始匹配。",
+    "home.match_button": "开始匹配",
+    "home.permission_setting": "权限设置",
+    "perm.title": "需要权限",
+    "perm.message": "需要允许以下权限才能开始视频聊天。",
+    "perm.all_granted": "所有权限已允许",
+    "perm.allow": "允许权限",
+    "perm.camera": "摄像头",
+    "perm.mic": "麦克风",
+    "perm.location": "位置(GPS)",
+    "perm.required": "(需要)",
+    "setting.title": "设置",
+    "setting.description": "请设置国家/语言/性别。",
+    "setting.country": "国家/地区",
+    "setting.language": "语言",
+    "setting.gender": "性别",
+    "setting.font_size": "字体大小",
+    "setting.font_size_desc": "左右拖动滑块调整。({percent}%)",
+    "common.save": "保存",
+    "common.close": "关闭",
+    "common.loading": "请求中...",
+    "common.not_set": "未设置",
+    "profile.title": "个人资料",
+    "profile.subscription_status": "订阅状态",
+    "profile.premium_active": "高级会员使用中",
+    "profile.free_active": "免费使用中",
+    "profile.apply_premium": "申请高级会员",
+    "profile.manage_subscription": "管理订阅",
+    "profile.language_section": "语言设置",
+    "profile.current_language": "当前语言: {language}",
+    "profile.change_language": "更改语言",
+    "profile.terms_and_policies": "条款与政策",
+    "profile.withdraw": "注销账号",
+    "modal.prefs.title": "设置",
+    "modal.prefs.body": "请设置国家/语言/性别。",
+    "prefs.current_country": "当前国家",
+    "prefs.current_gender": "当前性别",
+    "prefs.country_title": "国家/地区",
+    "prefs.gender_title": "性别",
+    "modal.lang.title": "选择语言",
+    "modal.lang.body": "请选择使用的语言。",
+    "prefs.language_title": "语言",
+    "modal.update.title": "有更新",
+    "modal.update.body": "有新版本可用。立即更新吗？",
+    "modal.update.applying": "正在应用...",
+    "modal.update.apply": "立即更新",
+    "modal.update.later": "稍后",
+    "modal.withdraw.title": "注销账号",
+    "modal.withdraw.body": "所有数据将被删除。确认吗？",
+    "modal.withdraw.confirm": "注销",
+    "modal.withdraw.cancel": "取消",
+    "modal.policy.title": "政策",
+    "modal.policy.terms": "服务条款",
+    "modal.policy.privacy": "隐私政策",
+    "modal.policy.operation": "运营政策",
+    "policy.title": "政策",
+    "policy.url_missing": "政策链接不存在。",
+    "gender.male": "男性",
+    "gender.female": "女性",
+    "common.hyphen": "-"
+  },
+  es: {
+    "home.title": "Chat de Video Aleatorio",
+    "home.subtitle": "Configura región/idioma/género y comienza a emparejar.",
+    "home.match_button": "Iniciar Emparejamiento",
+    "home.permission_setting": "Configuración de Permisos",
+    "perm.title": "Se necesitan permisos",
+    "perm.message": "Debes permitir los siguientes permisos para iniciar el chat de video.",
+    "perm.all_granted": "Todos los permisos concedidos",
+    "perm.allow": "Permitir Permisos",
+    "perm.camera": "Cámara",
+    "perm.mic": "Micrófono",
+    "perm.location": "Ubicación (GPS)",
+    "perm.required": "(Requerido)",
+    "setting.title": "Ajustes",
+    "setting.description": "Configura país/idioma/género.",
+    "setting.country": "País",
+    "setting.language": "Idioma",
+    "setting.gender": "Género",
+    "setting.font_size": "Tamaño de fuente",
+    "setting.font_size_desc": "Arrastra la barra para ajustar. ({percent}%)",
+    "common.save": "Guardar",
+    "common.close": "Cerrar",
+    "common.loading": "Cargando...",
+    "common.not_set": "No establecido",
+    "profile.title": "Perfil",
+    "profile.subscription_status": "Estado de suscripción",
+    "profile.premium_active": "Premium activo",
+    "profile.free_active": "Gratis activo",
+    "profile.apply_premium": "Solicitar Premium",
+    "profile.manage_subscription": "Gestionar suscripción",
+    "profile.language_section": "Configuración de idioma",
+    "profile.current_language": "Idioma actual: {language}",
+    "profile.change_language": "Cambiar idioma",
+    "profile.terms_and_policies": "Términos y políticas",
+    "profile.withdraw": "Eliminar cuenta",
+    "modal.prefs.title": "Ajustes",
+    "modal.prefs.body": "Configura país/idioma/género.",
+    "prefs.current_country": "País actual",
+    "prefs.current_gender": "Género actual",
+    "prefs.country_title": "País",
+    "prefs.gender_title": "Género",
+    "modal.lang.title": "Seleccionar idioma",
+    "modal.lang.body": "Elige tu idioma.",
+    "prefs.language_title": "Idioma",
+    "modal.update.title": "Actualización disponible",
+    "modal.update.body": "¿Actualizar ahora?",
+    "modal.update.applying": "Aplicando...",
+    "modal.update.apply": "Actualizar ahora",
+    "modal.update.later": "Más tarde",
+    "modal.withdraw.title": "Eliminar cuenta",
+    "modal.withdraw.body": "Todos los datos se eliminarán. ¿Confirmar?",
+    "modal.withdraw.confirm": "Eliminar",
+    "modal.withdraw.cancel": "Cancelar",
+    "modal.policy.title": "Políticas",
+    "modal.policy.terms": "Términos de servicio",
+    "modal.policy.privacy": "Política de privacidad",
+    "modal.policy.operation": "Política de operación",
+    "policy.title": "Política",
+    "policy.url_missing": "URL de política no encontrada.",
+    "gender.male": "Masculino",
+    "gender.female": "Femenino",
+    "common.hyphen": "-"
+  },
+  de: {
+    "home.title": "Zufälliger Videochat",
+    "home.subtitle": "Stelle Region/Sprache/Geschlecht ein und starte das Matching.",
+    "home.match_button": "Matching starten",
+    "home.permission_setting": "Berechtigungseinstellungen",
+    "perm.title": "Berechtigungen erforderlich",
+    "perm.message": "Du musst die folgenden Berechtigungen erlauben, um den Videochat zu starten.",
+    "perm.all_granted": "Alle Berechtigungen erteilt",
+    "perm.allow": "Berechtigungen erlauben",
+    "perm.camera": "Kamera",
+    "perm.mic": "Mikrofon",
+    "perm.location": "Standort (GPS)",
+    "perm.required": "(Erforderlich)",
+    "setting.title": "Einstellungen",
+    "setting.description": "Land/Sprache/Geschlecht einstellen.",
+    "setting.country": "Land",
+    "setting.language": "Sprache",
+    "setting.gender": "Geschlecht",
+    "setting.font_size": "Schriftgröße",
+    "setting.font_size_desc": "Schieberegler ziehen zum Anpassen. ({percent}%)",
+    "common.save": "Speichern",
+    "common.close": "Schließen",
+    "common.loading": "Wird geladen...",
+    "common.not_set": "Nicht gesetzt",
+    "profile.title": "Profil",
+    "profile.subscription_status": "Abonnement-Status",
+    "profile.premium_active": "Premium aktiv",
+    "profile.free_active": "Kostenlos aktiv",
+    "profile.apply_premium": "Premium beantragen",
+    "profile.manage_subscription": "Abonnement verwalten",
+    "profile.language_section": "Spracheinstellung",
+    "profile.current_language": "Aktuelle Sprache: {language}",
+    "profile.change_language": "Sprache ändern",
+    "profile.terms_and_policies": "Nutzungsbedingungen & Richtlinien",
+    "profile.withdraw": "Konto löschen",
+    "modal.prefs.title": "Einstellungen",
+    "modal.prefs.body": "Land/Sprache/Geschlecht einstellen.",
+    "prefs.current_country": "Aktuelles Land",
+    "prefs.current_gender": "Aktuelles Geschlecht",
+    "prefs.country_title": "Land",
+    "prefs.gender_title": "Geschlecht",
+    "modal.lang.title": "Sprache wählen",
+    "modal.lang.body": "Wähle deine Sprache.",
+    "prefs.language_title": "Sprache",
+    "modal.update.title": "Update verfügbar",
+    "modal.update.body": "Neue Version verfügbar. Jetzt aktualisieren?",
+    "modal.update.applying": "Wird angewendet...",
+    "modal.update.apply": "Jetzt aktualisieren",
+    "modal.update.later": "Später",
+    "modal.withdraw.title": "Konto löschen",
+    "modal.withdraw.body": "Alle Daten werden gelöscht. Bestätigen?",
+    "modal.withdraw.confirm": "Löschen",
+    "modal.withdraw.cancel": "Abbrechen",
+    "modal.policy.title": "Richtlinien",
+    "modal.policy.terms": "Nutzungsbedingungen",
+    "modal.policy.privacy": "Datenschutz",
+    "modal.policy.operation": "Betriebsrichtlinie",
+    "policy.title": "Richtlinie",
+    "policy.url_missing": "Richtlinien-URL fehlt.",
+    "gender.male": "Männlich",
+    "gender.female": "Weiblich",
+    "common.hyphen": "-"
+  },
+  fr: {
+    "home.title": "Chat Vidéo Aléatoire",
+    "home.subtitle": "Définissez région/langue/sexe puis commencez le matching.",
+    "home.match_button": "Commencer le matching",
+    "home.permission_setting": "Paramètres des permissions",
+    "perm.title": "Permissions requises",
+    "perm.message": "Vous devez autoriser les permissions suivantes pour démarrer le chat vidéo.",
+    "perm.all_granted": "Toutes les permissions accordées",
+    "perm.allow": "Autoriser les permissions",
+    "perm.camera": "Caméra",
+    "perm.mic": "Microphone",
+    "perm.location": "Localisation (GPS)",
+    "perm.required": "(Requis)",
+    "setting.title": "Paramètres",
+    "setting.description": "Définir pays/langue/sexe.",
+    "setting.country": "Pays",
+    "setting.language": "Langue",
+    "setting.gender": "Sexe",
+    "setting.font_size": "Taille de police",
+    "setting.font_size_desc": "Faites glisser la barre pour ajuster. ({percent}%)",
+    "common.save": "Enregistrer",
+    "common.close": "Fermer",
+    "common.loading": "Chargement...",
+    "common.not_set": "Non défini",
+    "profile.title": "Profil",
+    "profile.subscription_status": "Statut d'abonnement",
+    "profile.premium_active": "Premium actif",
+    "profile.free_active": "Gratuit actif",
+    "profile.apply_premium": "Demander Premium",
+    "profile.manage_subscription": "Gérer l'abonnement",
+    "profile.language_section": "Paramètres de langue",
+    "profile.current_language": "Langue actuelle : {language}",
+    "profile.change_language": "Changer de langue",
+    "profile.terms_and_policies": "Conditions & politiques",
+    "profile.withdraw": "Supprimer le compte",
+    "modal.prefs.title": "Paramètres",
+    "modal.prefs.body": "Définir pays/langue/sexe.",
+    "prefs.current_country": "Pays actuel",
+    "prefs.current_gender": "Sexe actuel",
+    "prefs.country_title": "Pays",
+    "prefs.gender_title": "Sexe",
+    "modal.lang.title": "Choisir la langue",
+    "modal.lang.body": "Choisissez votre langue.",
+    "prefs.language_title": "Langue",
+    "modal.update.title": "Mise à jour disponible",
+    "modal.update.body": "Nouvelle version disponible. Mettre à jour maintenant ?",
+    "modal.update.applying": "Application en cours...",
+    "modal.update.apply": "Mettre à jour maintenant",
+    "modal.update.later": "Plus tard",
+    "modal.withdraw.title": "Supprimer le compte",
+    "modal.withdraw.body": "Toutes les données seront supprimées. Confirmer ?",
+    "modal.withdraw.confirm": "Supprimer",
+    "modal.withdraw.cancel": "Annuler",
+    "modal.policy.title": "Politiques",
+    "modal.policy.terms": "Conditions d'utilisation",
+    "modal.policy.privacy": "Politique de confidentialité",
+    "modal.policy.operation": "Politique d'exploitation",
+    "policy.title": "Politique",
+    "policy.url_missing": "URL de politique manquante.",
+    "gender.male": "Homme",
+    "gender.female": "Femme",
+    "common.hyphen": "-"
+  },
+  it: {
+    "home.title": "Chat Video Casuale",
+    "home.subtitle": "Imposta regione/lingua/genere e inizia il matching.",
+    "home.match_button": "Inizia Matching",
+    "home.permission_setting": "Impostazioni Permessi",
+    "perm.title": "Permessi richiesti",
+    "perm.message": "Devi autorizzare i seguenti permessi per iniziare il chat video.",
+    "perm.all_granted": "Tutti i permessi concessi",
+    "perm.allow": "Autorizza Permessi",
+    "perm.camera": "Fotocamera",
+    "perm.mic": "Microfono",
+    "perm.location": "Posizione (GPS)",
+    "perm.required": "(Richiesto)",
+    "setting.title": "Impostazioni",
+    "setting.description": "Imposta paese/lingua/genere.",
+    "setting.country": "Paese",
+    "setting.language": "Lingua",
+    "setting.gender": "Genere",
+    "setting.font_size": "Dimensione carattere",
+    "setting.font_size_desc": "Trascina la barra per regolare. ({percent}%)",
+    "common.save": "Salva",
+    "common.close": "Chiudi",
+    "common.loading": "Caricamento...",
+    "common.not_set": "Non impostato",
+    "profile.title": "Profilo",
+    "profile.subscription_status": "Stato abbonamento",
+    "profile.premium_active": "Premium attivo",
+    "profile.free_active": "Gratuito attivo",
+    "profile.apply_premium": "Richiedi Premium",
+    "profile.manage_subscription": "Gestisci abbonamento",
+    "profile.language_section": "Impostazioni lingua",
+    "profile.current_language": "Lingua attuale: {language}",
+    "profile.change_language": "Cambia lingua",
+    "profile.terms_and_policies": "Termini e politiche",
+    "profile.withdraw": "Elimina account",
+    "modal.prefs.title": "Impostazioni",
+    "modal.prefs.body": "Imposta paese/lingua/genere.",
+    "prefs.current_country": "Paese attuale",
+    "prefs.current_gender": "Genere attuale",
+    "prefs.country_title": "Paese",
+    "prefs.gender_title": "Genere",
+    "modal.lang.title": "Seleziona lingua",
+    "modal.lang.body": "Scegli la tua lingua.",
+    "prefs.language_title": "Lingua",
+    "modal.update.title": "Aggiornamento disponibile",
+    "modal.update.body": "Nuova versione disponibile. Aggiornare ora?",
+    "modal.update.applying": "Applicazione in corso...",
+    "modal.update.apply": "Aggiorna ora",
+    "modal.update.later": "Più tardi",
+    "modal.withdraw.title": "Elimina account",
+    "modal.withdraw.body": "Tutti i dati saranno eliminati. Confermare?",
+    "modal.withdraw.confirm": "Elimina",
+    "modal.withdraw.cancel": "Annulla",
+    "modal.policy.title": "Politiche",
+    "modal.policy.terms": "Termini di servizio",
+    "modal.policy.privacy": "Informativa sulla privacy",
+    "modal.policy.operation": "Politica operativa",
+    "policy.title": "Politica",
+    "policy.url_missing": "URL politica mancante.",
+    "gender.male": "Maschio",
+    "gender.female": "Femmina",
+    "common.hyphen": "-"
+  },
+  ru: {
+    "home.title": "Случайный видеочат",
+    "home.subtitle": "Установите регион/язык/пол и начните поиск.",
+    "home.match_button": "Начать поиск",
+    "home.permission_setting": "Настройки разрешений",
+    "perm.title": "Требуются разрешения",
+    "perm.message": "Чтобы начать видеочат, разрешите следующие права.",
+    "perm.all_granted": "Все разрешения выданы",
+    "perm.allow": "Разрешить",
+    "perm.camera": "Камера",
+    "perm.mic": "Микрофон",
+    "perm.location": "Местоположение (GPS)",
+    "perm.required": "(Обязательно)",
+    "setting.title": "Настройки",
+    "setting.description": "Установите страну/язык/пол.",
+    "setting.country": "Страна",
+    "setting.language": "Язык",
+    "setting.gender": "Пол",
+    "setting.font_size": "Размер шрифта",
+    "setting.font_size_desc": "Перетащите ползунок для настройки. ({percent}%)",
+    "common.save": "Сохранить",
+    "common.close": "Закрыть",
+    "common.loading": "Загрузка...",
+    "common.not_set": "Не установлено",
+    "profile.title": "Профиль",
+    "profile.subscription_status": "Статус подписки",
+    "profile.premium_active": "Премиум активен",
+    "profile.free_active": "Бесплатный активен",
+    "profile.apply_premium": "Оформить премиум",
+    "profile.manage_subscription": "Управление подпиской",
+    "profile.language_section": "Настройка языка",
+    "profile.current_language": "Текущий язык: {language}",
+    "profile.change_language": "Сменить язык",
+    "profile.terms_and_policies": "Условия и политика",
+    "profile.withdraw": "Удалить аккаунт",
+    "modal.prefs.title": "Настройки",
+    "modal.prefs.body": "Установите страну/язык/пол.",
+    "prefs.current_country": "Текущая страна",
+    "prefs.current_gender": "Текущий пол",
+    "prefs.country_title": "Страна",
+    "prefs.gender_title": "Пол",
+    "modal.lang.title": "Выбор языка",
+    "modal.lang.body": "Выберите язык.",
+    "prefs.language_title": "Язык",
+    "modal.update.title": "Доступно обновление",
+    "modal.update.body": "Доступна новая версия. Обновить сейчас?",
+    "modal.update.applying": "Применение...",
+    "modal.update.apply": "Обновить сейчас",
+    "modal.update.later": "Позже",
+    "modal.withdraw.title": "Удалить аккаунт",
+    "modal.withdraw.body": "Все данные будут удалены. Подтвердить?",
+    "modal.withdraw.confirm": "Удалить",
+    "modal.withdraw.cancel": "Отмена",
+    "modal.policy.title": "Политики",
+    "modal.policy.terms": "Условия использования",
+    "modal.policy.privacy": "Политика конфиденциальности",
+    "modal.policy.operation": "Политика эксплуатации",
+    "policy.title": "Политика",
+    "policy.url_missing": "URL политики отсутствует.",
+    "gender.male": "Мужской",
+    "gender.female": "Женский",
+    "common.hyphen": "-"
+  }
+} as const;
+
+================================================================================
  FILE: src\navigation\MainStack.tsx
 ================================================================================
 
-﻿import React from "react";
+﻿// FILE: C:\ranchat\src\navigation\MainStack.tsx
+import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "../screens/HomeScreen";
 import CallScreen from "../screens/CallScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import PremiumScreen from "../screens/PremiumScreen";
 import { theme } from "../config/theme";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 export type MainStackParamList = {
   Home: undefined;
@@ -1113,6 +1818,8 @@ export type MainStackParamList = {
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 export default function MainStack() {
+  const { t } = useTranslation();
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -1122,30 +1829,28 @@ export default function MainStack() {
         contentStyle: { backgroundColor: theme.colors.bg },
       }}
     >
-      <Stack.Screen name="Home" component={HomeScreen} options={{ title: "RanChat" }} />
-      <Stack.Screen name="Call" component={CallScreen} options={{ title: "매칭" }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "프로필" }} />
-      <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: "프리미엄" }} />
+      <Stack.Screen name="Home" component={HomeScreen} options={{ title: t("screen.home") }} />
+      <Stack.Screen name="Call" component={CallScreen} options={{ title: t("screen.call") }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: t("screen.profile") }} />
+      <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: t("screen.premium") }} />
     </Stack.Navigator>
   );
 }
-
 
 ================================================================================
  FILE: src\navigation\RootNavigator.tsx
 ================================================================================
 
-﻿// C:\ranchat\src\navigation\RootNavigator.tsx
+﻿// FILE: C:\ranchat\src\navigation\RootNavigator.tsx
 import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
-
 import MainStack from "./MainStack";
 import { useAppStore } from "../store/useAppStore";
 
-import { initAds } from "../services/ads/AdManager";
-import { initPurchases } from "../services/purchases/PurchaseManager";
 import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
 import GlobalModalHost from "../screens/_GlobalModalHost";
+import { LanguageProvider } from "../i18n/LanguageProvider";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 function toErrMsg(e: unknown) {
   if (typeof e === "string") return e;
@@ -1159,11 +1864,7 @@ export default function RootNavigator() {
 
   const setAuth = useAppStore((s) => s.setAuth);
   const showGlobalModal = useAppStore((s) => s.showGlobalModal);
-
-  useEffect(() => {
-    initAds();
-    initPurchases();
-  }, []);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -1173,19 +1874,20 @@ export default function RootNavigator() {
         await bootstrapDeviceBinding();
       } catch (e) {
         setAuth({ verified: true, token: null, userId: null });
-        showGlobalModal("인증", toErrMsg(e));
+        showGlobalModal(t("auth.title"), toErrMsg(e));
       }
     })();
-  }, [hasHydrated, authNonce, setAuth, showGlobalModal]);
+  }, [hasHydrated, authNonce, setAuth, showGlobalModal, t]);
 
   return (
     <NavigationContainer>
-      <MainStack />
+      <LanguageProvider>
+        <MainStack />
+      </LanguageProvider>
       <GlobalModalHost />
     </NavigationContainer>
   );
 }
-
 
 ================================================================================
  FILE: src\screens\CallScreen.tsx
@@ -1206,13 +1908,14 @@ import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
 import { useAppStore } from "../store/useAppStore";
 import { SignalClient, SignalMessage } from "../services/signal/SignalClient";
 import { WebRTCSession } from "../services/webrtc/WebRTCSession";
-import { BannerBar, createInterstitial } from "../services/ads/AdManager";
-import { AdEventType, NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, NativeMediaAspectRatio, TestIds } from "react-native-google-mobile-ads";
+import { BannerBar, createInterstitial, initAds } from "../services/ads/AdManager";
+import mobileAds, { AdEventType, NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, NativeMediaAspectRatio, TestIds } from "react-native-google-mobile-ads";
 import { purchasePremium, refreshSubscription } from "../services/purchases/PurchaseManager";
 import type { MainStackParamList } from "../navigation/MainStack";
 import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 type Props = NativeStackScreenProps<MainStackParamList, "Call">;
 
@@ -1264,6 +1967,7 @@ const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").tr
 function QueueNativeAd256x144() {
   const [nativeAd, setNativeAd] = useState<NativeAd | null>(null);
   const adRef = useRef<NativeAd | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     let alive = true;
@@ -1302,7 +2006,7 @@ function QueueNativeAd256x144() {
               {nativeAd.headline}
             </Text>
           </NativeAsset>
-          <AppText style={styles.nativeAdTag}>광고</AppText>
+          <AppText style={styles.nativeAdTag}>{t("common.ad")}</AppText>
         </View>
       </View>
     </NativeAdView>
@@ -1312,6 +2016,7 @@ function QueueNativeAd256x144() {
 export default function CallScreen({ navigation }: Props) {
 
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const prefs = useAppStore((s) => s.prefs);
   const token = useAppStore((s) => s.auth.token);
@@ -1368,12 +2073,71 @@ export default function CallScreen({ navigation }: Props) {
 
   const canStart = useRef(false);
 
+  const [adsReady, setAdsReady] = useState(false);
+  const adsReadyRef = useRef(false);
+  const adsAliveRef = useRef(true);
+  const adsInitPromiseRef = useRef<Promise<any> | null>(null);
+  const [bannerMountKey, setBannerMountKey] = useState(0);
+
   const adAllowedRef = useRef(false);
   const interstitialTokenRef = useRef(0);
   const interstitialCleanupRef = useRef<(() => void) | null>(null);
   const interstitialTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const iceStatsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastIceInfoRef = useRef<any>(null);
+  const [iceInfoText, setIceInfoText] = useState<string>("");
+
   const [peerInfo, setPeerInfo] = useState<any>(null);
+
+  // ✅ 최신 상태 참조용 ref들(통화 중 ws close 시 재매칭/종료 방지)
+  const phaseRef = useRef<Phase>("connecting");
+  const roomIdRef = useRef<string | null>(null);
+  const myCamOnRef = useRef<boolean>(true);
+  const mySoundOnRef = useRef<boolean>(true);
+
+  const manualCloseRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
+
+  const webrtcDownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const webrtcDownTokenRef = useRef(0);
+
+  const [signalUnstable, setSignalUnstable] = useState(false);
+
+  const waitAdsReady = useCallback(async (maxWaitMs = 1000) => {
+    if (adsReadyRef.current) return true;
+
+    try {
+      initAds();
+    } catch {}
+
+    if (!adsInitPromiseRef.current) {
+      try {
+        const p = mobileAds().initialize();
+        adsInitPromiseRef.current = Promise.resolve(p as any);
+
+        (p as any)?.then?.(() => {
+          if (adsReadyRef.current) return;
+          adsReadyRef.current = true;
+          if (!adsAliveRef.current) return;
+          setAdsReady(true);
+        }).catch?.(() => {});
+      } catch {}
+    }
+
+    const p = adsInitPromiseRef.current;
+    if (!p) return adsReadyRef.current;
+
+    try {
+      await Promise.race([
+        p,
+        new Promise((resolve) => setTimeout(resolve, Math.max(0, maxWaitMs))),
+      ]);
+    } catch {}
+
+    return adsReadyRef.current;
+  }, []);
 
   const peerCountryRaw = useMemo(() => String((peerInfo as any)?.country ?? ""), [peerInfo]);
   const peerLangRaw = useMemo(() => String((peerInfo as any)?.language ?? (peerInfo as any)?.lang ?? ""), [peerInfo]);
@@ -1430,6 +2194,35 @@ export default function CallScreen({ navigation }: Props) {
     canStart.current = Boolean(String(prefs.country || "").length > 0 && String(prefs.gender || "").length > 0);
   }, [prefs.country, prefs.gender]);
 
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
+
+  useEffect(() => {
+    myCamOnRef.current = myCamOn;
+  }, [myCamOn]);
+
+  useEffect(() => {
+    mySoundOnRef.current = mySoundOn;
+  }, [mySoundOn]);
+
+  useEffect(() => {
+    adsAliveRef.current = true;
+    waitAdsReady(1000);
+    return () => {
+      adsAliveRef.current = false;
+    };
+  }, [waitAdsReady]);
+
+  useEffect(() => {
+    if (!adsReady) return;
+    setBannerMountKey((k) => k + 1);
+  }, [adsReady]);
+
   const startNoMatchTimer = () => {
     if (noMatchShownThisCycleRef.current) return;
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
@@ -1457,6 +2250,7 @@ export default function CallScreen({ navigation }: Props) {
         wsRef.current?.leaveQueue();
       } catch {}
       try {
+        manualCloseRef.current = true;
         wsRef.current?.close();
       } catch {}
       wsRef.current = null;
@@ -1472,6 +2266,52 @@ export default function CallScreen({ navigation }: Props) {
     if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
     premiumNoMatchAutoCloseRef.current = null;
   };
+
+  const clearIceStatsTimer = () => {
+    if (iceStatsTimerRef.current) clearInterval(iceStatsTimerRef.current);
+    iceStatsTimerRef.current = null;
+  };
+
+  const clearReconnectTimer = () => {
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = null;
+    reconnectAttemptRef.current = 0;
+  };
+
+  const clearWebrtcDownTimer = () => {
+    if (webrtcDownTimerRef.current) clearTimeout(webrtcDownTimerRef.current);
+    webrtcDownTimerRef.current = null;
+    webrtcDownTokenRef.current += 1;
+  };
+
+  const updateIceInfo = useCallback(async () => {
+    try {
+      const info = await (rtcRef.current as any)?.getIcePathInfo?.();
+      if (!info) return;
+
+      lastIceInfoRef.current = info;
+
+      const lc = String(info.localCandidateType ?? "").trim();
+      const rc = String(info.remoteCandidateType ?? "").trim();
+      const lp = String(info.localProtocol ?? "").trim();
+      const rp = String(info.remoteProtocol ?? "").trim();
+
+      const rttMs = Number.isFinite(Number(info.currentRoundTripTimeMs)) ? `${Math.round(Number(info.currentRoundTripTimeMs))}ms` : "";
+      const outKbps = Number.isFinite(Number(info.availableOutgoingBitrate))
+        ? `${Math.max(0, Math.round(Number(info.availableOutgoingBitrate) / 1000))}kbps`
+        : "";
+
+      const parts: string[] = [];
+      if (lc || lp) parts.push(`L:${lc || "?"}${lp ? `/${lp}` : ""}`);
+      if (rc || rp) parts.push(`R:${rc || "?"}${rp ? `/${rp}` : ""}`);
+      if (rttMs) parts.push(`RTT:${rttMs}`);
+      if (outKbps) parts.push(`OUT:${outKbps}`);
+
+      const text = parts.length ? `ICE ${parts.join(" · ")}` : "";
+
+      setIceInfoText((prev) => (prev === text ? prev : text));
+    } catch {}
+  }, []);
 
   const stopAll = () => {
     adAllowedRef.current = false;
@@ -1492,6 +2332,15 @@ export default function CallScreen({ navigation }: Props) {
 
     clearNoMatchTimer();
 
+    clearIceStatsTimer();
+    lastIceInfoRef.current = null;
+    setIceInfoText("");
+
+    clearReconnectTimer();
+    clearWebrtcDownTimer();
+
+    setSignalUnstable(false);
+
     noMatchShownThisCycleRef.current = false;
     setFastMatchHint(false);
 
@@ -1502,6 +2351,7 @@ export default function CallScreen({ navigation }: Props) {
       wsRef.current?.leaveQueue();
     } catch {}
     try {
+      manualCloseRef.current = true;
       wsRef.current?.close();
     } catch {}
     wsRef.current = null;
@@ -1584,6 +2434,13 @@ export default function CallScreen({ navigation }: Props) {
         return;
       }
 
+      const ready = await waitAdsReady(1000);
+      if (!ready) {
+        adAllowedRef.current = false;
+        after();
+        return;
+      }
+
       const ad = createInterstitial();
 
       let done = false;
@@ -1656,18 +2513,59 @@ export default function CallScreen({ navigation }: Props) {
         onIceCandidate: (c) => ws.sendIce(rid, c),
         onAnswer: (sdp) => ws.sendAnswer(rid, sdp),
         onOffer: (sdp) => ws.sendOffer(rid, sdp),
+        onConnectionState: (s) => {
+          const st = String(s || "").toLowerCase();
+
+          if (st === "connected") {
+            clearWebrtcDownTimer();
+
+            if (!iceStatsTimerRef.current) {
+              updateIceInfo();
+              iceStatsTimerRef.current = setInterval(() => {
+                updateIceInfo();
+              }, 2000);
+            }
+            return;
+          }
+
+          if (st === "failed" || st === "disconnected" || st === "closed") {
+            clearIceStatsTimer();
+            updateIceInfo();
+
+            const tokenNow = webrtcDownTokenRef.current + 1;
+            webrtcDownTokenRef.current = tokenNow;
+
+            if (webrtcDownTimerRef.current) clearTimeout(webrtcDownTimerRef.current);
+            webrtcDownTimerRef.current = setTimeout(() => {
+              if (webrtcDownTokenRef.current !== tokenNow) return;
+              if (phaseRef.current !== "calling") return;
+
+              // ✅ 실제 WebRTC 끊김이 일정 시간 지속될 때만 재매칭
+              endCallAndRequeue("disconnect");
+            }, 8000);
+
+            return;
+          }
+        },
       });
 
       rtcRef.current = rtc;
       await rtc.start({ isCaller: caller });
 
+      // ✅ 사용자가 꺼둔 상태(카메라/마이크)를 새 세션에도 즉시 적용
+      try {
+        rtcRef.current?.setLocalVideoEnabled(Boolean(myCamOnRef.current));
+      } catch {}
+      try {
+        rtcRef.current?.setLocalAudioEnabled(Boolean(mySoundOnRef.current));
+      } catch {}
+
       setReMatchText("");
       setPhase("calling");
 
       try {
-        ws.relay(rid, { type: "cam", enabled: Boolean(myCamOn) });
+        ws.relay(rid, { type: "cam", enabled: Boolean(myCamOnRef.current) });
       } catch {}
-
 
       if (!isPremium) {
         if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
@@ -1677,8 +2575,10 @@ export default function CallScreen({ navigation }: Props) {
         }, FREE_CALL_LIMIT_MS);
       }
     } catch (e) {
-      useAppStore.getState().showGlobalModal("통화", "통화를 시작할 수 없습니다.");
-      ws.leaveRoom(rid);
+      useAppStore.getState().showGlobalModal(t("call.error_title"), t("call.error_start"));
+      try {
+        ws.leaveRoom(rid);
+      } catch {}
       stopAll();
       navigation.goBack();
     }
@@ -1709,11 +2609,22 @@ export default function CallScreen({ navigation }: Props) {
     queueRunningRef.current = true;
     enqueuedRef.current = false;
 
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {}
+      wsRef.current = null;
+    }
+
+    manualCloseRef.current = false;
+    clearReconnectTimer();
+    clearWebrtcDownTimer();
+
     noMatchShownThisCycleRef.current = false;
     setFastMatchHint(false);
 
     if (!canStart.current) {
-      useAppStore.getState().showGlobalModal("매칭", "필터(나라/성별)가 설정되지 않았습니다.");
+      useAppStore.getState().showGlobalModal(t("call.match_title"), t("call.match_filter_missing"));
       queueRunningRef.current = false;
       navigation.goBack();
       return;
@@ -1727,6 +2638,35 @@ export default function CallScreen({ navigation }: Props) {
 
     const ws = new SignalClient({
       onOpen: () => {
+        // ✅ 재연결 성공 시(통화 중 포함) 네트워크 불안정 표시 해제 + backoff 초기화
+        setSignalUnstable(false);
+        reconnectAttemptRef.current = 0;
+
+        // ✅ 통화 중 재연결은 "재매칭/재큐잉" 금지, 상태만 동기화
+        if (phaseRef.current === "calling") {
+          const rid = roomIdRef.current;
+
+          if (rid) {
+            try {
+              ws.relay(rid, {
+                type: "peer_info",
+                country: myCountryRaw,
+                language: myLangRaw,
+                gender: myGenderRaw,
+                flag: myFlag,
+                languageLabel: myLangLabel,
+                genderLabel: myGenderLabel,
+              });
+            } catch {}
+
+            try {
+              ws.relay(rid, { type: "cam", enabled: Boolean(myCamOnRef.current) });
+            } catch {}
+          }
+
+          return;
+        }
+
         setPhase("queued");
 
         if (enqueuedRef.current) return;
@@ -1736,6 +2676,32 @@ export default function CallScreen({ navigation }: Props) {
         ws.enqueue(String(prefs.country), String(prefs.gender));
       },
       onClose: () => {
+        if (manualCloseRef.current) return;
+
+        // ✅ 통화 중에는 재매칭/종료 금지 -> 재연결(backoff)만 수행 + "네트워크 불안정" 표시
+        if (phaseRef.current === "calling") {
+          setSignalUnstable(true);
+
+          if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+          const attempt = reconnectAttemptRef.current + 1;
+          reconnectAttemptRef.current = attempt;
+
+          const base = Math.min(15000, 500 * Math.pow(2, attempt - 1));
+          const jitter = Math.floor(Math.random() * 250);
+          const delay = Math.min(30000, base + jitter);
+
+          reconnectTimerRef.current = setTimeout(() => {
+            if (manualCloseRef.current) return;
+            if (phaseRef.current !== "calling") return;
+            if (wsRef.current !== ws) return;
+
+            const tokenNow = useAppStore.getState().auth.token;
+            ws.connect(APP_CONFIG.SIGNALING_URL, tokenNow);
+          }, delay);
+
+          return;
+        }
+
         if (queueRunningRef.current) {
           endCallAndRequeue("disconnect");
         }
@@ -1748,9 +2714,18 @@ export default function CallScreen({ navigation }: Props) {
         }
 
         if (msg.type === "match") {
+          // ✅ 통화 중에는 재매칭 금지(순간 재연결/중복 match 방지)
+          if (phaseRef.current === "calling") {
+            return;
+          }
+
           clearNoMatchTimer();
           setNoMatchModal(false);
           setFastMatchHint(false);
+
+          // ✅ 매칭되면 더 이상 "큐가 돈다"로 취급하지 않음(WS close로 재매칭 트리거 방지)
+          queueRunningRef.current = false;
+          enqueuedRef.current = false;
 
           setRoomId(msg.roomId);
           setIsCaller(Boolean(msg.isCaller));
@@ -1816,6 +2791,20 @@ export default function CallScreen({ navigation }: Props) {
         if (msg.type === "error") {
           const reason = String(msg.message ?? "").trim();
           const reasonLower = reason.toLowerCase();
+
+          if (reasonLower === "session_replaced") {
+            try {
+              wsRef.current?.close();
+            } catch {}
+            stopAll();
+            goHome();
+            return;
+          }
+
+          // ✅ 재연결/중복 요청 등으로 나올 수 있는 서버 응답은 무시(모달/통화 실패 방지)
+          if (reasonLower === "already_in_room" || reasonLower === "not_in_room") {
+            return;
+          }
 
           if (reasonLower === "not_registered") {
             if (rebindOnceRef.current) {
@@ -1898,6 +2887,9 @@ export default function CallScreen({ navigation }: Props) {
 
     try {
       wsRef.current?.leaveRoom(roomId || "");
+    } catch {}
+    try {
+      wsRef.current?.close();
     } catch {}
 
     showInterstitialIfAllowed(go);
@@ -2159,7 +3151,7 @@ export default function CallScreen({ navigation }: Props) {
             styles.findOtherBtn,
             {
               right: 12,
-              bottom: Math.max(insets.bottom, 8) + (isPremium ? 8 : 8 + BANNER_RESERVED_HEIGHT),
+              bottom: Math.max(insets.bottom, 8) + (isPremium ? 8 : 8 + (adsReady ? BANNER_RESERVED_HEIGHT : 0)),
             },
             pressed ? { opacity: 0.7 } : null,
           ]}
@@ -2172,72 +3164,74 @@ export default function CallScreen({ navigation }: Props) {
           <View style={styles.myInfoRow}>
             <View style={styles.myInfoCenter}>
               {peerInfoText ? <AppText style={styles.myInfoText}>{peerInfoText}</AppText> : null}
+              {phase === "calling" && iceInfoText ? <AppText style={styles.myIceText}>{iceInfoText}</AppText> : null}
+              {phase === "calling" && signalUnstable ? <AppText style={styles.netUnstableText}>네트워크 불안정</AppText> : null}
             </View>
           </View>
 
-          {!isPremium ? <BannerBar /> : null}
+
+          {!isPremium && adsReady ? <BannerBar key={`banner_${bannerMountKey}`} /> : null}
         </View>
       </View>
 
       <AppModal
         visible={limitModal}
-        title="무료 이용 시간 종료"
+        title={t("call.limit_title")}
         dismissible={false}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title="프리미엄 구매" onPress={() => setUpgradeModal(true)} />
-            <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+            <PrimaryButton title={t("call.limit_premium")} onPress={() => setUpgradeModal(true)} />
+            <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
           </View>
         }
       >
         <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>
-          무료 통화 시간(예: {Math.round(FREE_CALL_LIMIT_MS / 1000)}초)이 종료되었습니다.
-          {"\n"}프리미엄을 구매하면 제한 없이 이용할 수 있습니다.
+          {t("call.limit_message", { seconds: Math.round(FREE_CALL_LIMIT_MS / 1000) })}
         </AppText>
       </AppModal>
 
       <AppModal
         visible={upgradeModal}
-        title="프리미엄"
+        title={t("premium.title")}
         dismissible={true}
         onClose={() => setUpgradeModal(false)}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title="구매하기" onPress={purchase} />
-            <PrimaryButton title="닫기" onPress={() => setUpgradeModal(false)} variant="ghost" />
+            <PrimaryButton title={t("premium.buy")} onPress={purchase} />
+            <PrimaryButton title={t("common.close")} onPress={() => setUpgradeModal(false)} variant="ghost" />
           </View>
         }
       >
         <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>
-          프리미엄 구매 시 광고 제거 및 통화 제한이 해제됩니다.
+          {t("premium.upgrade_desc")}
         </AppText>
       </AppModal>
 
       <AppModal
         visible={noMatchModal}
-        title={isPremium ? "빠른 매칭 중" : "매칭이 지연되고 있습니다"}
+        title={isPremium ? t("call.fast_matching") : t("call.delay_matching")}
         dismissible={true}
         onClose={dismissNoMatch}
         footer={
           isPremium ? (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+              <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title="다시 시도" onPress={retry} />
-              <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+              <PrimaryButton title={t("common.retry")} onPress={retry} />
+              <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
             </View>
           )
         }
       >
         {isPremium ? (
           <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-            빠른 매칭 중입니다.{"\n"}(이 창은 자동으로 닫힙니다)
+            {t("call.fast_matching_desc")}
           </AppText>
         ) : (
           <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-            조금만 기다렸다가 다시 시도해 주세요.
+            {t("call.delay_matching_desc")}
           </AppText>
         )}
       </AppModal>
@@ -2254,15 +3248,15 @@ export default function CallScreen({ navigation }: Props) {
         }}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title="닫기" onPress={() => setPrefsModal(false)} variant="ghost" />
+            <PrimaryButton title={t("common.close")} onPress={() => setPrefsModal(false)} variant="ghost" />
           </View>
         }
       >
-        <AppText style={styles.modalText}>나라/언어/성별을 설정하세요.</AppText>
+        <AppText style={styles.modalText}>{t("setting.description")}</AppText>
 
         <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>나라(지역)</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.country")}</AppText>
 
         <View style={{ height: 0 }} />
 
@@ -2319,7 +3313,7 @@ export default function CallScreen({ navigation }: Props) {
 
         <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>언어</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.language")}</AppText>
 
         <View style={{ height: 0 }} />
 
@@ -2362,7 +3356,7 @@ export default function CallScreen({ navigation }: Props) {
 
         <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>성별</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.gender")}</AppText>
 
         <View style={{ height: 0 }} />
 
@@ -2405,8 +3399,8 @@ export default function CallScreen({ navigation }: Props) {
 
         <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>글자 크기</AppText>
-        <AppText style={styles.modalText}>바를 좌우로 드래그해서 조절하세요. ({Math.round(fontScale * 100)}%)</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.font_size")}</AppText>
+        <AppText style={styles.modalText}>{t("setting.font_size_desc", { percent: Math.round(fontScale * 100) })}</AppText>
         <FontSizeSlider value={fontScale} onChange={setFontScale} />
       </AppModal>
     </View>
@@ -2592,6 +3586,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  myIceText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+
+  netUnstableText: {
+    color: "rgba(255, 170, 170, 0.92)",
+    fontSize: 11,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+
   findOtherBtn: {
     position: "absolute",
     zIndex: 13,
@@ -2680,9 +3688,11 @@ import { AdEventType } from "react-native-google-mobile-ads";
 import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const prefs = useAppStore((s: any) => s.prefs);
   const isPremium = useAppStore((s: any) => s.sub.isPremium);
@@ -2765,9 +3775,7 @@ export default function HomeScreen({ navigation }: any) {
       (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION));
 
     setPermState({ cam, mic, loc });
-
-    const ok = cam && mic && loc;
-    setPermModal(!ok);
+    setPermModal(!(cam && mic && loc));
   }, [hasAndroidPermission]);
 
   useEffect(() => {
@@ -2805,172 +3813,132 @@ export default function HomeScreen({ navigation }: any) {
         results.loc = multi[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
       }
 
-      const cam =
-        camBefore ||
-        results.camera === PermissionsAndroid.RESULTS.GRANTED ||
-        (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.CAMERA));
-
-      const mic =
-        micBefore ||
-        results.mic === PermissionsAndroid.RESULTS.GRANTED ||
-        (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO));
-
-      const loc =
-        locBefore ||
-        results.loc === PermissionsAndroid.RESULTS.GRANTED ||
+      const cam = camBefore || results.camera === PermissionsAndroid.RESULTS.GRANTED || (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.CAMERA));
+      const mic = micBefore || results.mic === PermissionsAndroid.RESULTS.GRANTED || (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO));
+      const loc = locBefore || results.loc === PermissionsAndroid.RESULTS.GRANTED ||
         (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)) ||
         (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION));
 
       setPermState({ cam, mic, loc });
 
-      const ok = cam && mic && loc;
-
-      if (!ok) {
-        showGlobalModal("권한허용이 필요합니다", "카메라/마이크/위치(GPS)권한을 설정에서 직접 켜야 합니다.");
+      if (!(cam && mic && loc)) {
+        showGlobalModal(t("perm.title"), t("perm.message"));
         setPermModal(true);
       } else {
         setPermModal(false);
       }
     } catch {
-      showGlobalModal("권한", "권한 요청에 실패했습니다.");
+      showGlobalModal(t("perm.title"), t("perm.fail"));
       setPermModal(true);
     } finally {
       setPermBusy(false);
     }
-  }, [hasAndroidPermission, permBusy, showGlobalModal]);
+  }, [hasAndroidPermission, permBusy, showGlobalModal, t]);
 
   const goCall = useCallback(() => {
     navigation.navigate("Call");
   }, [navigation]);
 
-  const setLanguage = useCallback(
-    (lang: string) => {
-      const st: any = useAppStore.getState?.() ?? {};
-      const setPrefs = st.setPrefs;
-      const setPref = st.setPref;
-      const setPrefsField = st.setPrefsField;
+  const setLanguage = useCallback((lang: string) => {
+    const st: any = useAppStore.getState?.() ?? {};
+    const setPrefs = st.setPrefs;
+    const setPref = st.setPref;
+    const setPrefsField = st.setPrefsField;
 
-      if (typeof setPrefs === "function") {
-        setPrefs({ language: lang });
-      } else if (typeof setPref === "function") {
-        setPref("language", lang);
-      } else if (typeof setPrefsField === "function") {
-        setPrefsField("language", lang);
-      } else {
-        showGlobalModal("설정", "언어 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
-      }
-    },
-    [showGlobalModal]
-  );
+    if (typeof setPrefs === "function") setPrefs({ language: lang });
+    else if (typeof setPref === "function") setPref("language", lang);
+    else if (typeof setPrefsField === "function") setPrefsField("language", lang);
+    else showGlobalModal(t("setting.title"), t("setting.language_save_error"));
+  }, [showGlobalModal, t]);
 
-  const setCountry = useCallback(
-    (iso: string) => {
-      const st: any = useAppStore.getState?.() ?? {};
-      const setPrefs = st.setPrefs;
-      const setPref = st.setPref;
-      const setPrefsField = st.setPrefsField;
+  const setCountry = useCallback((iso: string) => {
+    const st: any = useAppStore.getState?.() ?? {};
+    const setPrefs = st.setPrefs;
+    const setPref = st.setPref;
+    const setPrefsField = st.setPrefsField;
 
-      if (typeof setPrefs === "function") {
-        setPrefs({ country: iso });
-      } else if (typeof setPref === "function") {
-        setPref("country", iso);
-      } else if (typeof setPrefsField === "function") {
-        setPrefsField("country", iso);
-      } else {
-        showGlobalModal("설정", "나라 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
-      }
-    },
-    [showGlobalModal]
-  );
+    if (typeof setPrefs === "function") setPrefs({ country: iso });
+    else if (typeof setPref === "function") setPref("country", iso);
+    else if (typeof setPrefsField === "function") setPrefsField("country", iso);
+    else showGlobalModal(t("setting.title"), t("setting.country_save_error"));
+  }, [showGlobalModal, t]);
 
-  const setGender = useCallback(
-    (gender: string) => {
-      const st: any = useAppStore.getState?.() ?? {};
-      const setPrefs = st.setPrefs;
-      const setPref = st.setPref;
-      const setPrefsField = st.setPrefsField;
+  const setGender = useCallback((gender: string) => {
+    const st: any = useAppStore.getState?.() ?? {};
+    const setPrefs = st.setPrefs;
+    const setPref = st.setPref;
+    const setPrefsField = st.setPrefsField;
 
-      if (typeof setPrefs === "function") {
-        setPrefs({ gender });
-      } else if (typeof setPref === "function") {
-        setPref("gender", gender);
-      } else if (typeof setPrefsField === "function") {
-        setPrefsField("gender", gender);
-      } else {
-        showGlobalModal("설정", "성별 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
-      }
-    },
-    [showGlobalModal]
-  );
+    if (typeof setPrefs === "function") setPrefs({ gender });
+    else if (typeof setPref === "function") setPref("gender", gender);
+    else if (typeof setPrefsField === "function") setPrefsField("gender", gender);
+    else showGlobalModal(t("setting.title"), t("setting.gender_save_error"));
+  }, [showGlobalModal, t]);
 
-  const languageOptions = useMemo(
-    () => [
-      { key: "ko", label: "한국어" },
-      { key: "en", label: "English" },
-      { key: "ja", label: "日本語" },
-      { key: "zh", label: "中文" },
-      { key: "es", label: "Español" },
-    ],
-    []
-  );
+  const languageOptions = useMemo(() => [
+    { key: "ko", label: t("lang.ko") },
+    { key: "en", label: t("lang.en") },
+    { key: "ja", label: t("lang.ja") },
+    { key: "zh", label: t("lang.zh") },
+    { key: "es", label: t("lang.es") },
+    { key: "de", label: t("lang.de") },
+    { key: "fr", label: t("lang.fr") },
+    { key: "it", label: t("lang.it") },
+    { key: "ru", label: t("lang.ru") },
+  ], [t]);
 
-  const countryOptions = useMemo(
-    () => [
-      { key: "KR", name: "Korea" },
-      { key: "US", name: "United States" },
-      { key: "JP", name: "Japan" },
-      { key: "CN", name: "China" },
-      { key: "TW", name: "Taiwan" },
-      { key: "HK", name: "Hong Kong" },
-      { key: "SG", name: "Singapore" },
-      { key: "TH", name: "Thailand" },
-      { key: "VN", name: "Vietnam" },
-      { key: "PH", name: "Philippines" },
-      { key: "ID", name: "Indonesia" },
-      { key: "MY", name: "Malaysia" },
-      { key: "IN", name: "India" },
-      { key: "AU", name: "Australia" },
-      { key: "CA", name: "Canada" },
-      { key: "GB", name: "United Kingdom" },
-      { key: "DE", name: "Germany" },
-      { key: "FR", name: "France" },
-      { key: "ES", name: "Spain" },
-      { key: "IT", name: "Italy" },
-      { key: "BR", name: "Brazil" },
-      { key: "MX", name: "Mexico" },
-    ],
-    []
-  );
+  const countryOptions = useMemo(() => [
+    { key: "KR", name: "Korea" },
+    { key: "JP", name: "Japan" },
+    { key: "CN", name: "China" },
+    { key: "TW", name: "Taiwan" },
+    { key: "HK", name: "Hong Kong" },
+    { key: "SG", name: "Singapore" },
+    { key: "TH", name: "Thailand" },
+    { key: "VN", name: "Vietnam" },
+    { key: "PH", name: "Philippines" },
+    { key: "ID", name: "Indonesia" },
+    { key: "MY", name: "Malaysia" },
+    { key: "IN", name: "India" },
+    { key: "US", name: "United States" },
+    { key: "CA", name: "Canada" },
+    { key: "GB", name: "United Kingdom" },
+    { key: "AU", name: "Australia" },
+    { key: "DE", name: "Germany" },
+    { key: "FR", name: "France" },
+    { key: "RU", name: "Russia" },
+    { key: "ES", name: "Spain" },
+    { key: "IT", name: "Italy" },
+    { key: "BR", name: "Brazil" },
+    { key: "MX", name: "Mexico" },
+  ], []);
 
-  const genderOptions = useMemo(
-    () => [
-      { key: "male", label: "남성" },
-      { key: "female", label: "여성" },
-    ],
-    []
-  );
+  const genderOptions = useMemo(() => [
+    { key: "male", label: t("gender.male") },
+    { key: "female", label: t("gender.female") },
+  ], [t]);
 
   const currentLanguageLabel = useMemo(() => {
     const cur = String(prefs.language || "");
     const found = languageOptions.find((x) => x.key === cur);
-    return found ? found.label : cur || "미설정";
-  }, [languageOptions, prefs.language]);
+    return found ? found.label : cur || t("common.not_set");
+  }, [languageOptions, prefs.language, t]);
 
   const currentCountryDisplay = useMemo(() => {
     const cur = String(prefs.country || "").toUpperCase();
     const found = countryOptions.find((x) => x.key === cur);
-    const nm = found ? found.name : cur || "미설정";
+    const nm = found ? found.name : cur || t("common.not_set");
     const cc = found ? found.key : cur;
     const flag = isoToFlag(cc);
     if (!cc) return nm;
     return `${flag ? flag + " " : ""}${nm} (${cc})`;
-  }, [countryOptions, isoToFlag, prefs.country]);
+  }, [countryOptions, isoToFlag, prefs.country, t]);
 
   const currentGenderLabel = useMemo(() => {
     const cur = String(prefs.gender || "");
     const found = genderOptions.find((x) => x.key === cur);
-    return found ? found.label : cur || "미설정";
-  }, [genderOptions, prefs.gender]);
+    return found ? found.label : cur || t("common.not_set");
+  }, [genderOptions, prefs.gender, t]);
 
   const permOk = Boolean(permState.cam && permState.mic && permState.loc);
 
@@ -3006,69 +3974,39 @@ export default function HomeScreen({ navigation }: any) {
     let unsubError: any = null;
 
     const cleanup = () => {
-      try {
-        unsubClosed?.();
-      } catch {}
-      try {
-        unsubLoaded?.();
-      } catch {}
-      try {
-        unsubError?.();
-      } catch {}
-      unsubClosed = null;
-      unsubLoaded = null;
-      unsubError = null;
+      try { unsubClosed?.(); } catch {}
+      try { unsubLoaded?.(); } catch {}
+      try { unsubError?.(); } catch {}
+      unsubClosed = unsubLoaded = unsubError = null;
     };
 
-    unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
-      cleanup();
-      runOnce();
-    });
-
+    unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => { cleanup(); runOnce(); });
     unsubLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
-      try {
-        ad.show();
-      } catch {
-        cleanup();
-        runOnce();
-      }
+      try { ad.show(); } catch { cleanup(); runOnce(); }
     });
+    unsubError = ad.addAdEventListener(AdEventType.ERROR, () => { cleanup(); runOnce(); });
 
-    unsubError = ad.addAdEventListener(AdEventType.ERROR, () => {
-      cleanup();
-      runOnce();
-    });
+    try { ad.load(); } catch { cleanup(); runOnce(); return; }
 
-    try {
-      ad.load();
-    } catch {
-      cleanup();
-      runOnce();
-      return;
-    }
-
-    setTimeout(() => {
-      cleanup();
-      runOnce();
-    }, 1500);
+    setTimeout(() => { cleanup(); runOnce(); }, 1500);
   }, [canMatch, goCall, isPremium, permOk, requestPermissions]);
 
   return (
     <View style={styles.root}>
       <View style={styles.body}>
         <View style={styles.center}>
-          <AppText style={styles.title}>랜덤 영상채팅</AppText>
-          <AppText style={styles.sub}>지역/언어/성별을 설정한 뒤 매칭을 시작하세요.</AppText>
+          <AppText style={styles.title}>{t("home.title")}</AppText>
+          <AppText style={styles.sub}>{t("home.subtitle")}</AppText>
 
           <View style={styles.matchBtnWrap}>
-            <PrimaryButton title="매칭하기" onPress={onPressMatch} />
+            <PrimaryButton title={t("home.match_button")} onPress={onPressMatch} />
           </View>
 
           <Pressable
             onPress={() => setPermModal(true)}
             style={({ pressed }) => [styles.smallLink, pressed ? { opacity: 0.6 } : null]}
           >
-            <AppText style={styles.smallLinkText}>권한 설정</AppText>
+            <AppText style={styles.smallLinkText}>{t("home.permission_setting")}</AppText>
           </Pressable>
         </View>
       </View>
@@ -3079,47 +4017,46 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       ) : null}
 
+      {/* 권한 모달 */}
       <AppModal
         visible={permModal}
-        title=""
+        title={t("perm.title")}
         dismissible={false}
         footer={
           <View style={{ gap: 10 }}>
             <PrimaryButton
-              title={permBusy ? "요청 중..." : permOk ? "모든 권한 허용됨" : "권한 허용하기"}
+              title={permBusy ? t("common.loading") : permOk ? t("perm.all_granted") : t("perm.allow")}
               onPress={requestPermissions}
               disabled={permBusy || permOk}
             />
-            <PrimaryButton title="닫기" onPress={() => setPermModal(false)} variant="ghost" />
+            <PrimaryButton title={t("common.close")} onPress={() => setPermModal(false)} variant="ghost" />
           </View>
         }
       >
-        <AppText style={styles.permTitle}>권한이 필요합니다</AppText>
-        <AppText style={styles.modalText}>아래 권한을 허용해야 영상채팅을 시작할 수 있습니다.</AppText>
+        <AppText style={styles.modalText}>{t("perm.message")}</AppText>
 
         <View style={{ height: 12 }} />
 
         <View style={styles.permList}>
           <View style={styles.permRow}>
-            <AppText style={[styles.permLeft, !permState.cam ? styles.permLeftNeed : null]}>• 카메라</AppText>
-            {!permState.cam ? <AppText style={styles.permNeed}>(권한허용필요)</AppText> : null}
+            <AppText style={[styles.permLeft, !permState.cam ? styles.permLeftNeed : null]}>• {t("perm.camera")}</AppText>
+            {!permState.cam && <AppText style={styles.permNeed}>({t("perm.required")})</AppText>}
           </View>
-
           <View style={styles.permRow}>
-            <AppText style={[styles.permLeft, !permState.mic ? styles.permLeftNeed : null]}>• 마이크(소리)</AppText>
-            {!permState.mic ? <AppText style={styles.permNeed}>(권한허용필요)</AppText> : null}
+            <AppText style={[styles.permLeft, !permState.mic ? styles.permLeftNeed : null]}>• {t("perm.mic")}</AppText>
+            {!permState.mic && <AppText style={styles.permNeed}>({t("perm.required")})</AppText>}
           </View>
-
           <View style={styles.permRow}>
-            <AppText style={[styles.permLeft, !permState.loc ? styles.permLeftNeed : null]}>• 위치(GPS)</AppText>
-            {!permState.loc ? <AppText style={styles.permNeed}>(권한허용필요)</AppText> : null}
+            <AppText style={[styles.permLeft, !permState.loc ? styles.permLeftNeed : null]}>• {t("perm.location")}</AppText>
+            {!permState.loc && <AppText style={styles.permNeed}>({t("perm.required")})</AppText>}
           </View>
         </View>
       </AppModal>
 
+      {/* 설정 모달 */}
       <AppModal
         visible={prefsModal}
-        title="설정"
+        title={t("setting.title")}
         dismissible={true}
         onClose={() => {
           setPrefsModal(false);
@@ -3129,159 +4066,99 @@ export default function HomeScreen({ navigation }: any) {
         }}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title="닫기" onPress={() => setPrefsModal(false)} variant="ghost" />
+            <PrimaryButton title={t("common.close")} onPress={() => setPrefsModal(false)} variant="ghost" />
           </View>
         }
       >
-        <AppText style={styles.modalText}>나라/언어/성별을 설정하세요.</AppText>
+        <AppText style={styles.modalText}>{t("setting.description")}</AppText>
 
-        <View style={{ height: 0 }} />
-
-        <AppText style={styles.sectionTitle}>나라(지역)</AppText>
-
-        <View style={{ height: 0 }} />
-
-        <Pressable
-          onPress={() => {
-            setCountryOpen((v) => !v);
-            setLangOpen(false);
-            setGenderOpen(false);
-          }}
-          style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}
-        >
+        {/* 나라 선택 */}
+        <AppText style={styles.sectionTitle}>{t("setting.country")}</AppText>
+        <Pressable onPress={() => { setCountryOpen((v) => !v); setLangOpen(false); setGenderOpen(false); }} style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}>
           <AppText style={styles.dropdownBtnText}>{currentCountryDisplay}</AppText>
           <AppText style={styles.dropdownChevron}>{countryOpen ? "▲" : "▼"}</AppText>
         </Pressable>
 
-        {countryOpen ? (
+        {countryOpen && (
           <View style={styles.dropdownListWrap}>
-            <ScrollView
-              style={styles.dropdownScroll}
-              contentContainerStyle={styles.dropdownScrollContent}
-              showsVerticalScrollIndicator={true}
-            >
+            <ScrollView style={styles.dropdownScroll} contentContainerStyle={styles.dropdownScrollContent} showsVerticalScrollIndicator>
               {countryOptions.map((opt) => {
                 const active = String(prefs.country || "").toUpperCase() === opt.key;
                 const flag = isoToFlag(opt.key);
                 return (
                   <Pressable
                     key={opt.key}
-                    onPress={() => {
-                      setCountry(opt.key);
-                      setCountryOpen(false);
-                    }}
-                    style={({ pressed }) => [
-                      styles.dropdownRow,
-                      active ? styles.dropdownRowActive : null,
-                      pressed ? { opacity: 0.75 } : null,
-                    ]}
+                    onPress={() => { setCountry(opt.key); setCountryOpen(false); }}
+                    style={({ pressed }) => [styles.dropdownRow, active ? styles.dropdownRowActive : null, pressed ? { opacity: 0.75 } : null]}
                   >
                     <AppText style={[styles.dropdownText, active ? styles.dropdownTextActive : null]}>
-                      {flag ? `${flag} ` : ""}
-                      {opt.name}
+                      {flag ? `${flag} ` : ""}{opt.name}
                     </AppText>
-
                     <View style={styles.countryRight}>
                       <AppText style={[styles.countryCode, active ? styles.countryCodeActive : null]}>({opt.key})</AppText>
-                      {active ? <AppText style={styles.dropdownCheck}>✓</AppText> : null}
+                      {active && <AppText style={styles.dropdownCheck}>✓</AppText>}
                     </View>
                   </Pressable>
                 );
               })}
             </ScrollView>
           </View>
-        ) : null}
+        )}
 
-        <View style={{ height: 0 }} />
-
-        <AppText style={styles.sectionTitle}>언어</AppText>
-
-        <View style={{ height: 0 }} />
-
-        <Pressable
-          onPress={() => {
-            setLangOpen((v) => !v);
-            setCountryOpen(false);
-            setGenderOpen(false);
-          }}
-          style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}
-        >
+        {/* 언어 선택 - 스크롤 리스트로 변경 */}
+        <AppText style={styles.sectionTitle}>{t("setting.language")}</AppText>
+        <Pressable onPress={() => { setLangOpen((v) => !v); setCountryOpen(false); setGenderOpen(false); }} style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}>
           <AppText style={styles.dropdownBtnText}>{currentLanguageLabel}</AppText>
           <AppText style={styles.dropdownChevron}>{langOpen ? "▲" : "▼"}</AppText>
         </Pressable>
 
-        {langOpen ? (
-          <View style={styles.dropdownList}>
-            {languageOptions.map((opt) => {
-              const active = String(prefs.language || "") === opt.key;
-              return (
-                <Pressable
-                  key={opt.key}
-                  onPress={() => {
-                    setLanguage(opt.key);
-                    setLangOpen(false);
-                  }}
-                  style={({ pressed }) => [
-                    styles.dropdownRow,
-                    active ? styles.dropdownRowActive : null,
-                    pressed ? { opacity: 0.75 } : null,
-                  ]}
-                >
-                  <AppText style={[styles.dropdownText, active ? styles.dropdownTextActive : null]}>{opt.label}</AppText>
-                  {active ? <AppText style={styles.dropdownCheck}>✓</AppText> : null}
-                </Pressable>
-              );
-            })}
+        {langOpen && (
+          <View style={styles.dropdownListWrap}>
+            <ScrollView style={styles.dropdownScroll} contentContainerStyle={styles.dropdownScrollContent} showsVerticalScrollIndicator>
+              {languageOptions.map((opt) => {
+                const active = String(prefs.language || "") === opt.key;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => { setLanguage(opt.key); setLangOpen(false); }}
+                    style={({ pressed }) => [styles.dropdownRow, active ? styles.dropdownRowActive : null, pressed ? { opacity: 0.75 } : null]}
+                  >
+                    <AppText style={[styles.dropdownText, active ? styles.dropdownTextActive : null]}>{opt.label}</AppText>
+                    {active && <AppText style={styles.dropdownCheck}>✓</AppText>}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           </View>
-        ) : null}
+        )}
 
-        <View style={{ height: 0 }} />
-
-        <AppText style={styles.sectionTitle}>성별</AppText>
-
-        <View style={{ height: 0 }} />
-
-        <Pressable
-          onPress={() => {
-            setGenderOpen((v) => !v);
-            setCountryOpen(false);
-            setLangOpen(false);
-          }}
-          style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}
-        >
+        {/* 성별 선택 */}
+        <AppText style={styles.sectionTitle}>{t("setting.gender")}</AppText>
+        <Pressable onPress={() => { setGenderOpen((v) => !v); setCountryOpen(false); setLangOpen(false); }} style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}>
           <AppText style={styles.dropdownBtnText}>{currentGenderLabel}</AppText>
           <AppText style={styles.dropdownChevron}>{genderOpen ? "▲" : "▼"}</AppText>
         </Pressable>
 
-        {genderOpen ? (
+        {genderOpen && (
           <View style={styles.dropdownList}>
             {genderOptions.map((opt) => {
               const active = String(prefs.gender || "") === opt.key;
               return (
                 <Pressable
                   key={opt.key}
-                  onPress={() => {
-                    setGender(opt.key);
-                    setGenderOpen(false);
-                  }}
-                  style={({ pressed }) => [
-                    styles.dropdownRow,
-                    active ? styles.dropdownRowActive : null,
-                    pressed ? { opacity: 0.75 } : null,
-                  ]}
+                  onPress={() => { setGender(opt.key); setGenderOpen(false); }}
+                  style={({ pressed }) => [styles.dropdownRow, active ? styles.dropdownRowActive : null, pressed ? { opacity: 0.75 } : null]}
                 >
                   <AppText style={[styles.dropdownText, active ? styles.dropdownTextActive : null]}>{opt.label}</AppText>
-                  {active ? <AppText style={styles.dropdownCheck}>✓</AppText> : null}
+                  {active && <AppText style={styles.dropdownCheck}>✓</AppText>}
                 </Pressable>
               );
             })}
           </View>
-        ) : null}
+        )}
 
-        <View style={{ height: 0 }} />
-
-        <AppText style={styles.sectionTitle}>글자 크기</AppText>
-        <AppText style={styles.modalText}>바를 좌우로 드래그해서 조절하세요. ({Math.round(fontScale * 100)}%)</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.font_size")}</AppText>
+        <AppText style={styles.modalText}>{t("setting.font_size_desc", { percent: Math.round(fontScale * 100) })}</AppText>
         <FontSizeSlider value={fontScale} onChange={setFontScale} />
       </AppModal>
     </View>
@@ -3334,24 +4211,10 @@ const styles = StyleSheet.create({
   dropdownBtnText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
   dropdownChevron: { fontSize: 12, color: theme.colors.sub, fontWeight: "900" },
 
-  dropdownList: {
-    width: "100%",
-    marginTop: 8,
-    gap: 8,
-  },
-
-  dropdownListWrap: {
-    width: "100%",
-    marginTop: 8,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  dropdownScroll: {
-    maxHeight: 210,
-  },
-  dropdownScrollContent: {
-    gap: 8,
-  },
+  dropdownList: { width: "100%", marginTop: 8, gap: 8 },
+  dropdownListWrap: { width: "100%", marginTop: 8, borderRadius: 12, overflow: "hidden" },
+  dropdownScroll: { maxHeight: 210 },
+  dropdownScrollContent: { gap: 8 },
 
   dropdownRow: {
     paddingVertical: 8,
@@ -3364,10 +4227,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  dropdownRowActive: {
-    borderColor: theme.colors.pinkDeep,
-    backgroundColor: theme.colors.cardSoft,
-  },
+  dropdownRowActive: { borderColor: theme.colors.pinkDeep, backgroundColor: theme.colors.cardSoft },
   dropdownText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
   dropdownTextActive: { color: theme.colors.pinkDeep },
   dropdownCheck: { fontSize: 14, color: theme.colors.pinkDeep, fontWeight: "900" },
@@ -3377,12 +4237,12 @@ const styles = StyleSheet.create({
   countryCodeActive: { color: theme.colors.pinkDeep },
 });
 
-
 ================================================================================
  FILE: src\screens\PremiumScreen.tsx
 ================================================================================
 
-﻿import React, { useMemo, useState } from "react";
+﻿// FILE: C:\ranchat\src\screens\PremiumScreen.tsx
+import React, { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "../components/AppText";
@@ -3390,6 +4250,7 @@ import PrimaryButton from "../components/PrimaryButton";
 import PremiumPaywallModal from "../components/PremiumPaywallModal";
 import { purchasePremiumByProductId, refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
 import { useAppStore } from "../store/useAppStore";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 const PRODUCT_IDS = {
   weekly: "ranchat_premium:weekly_-plan",
@@ -3416,6 +4277,7 @@ function calcDiscountPercent(base: number, target: number) {
 }
 
 export default function PremiumScreen() {
+  const { t } = useTranslation();
   const sub = useAppStore((s) => s.sub);
 
   const [payModal, setPayModal] = useState(false);
@@ -3453,21 +4315,21 @@ export default function PremiumScreen() {
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
       <View style={styles.hero}>
-        <AppText style={styles.heroTitle}>프리미엄</AppText>
+        <AppText style={styles.heroTitle}>{t("premium.title")}</AppText>
         <AppText style={styles.heroDesc}>
-          광고 없이 깔끔하게, 더 빠르고 쾌적한 랜덤 영상채팅 경험을 제공합니다.
+          {t("premium.description")}
         </AppText>
 
         <View style={{ height: 14 }} />
 
         <View style={styles.badgeRow}>
           <View style={styles.badge}>
-            <AppText style={styles.badgeTop}>광고 제거</AppText>
-            <AppText style={styles.badgeBottom}>배너/전면 광고 OFF</AppText>
+            <AppText style={styles.badgeTop}>{t("premium.benefit_ad")}</AppText>
+            <AppText style={styles.badgeBottom}>{t("premium.benefit_ad_detail")}</AppText>
           </View>
           <View style={styles.badge}>
-            <AppText style={styles.badgeTop}>가벼운 UX</AppText>
-            <AppText style={styles.badgeBottom}>집중도  피로도 </AppText>
+            <AppText style={styles.badgeTop}>{t("premium.benefit_ux")}</AppText>
+            <AppText style={styles.badgeBottom}>{t("premium.benefit_ux_detail")}</AppText>
           </View>
         </View>
 
@@ -3475,113 +4337,109 @@ export default function PremiumScreen() {
 
         {sub.isPremium ? (
           <View style={styles.premiumOn}>
-            <AppText style={styles.premiumOnTxt}>현재 프리미엄 이용 중</AppText>
+            <AppText style={styles.premiumOnTxt}>{t("premium.current_premium")}</AppText>
           </View>
         ) : (
           <View style={styles.premiumOff}>
-            <AppText style={styles.premiumOffTxt}>현재 무료 이용 중</AppText>
+            <AppText style={styles.premiumOffTxt}>{t("premium.current_free")}</AppText>
           </View>
         )}
       </View>
 
       <View style={styles.card}>
-        <AppText style={styles.h1}>플랜 선택</AppText>
+        <AppText style={styles.h1}>{t("premium.plan_select")}</AppText>
 
         <View style={{ height: 10 }} />
 
         <View style={styles.planBox}>
           <View style={styles.planTop}>
-            <AppText style={styles.planName}>주간</AppText>
+            <AppText style={styles.planName}>{t("premium.weekly")}</AppText>
             <View style={styles.pill}>
-              <AppText style={styles.pillTxt}>라이트</AppText>
+              <AppText style={styles.pillTxt}>{t("premium.light")}</AppText>
             </View>
           </View>
           <View style={styles.planMid}>
             <AppText style={styles.planPrice}>{formatWon(PRICES.weekly)}</AppText>
-            <AppText style={styles.planUnit}>/ 주</AppText>
+            <AppText style={styles.planUnit}>/ {t("premium.week")}</AppText>
           </View>
-          <PrimaryButton title="주간으로 시작" onPress={() => onSelect("weekly")} />
+          <PrimaryButton title={t("premium.start_weekly")} onPress={() => onSelect("weekly")} />
         </View>
 
         <View style={{ height: 12 }} />
 
         <View style={[styles.planBox, styles.planHot]}>
           <View style={styles.planTop}>
-            <AppText style={styles.planName}>월간</AppText>
+            <AppText style={styles.planName}>{t("premium.monthly")}</AppText>
             <View style={[styles.pill, styles.pillHot]}>
-              <AppText style={[styles.pillTxt, styles.pillTxtHot]}>추천</AppText>
+              <AppText style={[styles.pillTxt, styles.pillTxtHot]}>{t("premium.recommended")}</AppText>
             </View>
             <View style={[styles.discountTag]}>
-              <AppText style={styles.discountTxt}>약 {weeklyVsMonthlyDiscount}% 할인</AppText>
+              <AppText style={styles.discountTxt}>약 {weeklyVsMonthlyDiscount}% {t("premium.discount")}</AppText>
             </View>
           </View>
           <View style={styles.planMid}>
             <AppText style={styles.planPrice}>{formatWon(PRICES.monthly)}</AppText>
-            <AppText style={styles.planUnit}>/ 월</AppText>
+            <AppText style={styles.planUnit}>/ {t("premium.month")}</AppText>
           </View>
-          <PrimaryButton title="월간으로 결제" onPress={() => onSelect("monthly")} />
+          <PrimaryButton title={t("premium.pay_monthly")} onPress={() => onSelect("monthly")} />
         </View>
 
         <View style={{ height: 12 }} />
 
         <View style={styles.planBox}>
           <View style={styles.planTop}>
-            <AppText style={styles.planName}>연간</AppText>
+            <AppText style={styles.planName}>{t("premium.yearly")}</AppText>
             <View style={[styles.discountTag]}>
-              <AppText style={styles.discountTxt}>약 {monthlyVsYearlyDiscount}% 할인</AppText>
+              <AppText style={styles.discountTxt}>약 {monthlyVsYearlyDiscount}% {t("premium.discount")}</AppText>
             </View>
           </View>
           <View style={styles.planMid}>
             <AppText style={styles.planPrice}>{formatWon(PRICES.yearly)}</AppText>
-            <AppText style={styles.planUnit}>/ 년</AppText>
+            <AppText style={styles.planUnit}>/ {t("premium.year")}</AppText>
           </View>
-          <PrimaryButton title="연간으로 결제" onPress={() => onSelect("yearly")} />
+          <PrimaryButton title={t("premium.pay_yearly")} onPress={() => onSelect("yearly")} />
         </View>
 
         <View style={{ height: 14 }} />
 
-        <PrimaryButton title="구독 관리" onPress={openManageSubscriptions} variant="ghost" />
+        <PrimaryButton title={t("premium.manage_subscription")} onPress={openManageSubscriptions} variant="ghost" />
       </View>
 
       <View style={styles.card}>
-        <AppText style={styles.h1}>광고 제거 혜택</AppText>
+        <AppText style={styles.h1}>{t("premium.ad_remove_benefit")}</AppText>
         <View style={{ height: 8 }} />
         <View style={styles.benefitRow}>
           <View style={styles.dot} />
-          <AppText style={styles.benefitTxt}>배너 광고 제거</AppText>
+          <AppText style={styles.benefitTxt}>{t("premium.benefit_ad_remove")}</AppText>
         </View>
         <View style={styles.benefitRow}>
           <View style={styles.dot} />
-          <AppText style={styles.benefitTxt}>전면 광고 제거</AppText>
-        </View>
-        <View style={styles.benefitRow}>
-          <View style={styles.dot} />
-          <AppText style={styles.benefitTxt}>몰입감 있는 풀스크린 경험</AppText>
+          <AppText style={styles.benefitTxt}>{t("premium.benefit_fullscreen")}</AppText>
         </View>
       </View>
 
       <PremiumPaywallModal
         visible={payModal}
         onClose={() => setPayModal(false)}
-        title={selected === "weekly" ? "주간 결제" : selected === "monthly" ? "월간 결제" : "연간 결제"}
+        title={selected === "weekly" ? t("premium.weekly_pay") : selected === "monthly" ? t("premium.monthly_pay") : t("premium.yearly_pay")}
         price={
           selected === "weekly"
-            ? `${formatWon(PRICES.weekly)} / 주`
+            ? `${formatWon(PRICES.weekly)} / ${t("premium.week")}`
             : selected === "monthly"
-              ? `${formatWon(PRICES.monthly)} / 월`
-              : `${formatWon(PRICES.yearly)} / 년`
+              ? `${formatWon(PRICES.monthly)} / ${t("premium.month")}`
+              : `${formatWon(PRICES.yearly)} / ${t("premium.year")}`
         }
         discountText={
           selected === "monthly"
-            ? `주간 대비 약 ${weeklyVsMonthlyDiscount}% 할인`
+            ? `${t("premium.weekly_compare")} ${weeklyVsMonthlyDiscount}% ${t("premium.discount")}`
             : selected === "yearly"
-              ? `월간 대비 약 ${monthlyVsYearlyDiscount}% 할인`
+              ? `${t("premium.monthly_compare")} ${monthlyVsYearlyDiscount}% ${t("premium.discount")}`
               : undefined
         }
         benefitLines={[
-          "광고 제거로 더 깔끔하게",
-          "더 몰입감 있는 사용 경험",
-          "언제든지 구독 관리에서 변경/해지 가능",
+          t("premium.benefit_ad_remove"),
+          t("premium.benefit_fullscreen"),
+          t("premium.benefit_manage_anytime"),
         ]}
         busy={busy}
         onConfirm={onPay}
@@ -3697,14 +4555,13 @@ const styles = StyleSheet.create({
   benefitTxt: { fontSize: 14, fontWeight: "800", color: theme.colors.text },
 });
 
-
 ================================================================================
  FILE: src\screens\ProfileScreen.tsx
 ================================================================================
 
-﻿// C:\ranchat\src\screens\ProfileScreen.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Linking, ScrollView, StyleSheet, View } from "react-native";
+﻿// FILE: C:\ranchat\src\screens\ProfileScreen.tsx
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { theme } from "../config/theme";
@@ -3714,6 +4571,8 @@ import { APP_CONFIG, COUNTRY_OPTIONS } from "../config/app";
 import AppText from "../components/AppText";
 import { useNavigation } from "@react-navigation/native";
 import * as Updates from "expo-updates";
+import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 function toErrMsg(e: unknown) {
   if (typeof e === "string") return e;
@@ -3723,6 +4582,7 @@ function toErrMsg(e: unknown) {
 
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
 
   const prefs = useAppStore((s) => s.prefs);
   const sub = useAppStore((s) => s.sub);
@@ -3733,6 +4593,8 @@ export default function ProfileScreen() {
 
   const [prefsModal, setPrefsModal] = useState(false);
   const [withdrawModal, setWithdrawModal] = useState(false);
+  const [policyModal, setPolicyModal] = useState(false);
+  const [langModal, setLangModal] = useState(false);
 
   const [updateModal, setUpdateModal] = useState(false);
   const [updateBusy, setUpdateBusy] = useState(false);
@@ -3740,8 +4602,47 @@ export default function ProfileScreen() {
 
   const countryLabel = useMemo(() => {
     const c = COUNTRY_OPTIONS.find((x) => x.code === prefs.country);
-    return c?.label ?? "-";
-  }, [prefs.country]);
+    return c?.label ?? t("common.hyphen");
+  }, [prefs.country, t]);
+
+  const genderLabel = useMemo(() => {
+    return prefs.gender === "male" ? t("gender.male") : prefs.gender === "female" ? t("gender.female") : t("common.hyphen");
+  }, [prefs.gender, t]);
+
+  const languageLabel = useMemo(() => {
+    const langMap: Record<string, string> = {
+      ko: t("lang.ko"),
+      en: t("lang.en"),
+      ja: t("lang.ja"),
+      zh: t("lang.zh"),
+      es: t("lang.es"),
+      de: t("lang.de"),
+      fr: t("lang.fr"),
+      it: t("lang.it"),
+      ru: t("lang.ru"),
+    };
+    return langMap[prefs.language || ""] || t("common.hyphen");
+  }, [prefs.language, t]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: () => <AppText style={styles.headerTitle}>{t("profile.title")}</AppText>,
+      headerTitleAlign: "left",
+      headerTitleContainerStyle: styles.headerTitleContainer,
+      headerLeftContainerStyle: styles.headerLeftContainer,
+      headerRightContainerStyle: styles.headerRightContainer,
+      headerLeft: () => (
+        <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.headerBackBtn}>
+          <AppText style={styles.headerBackTxt}>{"<"}</AppText>
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable onPress={() => setPrefsModal(true)} hitSlop={10} style={styles.headerGearBtn}>
+          <Ionicons name="settings-outline" size={18} color={theme.colors.text} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, t]);
 
   useEffect(() => {
     if (__DEV__) return;
@@ -3753,9 +4654,7 @@ export default function ProfileScreen() {
       try {
         const r = await Updates.checkForUpdateAsync();
         if (r.isAvailable) setUpdateModal(true);
-      } catch {
-        // 조용히 무시 (필요 시 글로벌 모달로 바꿔도 됨)
-      }
+      } catch {}
     })();
   }, []);
 
@@ -3768,17 +4667,42 @@ export default function ProfileScreen() {
       await Updates.reloadAsync();
     } catch (e) {
       setUpdateBusy(false);
-      showGlobalModal("업데이트", toErrMsg(e));
+      showGlobalModal(t("modal.update.title"), toErrMsg(e));
     }
   };
 
-  const openPrivacy = async () => {
-    const url = APP_CONFIG.POLICY.privacyUrl;
+  const POLICY_BASE_URL =
+    ((APP_CONFIG as any)?.POLICY?.baseUrl as string | undefined)?.trim() || "https://ppicassor-cpu.github.io";
+
+  const POLICY_URLS = useMemo(() => {
+    const termsUrl =
+      ((APP_CONFIG as any)?.POLICY?.termsUrl as string | undefined)?.trim() || `${POLICY_BASE_URL}/terms.html`;
+    const privacyUrl =
+      ((APP_CONFIG as any)?.POLICY?.privacyUrl as string | undefined)?.trim() || `${POLICY_BASE_URL}/privacy.html`;
+    const operationUrl =
+      ((APP_CONFIG as any)?.POLICY?.operationUrl as string | undefined)?.trim() || `${POLICY_BASE_URL}/operation.html`;
+
+    return { termsUrl, privacyUrl, operationUrl };
+  }, [POLICY_BASE_URL]);
+
+  const openPolicy = async (kind: "terms" | "privacy" | "operation") => {
+    const url =
+      kind === "terms"
+        ? POLICY_URLS.termsUrl
+        : kind === "privacy"
+        ? POLICY_URLS.privacyUrl
+        : POLICY_URLS.operationUrl;
+
     if (!url) {
-      useAppStore.getState().showGlobalModal("정책", "개인정보처리방침 URL이 설정되지 않았습니다.");
+      showGlobalModal(t("policy.title"), t("policy.url_missing"));
       return;
     }
-    await Linking.openURL(url);
+
+    try {
+      await Linking.openURL(url);
+    } catch (e) {
+      showGlobalModal(t("policy.title"), toErrMsg(e));
+    }
   };
 
   const goPremium = async () => {
@@ -3793,48 +4717,53 @@ export default function ProfileScreen() {
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
       <View style={styles.card}>
-        <AppText style={styles.h1}>구독 상태</AppText>
-        <AppText style={styles.p}>{sub.isPremium ? "프리미엄 이용 중" : "무료 이용 중"}</AppText>
+        <AppText style={styles.h1}>{t("profile.subscription_status")}</AppText>
+        <AppText style={styles.p}>{sub.isPremium ? t("profile.premium_active") : t("profile.free_active")}</AppText>
 
         <View style={{ height: 10 }} />
 
-        {!sub.isPremium ? <PrimaryButton title="프리미엄 신청" onPress={goPremium} /> : null}
+        {!sub.isPremium ? <PrimaryButton title={t("profile.apply_premium")} onPress={goPremium} /> : null}
         <View style={{ height: 10 }} />
-        <PrimaryButton title="구독 관리" onPress={openManageSubscriptions} variant="ghost" />
+        <PrimaryButton title={t("profile.manage_subscription")} onPress={openManageSubscriptions} variant="ghost" />
       </View>
 
       <View style={styles.card}>
-        <AppText style={styles.h1}>개인정보</AppText>
-
-        <View style={styles.row}>
-          <AppText style={styles.k}>언어</AppText>
-          <AppText style={styles.v}>{prefs.language === "ko" ? "한국어" : prefs.language === "en" ? "English" : "-"}</AppText>
-        </View>
-        <View style={styles.row}>
-          <AppText style={styles.k}>나라</AppText>
-          <AppText style={styles.v}>{countryLabel}</AppText>
-        </View>
-        <View style={styles.row}>
-          <AppText style={styles.k}>성별</AppText>
-          <AppText style={styles.v}>{prefs.gender === "male" ? "남성" : prefs.gender === "female" ? "여성" : "-"}</AppText>
-        </View>
+        <AppText style={styles.h1}>{t("profile.language_section")}</AppText>
+        <AppText style={styles.p}>{t("profile.current_language", { language: languageLabel })}</AppText>
 
         <View style={{ height: 14 }} />
 
-        <PrimaryButton title="개인정보 변경" onPress={() => setPrefsModal(true)} variant="ghost" />
+        <PrimaryButton title={t("profile.change_language")} onPress={() => setLangModal(true)} variant="ghost" />
       </View>
 
       <View style={styles.card}>
-        <PrimaryButton title="개인정보 처리방침" onPress={openPrivacy} variant="ghost" />
+        <PrimaryButton title={t("profile.terms_and_policies")} onPress={() => setPolicyModal(true)} variant="ghost" />
         <View style={{ height: 10 }} />
-        <PrimaryButton title="탈퇴하기" onPress={() => setWithdrawModal(true)} variant="danger" />
+        <OutlineDangerButton title={t("profile.withdraw")} onPress={() => setWithdrawModal(true)} />
       </View>
 
-      <PrefsModal visible={prefsModal} onClose={() => setPrefsModal(false)} prefs={prefs} setPrefs={setPrefs} />
+      <PrefsModal
+        visible={prefsModal}
+        onClose={() => setPrefsModal(false)}
+        prefs={prefs}
+        setPrefs={setPrefs}
+        countryLabel={countryLabel}
+        genderLabel={genderLabel}
+      />
+
+      <LanguageModal visible={langModal} onClose={() => setLangModal(false)} prefs={prefs} setPrefs={setPrefs} />
+
+      <PolicyModal
+        visible={policyModal}
+        onClose={() => setPolicyModal(false)}
+        onPressTerms={() => openPolicy("terms")}
+        onPressPrivacy={() => openPolicy("privacy")}
+        onPressOperation={() => openPolicy("operation")}
+      />
 
       <AppModal
         visible={updateModal}
-        title="업데이트"
+        title={t("modal.update.title")}
         onClose={() => {
           if (updateBusy) return;
           setUpdateModal(false);
@@ -3842,32 +4771,31 @@ export default function ProfileScreen() {
         dismissible={!updateBusy}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title={updateBusy ? "업데이트 적용 중..." : "업데이트 적용"} onPress={doApplyUpdate} disabled={updateBusy} />
             <PrimaryButton
-              title="나중에"
-              onPress={() => setUpdateModal(false)}
-              variant="ghost"
+              title={updateBusy ? t("modal.update.applying") : t("modal.update.apply")}
+              onPress={doApplyUpdate}
               disabled={updateBusy}
             />
+            <PrimaryButton title={t("modal.update.later")} onPress={() => setUpdateModal(false)} variant="ghost" disabled={updateBusy} />
           </View>
         }
       >
-        <AppText style={styles.p}>새 버전이 준비되었습니다. 업데이트를 적용하면 앱이 재시작됩니다.</AppText>
+        <AppText style={styles.p}>{t("modal.update.body")}</AppText>
       </AppModal>
 
       <AppModal
         visible={withdrawModal}
-        title="탈퇴하기"
+        title={t("modal.withdraw.title")}
         onClose={() => setWithdrawModal(false)}
         dismissible={true}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title="탈퇴" onPress={doWithdraw} variant="danger" />
-            <PrimaryButton title="취소" onPress={() => setWithdrawModal(false)} variant="ghost" />
+            <PrimaryButton title={t("modal.withdraw.confirm")} onPress={doWithdraw} variant="danger" />
+            <PrimaryButton title={t("modal.withdraw.cancel")} onPress={() => setWithdrawModal(false)} variant="ghost" />
           </View>
         }
       >
-        <AppText style={styles.p}>탈퇴 시 로컬 데이터가 삭제되고 다시 인증이 필요합니다.</AppText>
+        <AppText style={styles.p}>{t("modal.withdraw.body")}</AppText>
       </AppModal>
     </ScrollView>
   );
@@ -3878,46 +4806,58 @@ function PrefsModal({
   onClose,
   prefs,
   setPrefs,
+  countryLabel,
+  genderLabel,
 }: {
   visible: boolean;
   onClose: () => void;
   prefs: any;
   setPrefs: (p: any) => void;
+  countryLabel: string;
+  genderLabel: string;
 }) {
-  const [language, setLanguage] = useState(prefs.language);
+  const { t } = useTranslation();
   const [country, setCountry] = useState(prefs.country);
   const [gender, setGender] = useState(prefs.gender);
 
+  useEffect(() => {
+    if (!visible) return;
+    setCountry(prefs.country);
+    setGender(prefs.gender);
+  }, [visible, prefs.country, prefs.gender]);
+
   const save = () => {
-    if (!language || !country || !gender) return;
-    setPrefs({ language, country, gender });
+    if (!country || !gender) return;
+    setPrefs({ country, gender });
     onClose();
   };
 
   return (
     <AppModal
       visible={visible}
-      title="개인정보 변경"
+      title={t("modal.prefs.title")}
       onClose={onClose}
       dismissible={true}
       footer={
         <View style={{ gap: 10 }}>
-          <PrimaryButton title="저장" onPress={save} disabled={!language || !country || !gender} />
+          <PrimaryButton title={t("common.save")} onPress={save} disabled={!country || !gender} />
         </View>
       }
     >
-      <AppText style={styles.p}>언어/나라/성별을 변경할 수 있습니다.</AppText>
+      <AppText style={styles.p}>{t("modal.prefs.body")}</AppText>
 
-      <View style={styles.pickerGroup}>
-        <AppText style={styles.pickerTitle}>언어</AppText>
-        <View style={styles.pickerRow}>
-          <PickChip active={language === "ko"} label="한국어" onPress={() => setLanguage("ko")} />
-          <PickChip active={language === "en"} label="English" onPress={() => setLanguage("en")} />
-        </View>
+      <View style={{ height: 10 }} />
+      <View style={styles.infoBox}>
+        <AppText style={styles.infoK}>{t("prefs.current_country")}</AppText>
+        <AppText style={styles.infoV}>{countryLabel}</AppText>
+      </View>
+      <View style={styles.infoBox}>
+        <AppText style={styles.infoK}>{t("prefs.current_gender")}</AppText>
+        <AppText style={styles.infoV}>{genderLabel}</AppText>
       </View>
 
       <View style={styles.pickerGroup}>
-        <AppText style={styles.pickerTitle}>나라</AppText>
+        <AppText style={styles.pickerTitle}>{t("prefs.country_title")}</AppText>
         <View style={styles.countryWrap}>
           {COUNTRY_OPTIONS.map((c) => (
             <PickChip key={c.code} active={country === c.code} label={c.label} onPress={() => setCountry(c.code)} />
@@ -3926,11 +4866,118 @@ function PrefsModal({
       </View>
 
       <View style={styles.pickerGroup}>
-        <AppText style={styles.pickerTitle}>성별</AppText>
+        <AppText style={styles.pickerTitle}>{t("prefs.gender_title")}</AppText>
         <View style={styles.pickerRow}>
-          <PickChip active={gender === "male"} label="남성" onPress={() => setGender("male")} />
-          <PickChip active={gender === "female"} label="여성" onPress={() => setGender("female")} />
+          <PickChip active={gender === "male"} label={t("gender.male")} onPress={() => setGender("male")} />
+          <PickChip active={gender === "female"} label={t("gender.female")} onPress={() => setGender("female")} />
         </View>
+      </View>
+    </AppModal>
+  );
+}
+
+function LanguageModal({
+  visible,
+  onClose,
+  prefs,
+  setPrefs,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  prefs: any;
+  setPrefs: (p: any) => void;
+}) {
+  const { t } = useTranslation();
+  const [language, setLanguage] = useState(prefs.language);
+
+  useEffect(() => {
+    if (!visible) return;
+    setLanguage(prefs.language);
+  }, [visible, prefs.language]);
+
+  const save = () => {
+    if (!language) return;
+    setPrefs({ language });
+    onClose();
+  };
+
+  const languageOptions = [
+    { key: "ko", label: t("lang.ko") },
+    { key: "en", label: t("lang.en") },
+    { key: "ja", label: t("lang.ja") },
+    { key: "zh", label: t("lang.zh") },
+    { key: "es", label: t("lang.es") },
+    { key: "de", label: t("lang.de") },
+    { key: "fr", label: t("lang.fr") },
+    { key: "it", label: t("lang.it") },
+    { key: "ru", label: t("lang.ru") },
+  ];
+
+  return (
+    <AppModal
+      visible={visible}
+      title={t("modal.lang.title")}
+      onClose={onClose}
+      dismissible={true}
+      footer={
+        <View style={{ gap: 10 }}>
+          <PrimaryButton title={t("common.save")} onPress={save} disabled={!language} />
+        </View>
+      }
+    >
+      <AppText style={styles.p}>{t("modal.lang.body")}</AppText>
+
+      <View style={styles.pickerGroup}>
+        <AppText style={styles.pickerTitle}>{t("prefs.language_title")}</AppText>
+        <View style={styles.pickerRow}>
+          {languageOptions.map((opt) => {
+            const active = language === opt.key;
+            return (
+              <PickChip
+                key={opt.key}
+                active={active}
+                label={opt.label}
+                onPress={() => setLanguage(opt.key)}
+              />
+            );
+          })}
+        </View>
+      </View>
+    </AppModal>
+  );
+}
+
+function PolicyModal({
+  visible,
+  onClose,
+  onPressTerms,
+  onPressPrivacy,
+  onPressOperation,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onPressTerms: () => void;
+  onPressPrivacy: () => void;
+  onPressOperation: () => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <AppModal
+      visible={visible}
+      title={t("modal.policy.title")}
+      onClose={onClose}
+      dismissible={true}
+      footer={
+        <View style={{ gap: 10 }}>
+          <PrimaryButton title={t("common.close")} onPress={onClose} variant="ghost" />
+        </View>
+      }
+    >
+      <View style={{ gap: 10 }}>
+        <PrimaryButton title={t("modal.policy.terms")} onPress={onPressTerms} variant="ghost" />
+        <PrimaryButton title={t("modal.policy.privacy")} onPress={onPressPrivacy} variant="ghost" />
+        <PrimaryButton title={t("modal.policy.operation")} onPress={onPressOperation} variant="ghost" />
       </View>
     </AppModal>
   );
@@ -3941,6 +4988,14 @@ function PickChip({ label, active, onPress }: { label: string; active: boolean; 
     <AppText onPress={onPress} style={[styles.chip, active ? styles.chipOn : styles.chipOff, styles.chipTxt]}>
       {label}
     </AppText>
+  );
+}
+
+function OutlineDangerButton({ title, onPress }: { title: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.dangerOutlineBtn, pressed ? styles.dangerOutlineBtnPressed : null]}>
+      <AppText style={styles.dangerOutlineTxt}>{title}</AppText>
+    </Pressable>
   );
 }
 
@@ -3960,9 +5015,35 @@ const styles = StyleSheet.create({
   h1: { fontSize: 17, fontWeight: "700", color: theme.colors.text, marginBottom: 6 },
   p: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
 
-  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8 },
-  k: { fontSize: 13, color: theme.colors.sub, fontWeight: "700" },
-  v: { fontSize: 13, color: theme.colors.text, fontWeight: "700" },
+  headerTitle: { fontSize: 17, fontWeight: "700", color: theme.colors.text },
+  headerTitleContainer: { marginLeft: -10 },
+  headerLeftContainer: { paddingLeft: 6 },
+  headerRightContainer: { paddingRight: 6 },
+
+  headerBackBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  headerBackTxt: { fontSize: 20, fontWeight: "800", color: theme.colors.text, lineHeight: 20 },
+
+  headerGearBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.card,
+    alignItems: "center",
+    justifyContent: "center",
+    ...theme.shadow.card,
+  },
+
+  infoBox: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.line,
+  },
+  infoK: { fontSize: 13, color: theme.colors.sub, fontWeight: "700" },
+  infoV: { fontSize: 13, color: theme.colors.text, fontWeight: "700" },
 
   pickerGroup: { marginTop: 10 },
   pickerTitle: { fontSize: 13, fontWeight: "700", color: theme.colors.text, marginBottom: 8 },
@@ -3979,24 +5060,38 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: theme.colors.pinkDeep, borderColor: theme.colors.pinkDeep, color: theme.colors.white },
   chipOff: { backgroundColor: theme.colors.white, borderColor: theme.colors.line, color: theme.colors.text },
   chipTxt: { fontSize: 13, fontWeight: "700" },
-});
 
+  dangerOutlineBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: theme.radius.lg ?? 14,
+    borderWidth: 1,
+    borderColor: "#ff3b30",
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dangerOutlineBtnPressed: { opacity: 0.75 },
+  dangerOutlineTxt: { fontSize: 15, fontWeight: "800", color: "#ff3b30" },
+});
 
 ================================================================================
  FILE: src\screens\_GlobalModalHost.tsx
 ================================================================================
 
-﻿//C:\ranchat\src\screens\_GlobalModalHost.tsx
+﻿// FILE: C:\ranchat\src\screens\_GlobalModalHost.tsx
 import React from "react";
 import { Text, View } from "react-native";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { useAppStore } from "../store/useAppStore";
 import { theme } from "../config/theme";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 export default function GlobalModalHost() {
   const m = useAppStore((s) => s.globalModal);
   const hide = useAppStore((s) => s.hideGlobalModal);
+  const { t } = useTranslation();
 
   return (
     <AppModal
@@ -4006,7 +5101,7 @@ export default function GlobalModalHost() {
       onClose={hide}
       footer={
         <View style={{ gap: 10 }}>
-          <PrimaryButton title="확인" onPress={hide} />
+          <PrimaryButton title={t("common.confirm")} onPress={hide} />
         </View>
       }
     >
@@ -4015,26 +5110,67 @@ export default function GlobalModalHost() {
   );
 }
 
-
 ================================================================================
  FILE: src\services\ads\AdManager.tsx
 ================================================================================
 
-﻿//C:\ranchat\src\services\ads\AdManager.tsx
+﻿// FILE: C:\ranchat\src\services\ads\AdManager.tsx
 import React from "react";
 import { Platform } from "react-native";
 import mobileAds, { BannerAd, BannerAdSize, InterstitialAd, TestIds } from "react-native-google-mobile-ads";
 
-let _adsInited = false;
+let _initPromise: Promise<boolean> | null = null;
+let _adsReady = false;
+
+type ReadyListener = (ready: boolean) => void;
+const _readyListeners = new Set<ReadyListener>();
+
+export function isAdsReady() {
+  return _adsReady;
+}
+
+export function onAdsReady(cb: ReadyListener) {
+  _readyListeners.add(cb);
+
+  // 이미 ready면 즉시(비동기) 1회 통지
+  if (_adsReady) {
+    setTimeout(() => {
+      try {
+        cb(true);
+      } catch {}
+    }, 0);
+  }
+
+  return () => {
+    _readyListeners.delete(cb);
+  };
+}
+
+function notifyReady(v: boolean) {
+  _adsReady = v;
+  _readyListeners.forEach((fn) => {
+    try {
+      fn(v);
+    } catch {}
+  });
+}
 
 export function initAds() {
-  if (_adsInited) return;
-  _adsInited = true;
+  if (_initPromise) return _initPromise;
 
-  try {
-    const p = mobileAds().initialize();
-    if (p && typeof (p as any).catch === "function") (p as any).catch(() => {});
-  } catch {}
+  _initPromise = (async () => {
+    try {
+      await mobileAds().initialize();
+      notifyReady(true);
+      return true;
+    } catch {
+      // initialize 실패해도 앱은 계속 돌아가야 함(너무 빡빡하게 막지 않기)
+      notifyReady(false);
+      return false;
+    }
+  })();
+
+  return _initPromise;
 }
 
 function getBannerUnitId() {
@@ -4067,7 +5203,7 @@ export function BannerBar() {
   );
 }
 
-export default { initAds, createInterstitial, BannerBar };
+export default { initAds, createInterstitial, BannerBar, isAdsReady, onAdsReady };
 
 
 ================================================================================
@@ -4254,9 +5390,11 @@ export async function getOrCreateDeviceKey(): Promise<string> {
  FILE: src\services\purchases\PurchaseManager.ts
 ================================================================================
 
-﻿import Purchases from "react-native-purchases";
+﻿// FILE: C:\ranchat\src\services\purchases\PurchaseManager.ts
+import Purchases from "react-native-purchases";
 import { APP_CONFIG } from "../../config/app";
 import { useAppStore } from "../../store/useAppStore";
+import { useTranslation } from "../../i18n/LanguageProvider";
 
 let inited = false;
 
@@ -4271,9 +5409,7 @@ export async function initPurchases() {
     Purchases.setLogLevel(Purchases.LOG_LEVEL.ERROR);
     await Purchases.configure({ apiKey: key });
     await refreshSubscription();
-  } catch {
-    // UI는 글로벌 모달에서 처리
-  }
+  } catch {}
 }
 
 export async function purchasePremiumByProductId(productId: string) {
@@ -4301,18 +5437,17 @@ export async function refreshSubscription() {
       entitlementId: entitlementId,
       lastCheckedAt: Date.now(),
     });
-  } catch {
-    // 무응답
-  }
+  } catch {}
 }
 
 export async function purchasePremium() {
+  const { t } = useTranslation();
   const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
   try {
     const offerings = await Purchases.getOfferings();
     const current = offerings.current;
     if (!current || current.availablePackages.length === 0) {
-      useAppStore.getState().showGlobalModal("구독", "현재 구매 가능한 상품을 불러오지 못했습니다.");
+      useAppStore.getState().showGlobalModal(t("subscription.title"), t("subscription.no_offering"));
       return;
     }
 
@@ -4332,21 +5467,21 @@ export async function purchasePremium() {
       lastCheckedAt: Date.now(),
     });
   } catch (e: any) {
+    const { t } = useTranslation();
     if (e?.userCancelled) return;
-    useAppStore.getState().showGlobalModal("구독", "결제를 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    useAppStore.getState().showGlobalModal(t("subscription.title"), t("subscription.payment_failed"));
   }
 }
 
 export async function openManageSubscriptions() {
+  const { t } = useTranslation();
   try {
-    // 일부 환경에서 미지원일 수 있어 예외 처리
     // @ts-ignore
     await Purchases.showManageSubscriptions();
   } catch {
-    useAppStore.getState().showGlobalModal("구독관리", "기기에서 구독관리 화면을 열 수 없습니다.");
+    useAppStore.getState().showGlobalModal(t("subscription.manage"), t("subscription.manage_failed"));
   }
 }
-
 
 ================================================================================
  FILE: src\services\signal\SignalClient.ts
@@ -4389,24 +5524,45 @@ export class SignalClient {
   private ws: WebSocket | null = null;
   private cb: Cb;
 
+  private baseUrl: string = "";
   private token: string = "";
   private sessionId: string = "";
 
   private registered = false;
   private openNotified = false;
   private closeNotified = false;
+
   private pending: any[] = [];
+
+  // ✅ reconnect/backoff
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempt = 0;
+  private manualClose = false;
+
+  private socketSeq = 0;
+  private currentSocketId = 0;
+
+  // ✅ 큐 유지(재연결 후 자동 enqueue 용)
+  private wantEnqueue = false;
+  private lastEnqueuePayload: { country: string; gender: string; platform: string } | null = null;
 
   constructor(cb: Cb) {
     this.cb = cb;
   }
 
   async connect(baseUrl: string, token: string | null) {
-    // ✅ 기존 연결이 남아있으면 정리(중복 onClose/onError로 상태 꼬임 방지)
+    // ✅ 기존 reconnect 예약이 있으면 취소
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+
+    // ✅ 기존 ws 정리(중복 이벤트로 상태 꼬임 방지)
     try {
       this.ws?.close();
     } catch {}
     this.ws = null;
+
+    this.baseUrl = String(baseUrl || "").trim();
+    this.manualClose = false;
 
     const deviceKey = await getOrCreateDeviceKey();
     this.sessionId = String(deviceKey || "").trim();
@@ -4417,14 +5573,67 @@ export class SignalClient {
     this.closeNotified = false;
     this.pending = [];
 
-    this.ws = new WebSocket(baseUrl);
+    this.wantEnqueue = false;
+    this.lastEnqueuePayload = null;
 
-    this.ws.onopen = () => {
+    this.reconnectAttempt = 0;
+
+    this.openSocket();
+  }
+
+  private openSocket() {
+    if (!this.baseUrl) {
+      this.cb.onMessage({ type: "error", message: "MISSING_SIGNALING_URL" });
+      return;
+    }
+
+    const socketId = ++this.socketSeq;
+    this.currentSocketId = socketId;
+
+    // ✅ 이전 ws 정리
+    try {
+      this.ws?.close();
+    } catch {}
+    this.ws = null;
+
+    this.registered = false;
+    this.closeNotified = false;
+
+    const ws = new WebSocket(this.baseUrl);
+    this.ws = ws;
+
+    const closeOrErrorOnce = () => {
+      if (this.currentSocketId !== socketId) return; // stale
+      if (this.closeNotified) return;
+      this.closeNotified = true;
+
+      // ✅ 연결 끊기면 등록 상태만 초기화(통화/매칭 종료는 CallScreen에서 판단)
+      this.registered = false;
+
+      // ✅ ws 참조 제거
+      try {
+        this.ws?.close();
+      } catch {}
+      this.ws = null;
+
+      // ✅ 수동 close가 아니면 자동 재연결(backoff)
+      if (!this.manualClose) {
+        this.scheduleReconnect();
+        return;
+      }
+
+      // ✅ 수동 close면 기존 동작 유지(필요 시 UI 정리)
+      this.cb.onClose();
+    };
+
+    ws.onopen = () => {
+      if (this.currentSocketId !== socketId) return; // stale
+
       // 서버 요구: register(token+sessionId) 먼저
       if (!this.token || !this.sessionId) {
         this.cb.onMessage({ type: "error", message: "REGISTER_REQUIRES_TOKEN_AND_SESSIONID" });
         try {
-          this.ws?.close();
+          ws.close();
         } catch {}
         return;
       }
@@ -4433,42 +5642,40 @@ export class SignalClient {
       this.sendRaw({ type: "register", token: this.token, sessionId: this.sessionId });
     };
 
-    const closeOnce = () => {
-      if (this.closeNotified) return;
-      this.closeNotified = true;
-
-      // 연결 끊기면 등록 상태도 초기화
-      this.registered = false;
-      this.openNotified = false;
-      this.pending = [];
-
-      this.cb.onClose();
+    ws.onclose = () => {
+      closeOrErrorOnce();
     };
 
-    this.ws.onclose = () => {
-      closeOnce();
+    ws.onerror = () => {
+      closeOrErrorOnce();
     };
 
-    this.ws.onerror = () => {
-      closeOnce();
-    };
+    ws.onmessage = (ev: any) => {
+      if (this.currentSocketId !== socketId) return; // stale
 
-    this.ws.onmessage = (ev: any) => {
       try {
         const msg = JSON.parse(String(ev?.data ?? "{}")) as ServerMessage;
 
         if (msg?.type === "registered") {
           this.registered = true;
+          this.reconnectAttempt = 0;
 
           if (!this.openNotified) {
             this.openNotified = true;
             this.cb.onOpen();
           }
 
-          // pending flush
+          // ✅ 재연결 시에도 통화/대기 로직이 꼬이지 않도록:
+          // 1) pending flush
           const q = this.pending.slice();
           this.pending = [];
           q.forEach((x) => this.sendRaw(x));
+
+          // 2) 큐 유지가 필요한 경우(대기 중 끊김) 자동 enqueue
+          if (this.wantEnqueue && this.lastEnqueuePayload) {
+            this.sendRaw({ type: "enqueue", ...this.lastEnqueuePayload });
+          }
+
           return;
         }
 
@@ -4478,6 +5685,10 @@ export class SignalClient {
         }
 
         if (msg?.type === "matched") {
+          // ✅ 매칭되면 더 이상 큐 유지/자동 enqueue 하지 않음
+          this.wantEnqueue = false;
+          this.lastEnqueuePayload = null;
+
           this.cb.onMessage({ type: "match", roomId: msg.roomId, isCaller: !!msg.initiator });
           return;
         }
@@ -4536,9 +5747,41 @@ export class SignalClient {
     };
   }
 
+  private scheduleReconnect() {
+    if (this.manualClose) return;
+
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+
+    // backoff: 500ms * 2^n (cap 10s) + jitter(0~250ms)
+    const base = 500;
+    const cap = 10_000;
+    const pow = Math.min(10, Math.max(0, this.reconnectAttempt));
+    const backoff = Math.min(cap, base * Math.pow(2, pow));
+    const jitter = Math.floor(Math.random() * 250);
+    const delay = backoff + jitter;
+
+    this.reconnectAttempt += 1;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.manualClose) return;
+
+      // ✅ 다시 소켓 열기
+      this.openSocket();
+    }, delay);
+  }
+
   enqueue(country: string, gender: string) {
-    // 서버가 country/gender를 무시해도 문제 없음(추가 필드 허용)
-    this.send({ type: "enqueue", country, gender, platform: Platform.OS });
+    // ✅ 재연결 후 자동으로 다시 enqueue되게 유지
+    this.wantEnqueue = true;
+    this.lastEnqueuePayload = { country, gender, platform: Platform.OS };
+
+    // ✅ 서버가 country/gender를 무시해도 문제 없음(추가 필드 허용)
+    // ✅ registered 전이면 등록 후 자동 enqueue로 처리(중복 enqueue 방지)
+    if (!this.registered) return;
+
+    this.sendRaw({ type: "enqueue", ...this.lastEnqueuePayload });
   }
 
   // CallScreen.tsx 호환
@@ -4564,16 +5807,30 @@ export class SignalClient {
   }
 
   leaveQueue() {
+    // ✅ 재연결 후 자동 enqueue 하지 않도록 해제
+    this.wantEnqueue = false;
+    this.lastEnqueuePayload = null;
+
     this.send({ type: "dequeue" });
   }
 
   // CallScreen.tsx에서 인자로 호출하므로 optional 처리
   leaveRoom(roomId?: string) {
+    // ✅ 룸을 떠나면 큐 유지 플래그도 해제
+    this.wantEnqueue = false;
+    this.lastEnqueuePayload = null;
+
     // 서버는 roomId 없이도 처리하지만, 있어도 무방
     this.send({ type: "leave", roomId: roomId || undefined });
   }
 
   close() {
+    // ✅ 수동 종료: 재연결 금지
+    this.manualClose = true;
+
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+
     try {
       this.ws?.close();
     } catch {}
@@ -4583,21 +5840,40 @@ export class SignalClient {
     this.openNotified = false;
     this.closeNotified = false;
     this.pending = [];
+
+    this.wantEnqueue = false;
+    this.lastEnqueuePayload = null;
+
+    this.reconnectAttempt = 0;
   }
 
   private send(obj: any) {
     // ✅ registered 전이면 큐잉(등록 확인 전 enqueue로 not_registered 나는 것 방지)
     if (!this.registered && obj?.type !== "register") {
-      if (this.pending.length < 50) this.pending.push(obj);
+      if (this.pending.length < 100) this.pending.push(obj);
       return;
     }
+
+    // ✅ ws가 잠깐 끊긴 상태면(재연결 중) pending으로 보관
+    if (!this.ws || (this.ws as any).readyState !== 1) {
+      if (obj?.type !== "register" && this.pending.length < 100) this.pending.push(obj);
+      return;
+    }
+
     this.sendRaw(obj);
   }
 
   private sendRaw(obj: any) {
     try {
       this.ws?.send(JSON.stringify(obj));
-    } catch {}
+    } catch {
+      // ✅ 전송 실패(끊김)면 pending으로 보관(재연결 후 flush)
+      if (obj?.type !== "register" && this.pending.length < 100) this.pending.push(obj);
+      try {
+        // 재연결 예약
+        if (!this.manualClose) this.scheduleReconnect();
+      } catch {}
+    }
   }
 }
 
@@ -4606,7 +5882,7 @@ export class SignalClient {
  FILE: src\services\webrtc\WebRTCSession.ts
 ================================================================================
 
-﻿//WebRTCSession.ts
+﻿// FILE: C:\ranchat\src\services\webrtc\WebRTCSession.ts
 import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from "react-native-webrtc";
 import { PermissionsAndroid, Platform } from "react-native";
 import { APP_CONFIG } from "../../config/app";
@@ -4662,6 +5938,40 @@ function preferH264InSdp(sdp: string) {
   }
 }
 
+type IcePathInfo = {
+  selectedPairId?: string;
+  localCandidateType?: string;
+  remoteCandidateType?: string;
+  localProtocol?: string;
+  remoteProtocol?: string;
+  localAddress?: string;
+  localPort?: number;
+  remoteAddress?: string;
+  remotePort?: number;
+  currentRoundTripTimeMs?: number;
+  availableOutgoingBitrate?: number;
+  bytesSent?: number;
+  bytesReceived?: number;
+};
+
+function forEachStat(report: any, fn: (s: any) => void) {
+  if (!report) return;
+
+  if (typeof report.forEach === "function") {
+    report.forEach((v: any) => fn(v));
+    return;
+  }
+
+  if (Array.isArray(report)) {
+    report.forEach((v) => fn(v));
+    return;
+  }
+
+  if (typeof report === "object") {
+    Object.values(report).forEach((v) => fn(v));
+  }
+}
+
 export class WebRTCSession {
   private pc: RTCPeerConnection;
   private localStream: MediaStream | null = null;
@@ -4673,10 +5983,24 @@ export class WebRTCSession {
     this.cb = cb;
 
     const turn = APP_CONFIG.TURN;
+
+    // ✅ 2번 반영: STUN을 TURN과 분리 (srflx 후보 확보)
+    const stunUrls = (APP_CONFIG as any)?.ICE?.stunUrls ?? [];
+    const stunServer =
+      Array.isArray(stunUrls) && stunUrls.length > 0
+        ? { urls: stunUrls }
+        : { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] };
+
+    // ✅ 3번 반영: 기본은 TURN TCP 후보 제외(딜레이 큰 TCP 릴레이 회피)
+    const turnUrls = [`turn:${turn.host}:${turn.port}?transport=udp`];
+    if ((turn as any).tcpEnabled === true) {
+      turnUrls.push(`turn:${turn.host}:${turn.port}?transport=tcp`);
+    }
+
     const iceServers = [
-      { urls: [`stun:${turn.host}:${turn.port}`] },
+      stunServer,
       {
-        urls: [`turn:${turn.host}:${turn.port}?transport=udp`, `turn:${turn.host}:${turn.port}?transport=tcp`],
+        urls: turnUrls,
         username: turn.username,
         credential: turn.password,
       },
@@ -4709,6 +6033,80 @@ export class WebRTCSession {
         this.cb.onRemoteStream?.(stream);
       }
     };
+  }
+
+  // ✅ 1번 반영: 연결 경로( relay/srflx/host ) 확인용
+  async getIcePathInfo(): Promise<IcePathInfo> {
+    try {
+      const pcAny: any = this.pc as any;
+      if (typeof pcAny.getStats !== "function") return {};
+
+      const report = await pcAny.getStats();
+      const stats: any[] = [];
+      forEachStat(report, (s) => stats.push(s));
+
+      const byId = new Map<string, any>();
+      for (const s of stats) {
+        if (s && typeof s.id === "string") byId.set(s.id, s);
+      }
+
+      // 1) transport에서 selectedCandidatePairId 우선 탐색
+      let selectedPairId: string | undefined = undefined;
+      for (const s of stats) {
+        if (s?.type === "transport" && typeof s.selectedCandidatePairId === "string") {
+          selectedPairId = s.selectedCandidatePairId;
+          break;
+        }
+      }
+
+      // 2) 없으면 candidate-pair 중 selected/nominated 찾아서 선택
+      let pair: any = selectedPairId ? byId.get(selectedPairId) : null;
+      if (!pair) {
+        const candidates = stats.filter((s) => s?.type === "candidate-pair");
+        pair =
+          candidates.find((p) => p?.selected === true) ||
+          candidates.find((p) => p?.nominated === true) ||
+          null;
+
+        if (pair?.id && typeof pair.id === "string") selectedPairId = pair.id;
+      }
+
+      if (!pair) return { selectedPairId };
+
+      const localId = pair.localCandidateId;
+      const remoteId = pair.remoteCandidateId;
+
+      const local = typeof localId === "string" ? byId.get(localId) : null;
+      const remote = typeof remoteId === "string" ? byId.get(remoteId) : null;
+
+      const info: IcePathInfo = {
+        selectedPairId,
+        currentRoundTripTimeMs: Number.isFinite(pair.currentRoundTripTime)
+          ? Math.round(pair.currentRoundTripTime * 1000)
+          : undefined,
+        availableOutgoingBitrate: Number.isFinite(pair.availableOutgoingBitrate) ? pair.availableOutgoingBitrate : undefined,
+        bytesSent: Number.isFinite(pair.bytesSent) ? pair.bytesSent : undefined,
+        bytesReceived: Number.isFinite(pair.bytesReceived) ? pair.bytesReceived : undefined,
+      };
+
+      if (local) {
+        info.localCandidateType = typeof local.candidateType === "string" ? local.candidateType : undefined;
+        info.localProtocol = typeof local.protocol === "string" ? local.protocol : undefined;
+        info.localAddress = typeof local.address === "string" ? local.address : typeof local.ip === "string" ? local.ip : undefined;
+        info.localPort = Number.isFinite(local.port) ? local.port : undefined;
+      }
+
+      if (remote) {
+        info.remoteCandidateType = typeof remote.candidateType === "string" ? remote.candidateType : undefined;
+        info.remoteProtocol = typeof remote.protocol === "string" ? remote.protocol : undefined;
+        info.remoteAddress = typeof remote.address === "string" ? remote.address : typeof remote.ip === "string" ? remote.ip : undefined;
+        info.remotePort = Number.isFinite(remote.port) ? remote.port : undefined;
+      }
+
+      return info;
+    } catch {
+      return {};
+    }
   }
 
   private startSpeakerphone() {
@@ -4822,6 +6220,7 @@ export class WebRTCSession {
     const offer = await (this.pc as any).createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
 
     if (offer?.sdp) {
+      // ✅ 5번 반영: H264 우선 정렬
       offer.sdp = preferH264InSdp(offer.sdp);
     }
 
@@ -4834,6 +6233,7 @@ export class WebRTCSession {
     const ans = await (this.pc as any).createAnswer();
 
     if (ans?.sdp) {
+      // ✅ 5번 반영: H264 우선 정렬
       ans.sdp = preferH264InSdp(ans.sdp);
     }
 

@@ -6,6 +6,7 @@ import PrimaryButton from "../components/PrimaryButton";
 import PremiumPaywallModal from "../components/PremiumPaywallModal";
 import { purchasePremiumByProductId, refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
 import { useAppStore } from "../store/useAppStore";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 const PRODUCT_IDS = {
   weekly: "ranchat_premium:weekly_-plan",
@@ -32,6 +33,7 @@ function calcDiscountPercent(base: number, target: number) {
 }
 
 export default function PremiumScreen() {
+  const { t } = useTranslation();
   const sub = useAppStore((s) => s.sub);
 
   const [payModal, setPayModal] = useState(false);
@@ -69,21 +71,21 @@ export default function PremiumScreen() {
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
       <View style={styles.hero}>
-        <AppText style={styles.heroTitle}>프리미엄</AppText>
+        <AppText style={styles.heroTitle}>{t("premium.title")}</AppText>
         <AppText style={styles.heroDesc}>
-          광고 없이 깔끔하게, 더 빠르고 쾌적한 랜덤 영상채팅 경험을 제공합니다.
+          {t("premium.description")}
         </AppText>
 
         <View style={{ height: 14 }} />
 
         <View style={styles.badgeRow}>
           <View style={styles.badge}>
-            <AppText style={styles.badgeTop}>광고 제거</AppText>
-            <AppText style={styles.badgeBottom}>배너/전면 광고 OFF</AppText>
+            <AppText style={styles.badgeTop}>{t("premium.benefit_ad")}</AppText>
+            <AppText style={styles.badgeBottom}>{t("premium.benefit_ad_detail")}</AppText>
           </View>
           <View style={styles.badge}>
-            <AppText style={styles.badgeTop}>가벼운 UX</AppText>
-            <AppText style={styles.badgeBottom}>집중도  피로도 </AppText>
+            <AppText style={styles.badgeTop}>{t("premium.benefit_ux")}</AppText>
+            <AppText style={styles.badgeBottom}>{t("premium.benefit_ux_detail")}</AppText>
           </View>
         </View>
 
@@ -91,113 +93,109 @@ export default function PremiumScreen() {
 
         {sub.isPremium ? (
           <View style={styles.premiumOn}>
-            <AppText style={styles.premiumOnTxt}>현재 프리미엄 이용 중</AppText>
+            <AppText style={styles.premiumOnTxt}>{t("premium.current_premium")}</AppText>
           </View>
         ) : (
           <View style={styles.premiumOff}>
-            <AppText style={styles.premiumOffTxt}>현재 무료 이용 중</AppText>
+            <AppText style={styles.premiumOffTxt}>{t("premium.current_free")}</AppText>
           </View>
         )}
       </View>
 
       <View style={styles.card}>
-        <AppText style={styles.h1}>플랜 선택</AppText>
+        <AppText style={styles.h1}>{t("premium.plan_select")}</AppText>
 
         <View style={{ height: 10 }} />
 
         <View style={styles.planBox}>
           <View style={styles.planTop}>
-            <AppText style={styles.planName}>주간</AppText>
+            <AppText style={styles.planName}>{t("premium.weekly")}</AppText>
             <View style={styles.pill}>
-              <AppText style={styles.pillTxt}>라이트</AppText>
+              <AppText style={styles.pillTxt}>{t("premium.light")}</AppText>
             </View>
           </View>
           <View style={styles.planMid}>
             <AppText style={styles.planPrice}>{formatWon(PRICES.weekly)}</AppText>
-            <AppText style={styles.planUnit}>/ 주</AppText>
+            <AppText style={styles.planUnit}>/ {t("premium.week")}</AppText>
           </View>
-          <PrimaryButton title="주간으로 시작" onPress={() => onSelect("weekly")} />
+          <PrimaryButton title={t("premium.start_weekly")} onPress={() => onSelect("weekly")} />
         </View>
 
         <View style={{ height: 12 }} />
 
         <View style={[styles.planBox, styles.planHot]}>
           <View style={styles.planTop}>
-            <AppText style={styles.planName}>월간</AppText>
+            <AppText style={styles.planName}>{t("premium.monthly")}</AppText>
             <View style={[styles.pill, styles.pillHot]}>
-              <AppText style={[styles.pillTxt, styles.pillTxtHot]}>추천</AppText>
+              <AppText style={[styles.pillTxt, styles.pillTxtHot]}>{t("premium.recommended")}</AppText>
             </View>
             <View style={[styles.discountTag]}>
-              <AppText style={styles.discountTxt}>약 {weeklyVsMonthlyDiscount}% 할인</AppText>
+              <AppText style={styles.discountTxt}>{t("premium.discount_tag", { percent: weeklyVsMonthlyDiscount })}</AppText>
             </View>
           </View>
           <View style={styles.planMid}>
             <AppText style={styles.planPrice}>{formatWon(PRICES.monthly)}</AppText>
-            <AppText style={styles.planUnit}>/ 월</AppText>
+            <AppText style={styles.planUnit}>/ {t("premium.month")}</AppText>
           </View>
-          <PrimaryButton title="월간으로 결제" onPress={() => onSelect("monthly")} />
+          <PrimaryButton title={t("premium.pay_monthly")} onPress={() => onSelect("monthly")} />
         </View>
 
         <View style={{ height: 12 }} />
 
         <View style={styles.planBox}>
           <View style={styles.planTop}>
-            <AppText style={styles.planName}>연간</AppText>
+            <AppText style={styles.planName}>{t("premium.yearly")}</AppText>
             <View style={[styles.discountTag]}>
-              <AppText style={styles.discountTxt}>약 {monthlyVsYearlyDiscount}% 할인</AppText>
+              <AppText style={styles.discountTxt}>{t("premium.discount_tag", { percent: monthlyVsYearlyDiscount })}</AppText>
             </View>
           </View>
           <View style={styles.planMid}>
             <AppText style={styles.planPrice}>{formatWon(PRICES.yearly)}</AppText>
-            <AppText style={styles.planUnit}>/ 년</AppText>
+            <AppText style={styles.planUnit}>/ {t("premium.year")}</AppText>
           </View>
-          <PrimaryButton title="연간으로 결제" onPress={() => onSelect("yearly")} />
+          <PrimaryButton title={t("premium.pay_yearly")} onPress={() => onSelect("yearly")} />
         </View>
 
         <View style={{ height: 14 }} />
 
-        <PrimaryButton title="구독 관리" onPress={openManageSubscriptions} variant="ghost" />
+        <PrimaryButton title={t("premium.manage_subscription")} onPress={openManageSubscriptions} variant="ghost" />
       </View>
 
       <View style={styles.card}>
-        <AppText style={styles.h1}>광고 제거 혜택</AppText>
+        <AppText style={styles.h1}>{t("premium.ad_remove_benefit")}</AppText>
         <View style={{ height: 8 }} />
         <View style={styles.benefitRow}>
           <View style={styles.dot} />
-          <AppText style={styles.benefitTxt}>배너 광고 제거</AppText>
+          <AppText style={styles.benefitTxt}>{t("premium.benefit_ad_remove")}</AppText>
         </View>
         <View style={styles.benefitRow}>
           <View style={styles.dot} />
-          <AppText style={styles.benefitTxt}>전면 광고 제거</AppText>
-        </View>
-        <View style={styles.benefitRow}>
-          <View style={styles.dot} />
-          <AppText style={styles.benefitTxt}>몰입감 있는 풀스크린 경험</AppText>
+          <AppText style={styles.benefitTxt}>{t("premium.benefit_fullscreen")}</AppText>
         </View>
       </View>
 
       <PremiumPaywallModal
         visible={payModal}
         onClose={() => setPayModal(false)}
-        title={selected === "weekly" ? "주간 결제" : selected === "monthly" ? "월간 결제" : "연간 결제"}
+        title={selected === "weekly" ? t("premium.weekly_pay") : selected === "monthly" ? t("premium.monthly_pay") : t("premium.yearly_pay")}
         price={
           selected === "weekly"
-            ? `${formatWon(PRICES.weekly)} / 주`
+            ? `${formatWon(PRICES.weekly)} / ${t("premium.week")}`
             : selected === "monthly"
-              ? `${formatWon(PRICES.monthly)} / 월`
-              : `${formatWon(PRICES.yearly)} / 년`
+              ? `${formatWon(PRICES.monthly)} / ${t("premium.month")}`
+              : `${formatWon(PRICES.yearly)} / ${t("premium.year")}`
         }
         discountText={
           selected === "monthly"
-            ? `주간 대비 약 ${weeklyVsMonthlyDiscount}% 할인`
+            ? `${t("premium.weekly_compare")} ${weeklyVsMonthlyDiscount}% ${t("premium.discount")}`
             : selected === "yearly"
-              ? `월간 대비 약 ${monthlyVsYearlyDiscount}% 할인`
+              ? `${t("premium.monthly_compare")} ${monthlyVsYearlyDiscount}% ${t("premium.discount")}`
               : undefined
         }
         benefitLines={[
-          "광고 제거로 더 깔끔하게",
-          "더 몰입감 있는 사용 경험",
-          "언제든지 구독 관리에서 변경/해지 가능",
+          t("premium.benefit_ad_remove"),
+          t("premium.benefit_fullscreen"),
+          t("premium.benefit_manage_anytime"),
         ]}
         busy={busy}
         onConfirm={onPay}

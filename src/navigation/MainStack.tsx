@@ -1,10 +1,12 @@
-﻿import React from "react";
+﻿// FILE: C:\ranchat\src\navigation\MainStack.tsx
+import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "../screens/HomeScreen";
 import CallScreen from "../screens/CallScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import PremiumScreen from "../screens/PremiumScreen";
 import { theme } from "../config/theme";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 export type MainStackParamList = {
   Home: undefined;
@@ -16,6 +18,8 @@ export type MainStackParamList = {
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 export default function MainStack() {
+  const { t } = useTranslation();
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -25,10 +29,10 @@ export default function MainStack() {
         contentStyle: { backgroundColor: theme.colors.bg },
       }}
     >
-      <Stack.Screen name="Home" component={HomeScreen} options={{ title: "RanChat" }} />
-      <Stack.Screen name="Call" component={CallScreen} options={{ title: "매칭" }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "프로필" }} />
-      <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: "프리미엄" }} />
+      <Stack.Screen name="Home" component={HomeScreen} options={{ title: t("screen.home") }} />
+      <Stack.Screen name="Call" component={CallScreen} options={{ title: t("screen.call") }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: t("screen.profile") }} />
+      <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: t("screen.premium") }} />
     </Stack.Navigator>
   );
 }

@@ -1,12 +1,11 @@
 ﻿// FILE: C:\ranchat\src\screens\CallScreen.tsx
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { StyleSheet, View, Pressable, Dimensions, ScrollView, Text } from "react-native";
+import { ActivityIndicator, StyleSheet, View, Pressable, Dimensions, ScrollView, Text } from "react-native";
 import { RTCView } from "react-native-webrtc";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
-import Spinner from "../components/Spinner";
 import { theme } from "../config/theme";
 import { APP_CONFIG } from "../config/app";
 import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
@@ -20,6 +19,7 @@ import type { MainStackParamList } from "../navigation/MainStack";
 import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 type Props = NativeStackScreenProps<MainStackParamList, "Call">;
 
@@ -71,6 +71,7 @@ const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").tr
 function QueueNativeAd256x144() {
   const [nativeAd, setNativeAd] = useState<NativeAd | null>(null);
   const adRef = useRef<NativeAd | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     let alive = true;
@@ -109,7 +110,7 @@ function QueueNativeAd256x144() {
               {nativeAd.headline}
             </Text>
           </NativeAsset>
-          <AppText style={styles.nativeAdTag}>광고</AppText>
+          <AppText style={styles.nativeAdTag}>{t("common.ad")}</AppText>
         </View>
       </View>
     </NativeAdView>
@@ -119,6 +120,11 @@ function QueueNativeAd256x144() {
 export default function CallScreen({ navigation }: Props) {
 
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+
+  const queuedLabel = useMemo(() => {
+    return String(t("call.connecting") || "");
+  }, [t]);
 
   const prefs = useAppStore((s) => s.prefs);
   const token = useAppStore((s) => s.auth.token);
@@ -257,10 +263,10 @@ export default function CallScreen({ navigation }: Props) {
     if (direct) return direct;
     const g = String(peerGenderRaw || "").trim().toLowerCase();
     if (!g) return "";
-    if (g === "male" || g === "m") return "남성";
-    if (g === "female" || g === "f") return "여성";
+    if (g === "male" || g === "m") return t("gender.male");
+    if (g === "female" || g === "f") return t("gender.female");
     return peerGenderRaw;
-  }, [peerInfo, peerGenderRaw]);
+  }, [peerInfo, peerGenderRaw, t]);
 
   const peerInfoText = useMemo(() => {
     const parts: string[] = [];
@@ -282,10 +288,10 @@ export default function CallScreen({ navigation }: Props) {
   const myGenderLabel = useMemo(() => {
     const g = String(myGenderRaw || "").trim().toLowerCase();
     if (!g) return "";
-    if (g === "male" || g === "m") return "남성";
-    if (g === "female" || g === "f") return "여성";
+    if (g === "male" || g === "m") return t("gender.male");
+    if (g === "female" || g === "f") return t("gender.female");
     return myGenderRaw;
-  }, [myGenderRaw]);
+  }, [myGenderRaw, t]);
 
 
   useEffect(() => {
@@ -677,7 +683,7 @@ export default function CallScreen({ navigation }: Props) {
         }, FREE_CALL_LIMIT_MS);
       }
     } catch (e) {
-      useAppStore.getState().showGlobalModal("통화", "통화를 시작할 수 없습니다.");
+      useAppStore.getState().showGlobalModal(t("call.error_title"), t("call.error_start"));
       try {
         ws.leaveRoom(rid);
       } catch {}
@@ -688,9 +694,9 @@ export default function CallScreen({ navigation }: Props) {
 
   const endCallAndRequeue = (why: "remote_left" | "disconnect" | "error" | "find_other") => {
     if (why === "remote_left") {
-      setReMatchText("상대방이 방을 떠났습니다.\n새로운 매칭을 시작합니다.");
+      setReMatchText(`${t("call.peer_left")}\n${queuedLabel}`);
     } else if (why === "find_other") {
-      setReMatchText("새로운 상대를 찾는 중...");
+      setReMatchText(queuedLabel);
     } else {
       setReMatchText("");
     }
@@ -711,6 +717,13 @@ export default function CallScreen({ navigation }: Props) {
     queueRunningRef.current = true;
     enqueuedRef.current = false;
 
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {}
+      wsRef.current = null;
+    }
+
     manualCloseRef.current = false;
     clearReconnectTimer();
     clearWebrtcDownTimer();
@@ -719,7 +732,7 @@ export default function CallScreen({ navigation }: Props) {
     setFastMatchHint(false);
 
     if (!canStart.current) {
-      useAppStore.getState().showGlobalModal("매칭", "필터(나라/성별)가 설정되지 않았습니다.");
+      useAppStore.getState().showGlobalModal(t("call.match_title"), t("call.match_filter_missing"));
       queueRunningRef.current = false;
       navigation.goBack();
       return;
@@ -887,6 +900,15 @@ export default function CallScreen({ navigation }: Props) {
           const reason = String(msg.message ?? "").trim();
           const reasonLower = reason.toLowerCase();
 
+          if (reasonLower === "session_replaced") {
+            try {
+              wsRef.current?.close();
+            } catch {}
+            stopAll();
+            goHome();
+            return;
+          }
+
           // ✅ 재연결/중복 요청 등으로 나올 수 있는 서버 응답은 무시(모달/통화 실패 방지)
           if (reasonLower === "already_in_room" || reasonLower === "not_in_room") {
             return;
@@ -894,7 +916,7 @@ export default function CallScreen({ navigation }: Props) {
 
           if (reasonLower === "not_registered") {
             if (rebindOnceRef.current) {
-              useAppStore.getState().showGlobalModal("인증", reason || "not_registered");
+              useAppStore.getState().showGlobalModal(t("auth.title"), reason || "not_registered");
               stopAll();
               navigation.goBack();
               return;
@@ -911,7 +933,7 @@ export default function CallScreen({ navigation }: Props) {
                 startQueue();
               } catch (e) {
                 const m = typeof e === "object" && e && "message" in (e as any) ? String((e as any).message) : String(e);
-                useAppStore.getState().showGlobalModal("인증", m || "BIND_FAILED");
+                useAppStore.getState().showGlobalModal(t("auth.title"), m || "BIND_FAILED");
                 navigation.goBack();
               }
             })();
@@ -919,7 +941,7 @@ export default function CallScreen({ navigation }: Props) {
             return;
           }
 
-          useAppStore.getState().showGlobalModal("매칭", reason || "오류가 발생했습니다.");
+          useAppStore.getState().showGlobalModal(t("call.match_title"), reason || t("common.error_occurred"));
           endCallAndRequeue("error");
           return;
         }
@@ -974,6 +996,9 @@ export default function CallScreen({ navigation }: Props) {
     try {
       wsRef.current?.leaveRoom(roomId || "");
     } catch {}
+    try {
+      wsRef.current?.close();
+    } catch {}
 
     showInterstitialIfAllowed(go);
   };
@@ -1016,10 +1041,10 @@ export default function CallScreen({ navigation }: Props) {
       } else if (typeof setPrefsField === "function") {
         setPrefsField("language", lang);
       } else {
-        showGlobalModal("설정", "언어 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
+        showGlobalModal(t("common.settings"), "언어 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
       }
     },
-    [showGlobalModal]
+    [showGlobalModal, t]
   );
 
   const setCountry = useCallback(
@@ -1036,10 +1061,10 @@ export default function CallScreen({ navigation }: Props) {
       } else if (typeof setPrefsField === "function") {
         setPrefsField("country", iso);
       } else {
-        showGlobalModal("설정", "나라 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
+        showGlobalModal(t("common.settings"), "나라 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
       }
     },
-    [showGlobalModal]
+    [showGlobalModal, t]
   );
 
   const setGender = useCallback(
@@ -1056,10 +1081,10 @@ export default function CallScreen({ navigation }: Props) {
       } else if (typeof setPrefsField === "function") {
         setPrefsField("gender", gender);
       } else {
-        showGlobalModal("설정", "성별 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
+        showGlobalModal(t("common.settings"), "성별 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
       }
     },
-    [showGlobalModal]
+    [showGlobalModal, t]
   );
 
   const languageOptions = useMemo(
@@ -1103,33 +1128,33 @@ export default function CallScreen({ navigation }: Props) {
 
   const genderOptions = useMemo(
     () => [
-      { key: "male", label: "남성" },
-      { key: "female", label: "여성" },
+      { key: "male", label: t("gender.male") },
+      { key: "female", label: t("gender.female") },
     ],
-    []
+    [t]
   );
 
   const currentLanguageLabel = useMemo(() => {
     const cur = String((prefs as any)?.language || "");
     const found = languageOptions.find((x) => x.key === cur);
-    return found ? found.label : cur || "미설정";
-  }, [languageOptions, prefs]);
+    return found ? found.label : cur || t("common.not_set");
+  }, [languageOptions, prefs, t]);
 
   const currentCountryDisplay = useMemo(() => {
     const cur = String((prefs as any)?.country || "").toUpperCase();
     const found = countryOptions.find((x) => x.key === cur);
-    const nm = found ? found.name : cur || "미설정";
+    const nm = found ? found.name : cur || t("common.not_set");
     const cc = found ? found.key : cur;
     const flag = countryCodeToFlagEmoji(cc);
     if (!cc) return nm;
     return `${flag ? flag + " " : ""}${nm} (${cc})`;
-  }, [countryOptions, prefs]);
+  }, [countryOptions, prefs, t]);
 
   const currentGenderLabel = useMemo(() => {
     const cur = String((prefs as any)?.gender || "");
     const found = genderOptions.find((x) => x.key === cur);
-    return found ? found.label : cur || "미설정";
-  }, [genderOptions, prefs]);
+    return found ? found.label : cur || t("common.not_set");
+  }, [genderOptions, prefs, t]);
 
   return (
     <View style={styles.root}>
@@ -1153,7 +1178,7 @@ export default function CallScreen({ navigation }: Props) {
         ) : (
           <View style={styles.placeholder}>
             {phase === "calling" && !remoteVideoAllowed ? (
-              <AppText style={styles.placeholderText}>무료 통화 시간이 종료되었습니다.</AppText>
+              <AppText style={styles.placeholderText}>{t("call.free_time_over")}</AppText>
             ) : phase === "calling" && !remoteCamOn ? (
               <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
             ) : null}
@@ -1209,19 +1234,21 @@ export default function CallScreen({ navigation }: Props) {
         {/* ✅ 연결/재매칭 상태 오버레이(상대 나가면 안내문+스피너+자동 재매칭) */}
         {phase !== "calling" ? (
           <View style={styles.centerOverlay}>
-            <Spinner />
+            <ActivityIndicator />
 
-            {reMatchText || phase === "connecting" || phase === "matched" ? <View style={{ height: 12 }} /> : null}
-
-            {reMatchText ? (
-              <AppText style={styles.centerText}>{reMatchText}</AppText>
-            ) : fastMatchHint ? (
-              <AppText style={styles.centerText}>빠른 매칭 중...</AppText>
-            ) : phase === "connecting" ? (
-              <AppText style={styles.centerText}>연결 중...</AppText>
-            ) : phase === "matched" ? (
-              <AppText style={styles.centerText}>매칭됨</AppText>
-            ) : null}
+            <View style={styles.centerTextDock}>
+              {reMatchText ? (
+                <AppText style={styles.centerText}>{reMatchText}</AppText>
+              ) : fastMatchHint ? (
+                <AppText style={styles.centerText}>{t("call.fast_matching")}...</AppText>
+              ) : phase === "connecting" ? (
+                <AppText style={styles.centerText}>{t("call.connecting")}...</AppText>
+              ) : phase === "matched" ? (
+                <AppText style={styles.centerText}>{t("call.matched")}</AppText>
+              ) : phase === "queued" ? (
+                <AppText style={styles.centerText}>{queuedLabel}</AppText>
+              ) : null}
+            </View>
 
           </View>
         ) : null}
@@ -1248,7 +1275,7 @@ export default function CallScreen({ navigation }: Props) {
             <View style={styles.myInfoCenter}>
               {peerInfoText ? <AppText style={styles.myInfoText}>{peerInfoText}</AppText> : null}
               {phase === "calling" && iceInfoText ? <AppText style={styles.myIceText}>{iceInfoText}</AppText> : null}
-              {phase === "calling" && signalUnstable ? <AppText style={styles.netUnstableText}>네트워크 불안정</AppText> : null}
+              {phase === "calling" && signalUnstable ? <AppText style={styles.netUnstableText}>{t("call.network_unstable")}</AppText> : null}
             </View>
           </View>
 
@@ -1259,71 +1286,71 @@ export default function CallScreen({ navigation }: Props) {
 
       <AppModal
         visible={limitModal}
-        title="무료 이용 시간 종료"
+        title={t("call.limit_title")}
         dismissible={false}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title="프리미엄 구매" onPress={() => setUpgradeModal(true)} />
-            <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+            <PrimaryButton title={t("call.limit_premium")} onPress={() => setUpgradeModal(true)} />
+            <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
           </View>
         }
       >
         <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>
-          무료 통화 시간(예: {Math.round(FREE_CALL_LIMIT_MS / 1000)}초)이 종료되었습니다.
-          {"\n"}프리미엄을 구매하면 제한 없이 이용할 수 있습니다.
+          {t("call.limit_message", { seconds: Math.round(FREE_CALL_LIMIT_MS / 1000) })}
         </AppText>
       </AppModal>
 
       <AppModal
         visible={upgradeModal}
-        title="프리미엄"
+        title={t("premium.title")}
         dismissible={true}
         onClose={() => setUpgradeModal(false)}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title="구매하기" onPress={purchase} />
-            <PrimaryButton title="닫기" onPress={() => setUpgradeModal(false)} variant="ghost" />
+            <PrimaryButton title={t("premium.buy")} onPress={purchase} />
+            <PrimaryButton title={t("common.close")} onPress={() => setUpgradeModal(false)} variant="ghost" />
           </View>
         }
       >
         <AppText style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>
-          프리미엄 구매 시 광고 제거 및 통화 제한이 해제됩니다.
+          {t("premium.upgrade_desc")}
         </AppText>
       </AppModal>
 
       <AppModal
         visible={noMatchModal}
-        title={isPremium ? "빠른 매칭 중" : "매칭이 지연되고 있습니다"}
+        title={isPremium ? t("call.fast_matching") : t("call.delay_matching")}
         dismissible={true}
         onClose={dismissNoMatch}
         footer={
           isPremium ? (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+              <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title="다시 시도" onPress={retry} />
-              <PrimaryButton title="나가기" onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+              <PrimaryButton title={t("common.retry")} onPress={retry} />
+              <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
             </View>
           )
         }
       >
         {isPremium ? (
           <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-            빠른 매칭 중입니다.{"\n"}(이 창은 자동으로 닫힙니다)
+            {t("call.fast_matching_desc")}
           </AppText>
         ) : (
           <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-            조금만 기다렸다가 다시 시도해 주세요.
+            {t("call.delay_matching_desc")}
           </AppText>
         )}
       </AppModal>
 
       <AppModal
         visible={prefsModal}
-        title="설정"
+        title={t("common.settings")}
         dismissible={true}
+
         onClose={() => {
           setPrefsModal(false);
           setLangOpen(false);
@@ -1332,15 +1359,15 @@ export default function CallScreen({ navigation }: Props) {
         }}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title="닫기" onPress={() => setPrefsModal(false)} variant="ghost" />
+            <PrimaryButton title={t("common.close")} onPress={() => setPrefsModal(false)} variant="ghost" />
           </View>
         }
       >
-        <AppText style={styles.modalText}>나라/언어/성별을 설정하세요.</AppText>
+        <AppText style={styles.modalText}>{t("setting.description")}</AppText>
 
         <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>나라(지역)</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.country")}</AppText>
 
         <View style={{ height: 0 }} />
 
@@ -1397,7 +1424,7 @@ export default function CallScreen({ navigation }: Props) {
 
         <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>언어</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.language")}</AppText>
 
         <View style={{ height: 0 }} />
 
@@ -1440,7 +1467,7 @@ export default function CallScreen({ navigation }: Props) {
 
         <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>성별</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.gender")}</AppText>
 
         <View style={{ height: 0 }} />
 
@@ -1483,8 +1510,8 @@ export default function CallScreen({ navigation }: Props) {
 
         <View style={{ height: 0 }} />
 
-        <AppText style={styles.sectionTitle}>글자 크기</AppText>
-        <AppText style={styles.modalText}>바를 좌우로 드래그해서 조절하세요. ({Math.round(fontScale * 100)}%)</AppText>
+        <AppText style={styles.sectionTitle}>{t("setting.font_size")}</AppText>
+        <AppText style={styles.modalText}>{t("setting.font_size_desc", { percent: Math.round(fontScale * 100) })}</AppText>
         <FontSizeSlider value={fontScale} onChange={setFontScale} />
       </AppModal>
     </View>
@@ -1580,11 +1607,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
 
+  centerTextDock: {
+    marginTop: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   centerText: {
     textAlign: "center",
-    fontSize: 16,
-    fontWeight: "700",
-    color: "rgba(201, 201, 201, 0.85)",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "rgba(139, 139, 139, 0.85)",
     lineHeight: 20,
   },
 

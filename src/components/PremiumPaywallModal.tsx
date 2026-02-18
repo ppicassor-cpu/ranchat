@@ -1,8 +1,10 @@
-﻿import React from "react";
+﻿// FILE: C:\ranchat\src\components\PremiumPaywallModal.tsx
+import React from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 import PrimaryButton from "./PrimaryButton";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 export default function PremiumPaywallModal({
   visible,
@@ -23,6 +25,8 @@ export default function PremiumPaywallModal({
   busy: boolean;
   onConfirm: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -32,7 +36,7 @@ export default function PremiumPaywallModal({
           <View style={styles.top}>
             <AppText style={styles.title}>{title}</AppText>
             <AppText onPress={onClose} style={styles.close}>
-              닫기
+              {t("common.close")}
             </AppText>
           </View>
 
@@ -46,10 +50,10 @@ export default function PremiumPaywallModal({
           <View style={{ height: 10 }} />
 
           <View style={styles.benefits}>
-            {benefitLines.map((t, i) => (
+            {benefitLines.map((text, i) => (
               <View key={i} style={styles.bRow}>
                 <View style={styles.dot} />
-                <AppText style={styles.bTxt}>{t}</AppText>
+                <AppText style={styles.bTxt}>{text}</AppText>
               </View>
             ))}
           </View>
@@ -57,14 +61,14 @@ export default function PremiumPaywallModal({
           <View style={{ height: 14 }} />
 
           <View style={{ gap: 10 }}>
-            <PrimaryButton title={busy ? "결제 처리 중..." : "결제 진행"} onPress={onConfirm} disabled={busy} />
-            <PrimaryButton title="취소" onPress={onClose} variant="ghost" />
+            <PrimaryButton title={busy ? t("payment.processing") : t("payment.proceed")} onPress={onConfirm} disabled={busy} />
+            <PrimaryButton title={t("common.cancel")} onPress={onClose} variant="ghost" />
           </View>
 
           <View style={{ height: 10 }} />
 
           <AppText style={styles.notice}>
-            결제는 스토어 정책에 따라 처리되며, 구독은 언제든지 스토어에서 관리할 수 있습니다.
+            {t("payment.notice")}
           </AppText>
         </View>
       </View>

@@ -1,6 +1,8 @@
-﻿import Purchases from "react-native-purchases";
+﻿// FILE: C:\ranchat\src\services\purchases\PurchaseManager.ts
+import Purchases from "react-native-purchases";
 import { APP_CONFIG } from "../../config/app";
 import { useAppStore } from "../../store/useAppStore";
+import { useTranslation } from "../../i18n/LanguageProvider";
 
 let inited = false;
 
@@ -15,9 +17,7 @@ export async function initPurchases() {
     Purchases.setLogLevel(Purchases.LOG_LEVEL.ERROR);
     await Purchases.configure({ apiKey: key });
     await refreshSubscription();
-  } catch {
-    // UI는 글로벌 모달에서 처리
-  }
+  } catch {}
 }
 
 export async function purchasePremiumByProductId(productId: string) {
@@ -45,18 +45,17 @@ export async function refreshSubscription() {
       entitlementId: entitlementId,
       lastCheckedAt: Date.now(),
     });
-  } catch {
-    // 무응답
-  }
+  } catch {}
 }
 
 export async function purchasePremium() {
+  const { t } = useTranslation();
   const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
   try {
     const offerings = await Purchases.getOfferings();
     const current = offerings.current;
     if (!current || current.availablePackages.length === 0) {
-      useAppStore.getState().showGlobalModal("구독", "현재 구매 가능한 상품을 불러오지 못했습니다.");
+      useAppStore.getState().showGlobalModal(t("subscription.title"), t("subscription.no_offering"));
       return;
     }
 
@@ -76,17 +75,18 @@ export async function purchasePremium() {
       lastCheckedAt: Date.now(),
     });
   } catch (e: any) {
+    const { t } = useTranslation();
     if (e?.userCancelled) return;
-    useAppStore.getState().showGlobalModal("구독", "결제를 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    useAppStore.getState().showGlobalModal(t("subscription.title"), t("subscription.payment_failed"));
   }
 }
 
 export async function openManageSubscriptions() {
+  const { t } = useTranslation();
   try {
-    // 일부 환경에서 미지원일 수 있어 예외 처리
     // @ts-ignore
     await Purchases.showManageSubscriptions();
   } catch {
-    useAppStore.getState().showGlobalModal("구독관리", "기기에서 구독관리 화면을 열 수 없습니다.");
+    useAppStore.getState().showGlobalModal(t("subscription.manage"), t("subscription.manage_failed"));
   }
 }

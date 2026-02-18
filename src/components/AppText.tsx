@@ -1,4 +1,3 @@
-//C:\ranchat\src\components\AppText.tsx
 import React, { useMemo } from "react";
 import { Text, TextProps, TextStyle, StyleProp } from "react-native";
 import { useAppStore } from "../store/useAppStore";
@@ -42,12 +41,7 @@ export default function AppText(props: Props) {
   const scaledStyle = useMemo(() => scaleStyle(props.style as any, scale), [props.style, scale]);
 
   return (
-    <Text
-      {...props}
-      allowFontScaling={false}
-      maxFontSizeMultiplier={1}
-      style={scaledStyle}
-    >
+    <Text {...props} allowFontScaling={false} maxFontSizeMultiplier={1} style={scaledStyle}>
       {props.children}
     </Text>
   );
