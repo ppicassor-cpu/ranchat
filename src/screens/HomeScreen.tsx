@@ -1,6 +1,6 @@
 ﻿// FILE: C:\ranchat\src\screens\HomeScreen.tsx
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, View, ScrollView } from "react-native";
+import { Pressable, StyleSheet, View, ScrollView, ImageBackground } from "react-native";
 import { theme } from "../config/theme";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
@@ -11,7 +11,7 @@ import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "../i18n/LanguageProvider";
-
+import * as Updates from "expo-updates";
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { t, currentLang } = useTranslation();
@@ -38,27 +38,44 @@ export default function HomeScreen({ navigation }: any) {
     return countryOk && genderOk && langOk;
   }, [prefs.country, prefs.gender, prefs.language]);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerTitle: "",
-      headerLeft: () => (
-        <Pressable
-          onPress={() => navigation.navigate("Profile")}
-          style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
-        >
-          <AppText style={styles.headerBtnText}>≡</AppText>
-        </Pressable>
-      ),
-      headerRight: () => (
-        <Pressable
-          onPress={() => setPrefsModal(true)}
-          style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
-        >
-          <AppText style={styles.headerBtnText}>⚙</AppText>
-        </Pressable>
-      ),
-    });
-  }, [navigation, t]);
+  const goProfile = useCallback(() => {
+    navigation.navigate("Profile");
+  }, [navigation]);
+
+  const openPrefs = useCallback(() => {
+    setPrefsModal(true);
+  }, []);
+
+  const headerLeft = useCallback(() => (
+  <Pressable
+    hitSlop={12}
+    onPressIn={goProfile}
+    style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
+  >
+    <AppText style={styles.headerBtnText}>≡</AppText>
+  </Pressable>
+), [goProfile]);
+
+const headerRight = useCallback(() => (
+  <Pressable
+    hitSlop={12}
+    onPressIn={openPrefs}
+    style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
+  >
+    <AppText style={styles.headerBtnText}>⚙</AppText>
+  </Pressable>
+), [openPrefs]);
+
+useLayoutEffect(() => {
+  navigation.setOptions({
+    headerTitle: "",
+    headerTransparent: true,
+    headerStyle: { backgroundColor: "transparent" },
+    headerShadowVisible: false,
+    headerLeft,
+    headerRight,
+  });
+}, [navigation, headerLeft, headerRight]);
 
 
   const isoToFlag = useCallback((iso: string) => {
@@ -255,6 +272,14 @@ export default function HomeScreen({ navigation }: any) {
 
   return (
     <View style={styles.root}>
+      <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+        <ImageBackground
+          source={require("../../assets/back.png")}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        />
+      </View>
+
       <View style={styles.body}>
         <View style={styles.center}>
           <AppText style={styles.title}>{t("home.title")}</AppText>
@@ -263,6 +288,10 @@ export default function HomeScreen({ navigation }: any) {
           <View style={styles.matchBtnWrap}>
             <PrimaryButton title={t("home.match_button")} onPress={onPressMatch} />
           </View>
+          <View style={{ height: 0 }} />
+          <AppText style={[styles.sub, { fontSize: 12, opacity: 0.6, marginTop: -8 }]}>
+            {`Runtime ${Updates.runtimeVersion ?? "-"} · Update ${Updates.updateId ? Updates.updateId.slice(-4) : "-"}`}
+          </AppText>        
         </View>
       </View>
 
@@ -389,7 +418,7 @@ export default function HomeScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.bg },
   body: { flex: 1, padding: theme.spacing.lg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, transform: [{ translateY: -40 }] },
   title: { fontSize: 26, fontWeight: "700", color: theme.colors.text },
   sub: { fontSize: 14, color: theme.colors.sub, textAlign: "center", lineHeight: 20 },
   matchBtnWrap: { width: "100%", maxWidth: 420 },
@@ -397,7 +426,7 @@ const styles = StyleSheet.create({
   banner: {
     borderTopWidth: 1,
     borderTopColor: theme.colors.line,
-    backgroundColor: theme.colors.bg,
+    backgroundColor: "transparent",
     alignItems: "center",
   },
   headerBtn: { paddingHorizontal: 12, paddingVertical: 8 },

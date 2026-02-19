@@ -55,15 +55,35 @@ function countryCodeToFlagEmoji(code: string) {
   return String.fromCodePoint(A + c1, A + c2);
 }
 
-function normalizeLanguageLabel(v: string) {
+function normalizeLanguageLabel(v: string, uiLang: string) {
   const s = String(v || "").trim();
   const lower = s.toLowerCase();
   if (!s) return "";
-  if (lower === "ko" || lower === "kor" || lower === "korean") return "한국어";
-  if (lower === "en" || lower === "eng" || lower === "english") return "English";
-  if (lower === "ja" || lower === "jpn" || lower === "japanese") return "日本語";
-  if (lower === "zh" || lower === "chi" || lower === "chinese") return "中文";
-  return s;
+
+  const code = (() => {
+    if (lower === "ko" || lower === "kor" || lower === "korean") return "ko";
+    if (lower === "en" || lower === "eng" || lower === "english") return "en";
+    if (lower === "ja" || lower === "jpn" || lower === "japanese") return "ja";
+    if (lower === "zh" || lower === "chi" || lower === "chinese") return "zh";
+    return lower;
+  })();
+
+  const u = String(uiLang || "").trim().toLowerCase();
+
+  const MAP: Record<string, Record<string, string>> = {
+    ko: { ko: "한국어", en: "영어", ja: "일본어", zh: "중국어", es: "스페인어", de: "독일어", fr: "프랑스어", it: "이탈리아어", ru: "러시아어" },
+    en: { ko: "Korean", en: "English", ja: "Japanese", zh: "Chinese", es: "Spanish", de: "German", fr: "French", it: "Italian", ru: "Russian" },
+    ja: { ko: "韓国語", en: "英語", ja: "日本語", zh: "中国語", es: "スペイン語", de: "ドイツ語", fr: "フランス語", it: "イタリア語", ru: "ロシア語" },
+    zh: { ko: "韩语", en: "英语", ja: "日语", zh: "中文", es: "西班牙语", de: "德语", fr: "法语", it: "意大利语", ru: "俄语" },
+    es: { ko: "Coreano", en: "Inglés", ja: "Japonés", zh: "Chino", es: "Español", de: "Alemán", fr: "Francés", it: "Italiano", ru: "Ruso" },
+    de: { ko: "Koreanisch", en: "Englisch", ja: "Japanisch", zh: "Chinesisch", es: "Spanisch", de: "Deutsch", fr: "Französisch", it: "Italienisch", ru: "Russisch" },
+    fr: { ko: "Coréen", en: "Anglais", ja: "Japonais", zh: "Chinois", es: "Espagnol", de: "Allemand", fr: "Français", it: "Italien", ru: "Russe" },
+    it: { ko: "Coreano", en: "Inglese", ja: "Giapponese", zh: "Cinese", es: "Spagnolo", de: "Tedesco", fr: "Francese", it: "Italiano", ru: "Russo" },
+    ru: { ko: "Корейский", en: "Английский", ja: "Японский", zh: "Китайский", es: "Испанский", de: "Немецкий", fr: "Французский", it: "Итальянский", ru: "Русский" },
+  };
+
+  const dict = MAP[u] || MAP.en;
+  return dict[code] || s;
 }
 
 const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").trim() || "ca-app-pub-5144004139813427/8416045900";
@@ -120,7 +140,7 @@ function QueueNativeAd256x144() {
 export default function CallScreen({ navigation }: Props) {
 
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, currentLang } = useTranslation();
 
   const queuedLabel = useMemo(() => {
     return String(t("call.connecting") || "");
@@ -164,6 +184,9 @@ export default function CallScreen({ navigation }: Props) {
   const wsRef = useRef<SignalClient | null>(null);
   const rtcRef = useRef<WebRTCSession | null>(null);
   const limitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const beginCallGuardRef = useRef(false);
+  const callStartTokenRef = useRef(0);
 
   const matchInterstitialRef = useRef<ReturnType<typeof createInterstitial> | null>(null);
   const lastInterstitialAtRef = useRef<number>(0);
@@ -254,19 +277,16 @@ export default function CallScreen({ navigation }: Props) {
     return direct || countryCodeToFlagEmoji(peerCountryRaw);
   }, [peerInfo, peerCountryRaw]);
   const peerLangLabel = useMemo(() => {
-    const direct = String((peerInfo as any)?.languageLabel ?? "").trim();
-    return direct || normalizeLanguageLabel(peerLangRaw);
-  }, [peerInfo, peerLangRaw]);
+    return normalizeLanguageLabel(peerLangRaw, String(currentLang || ""));
+  }, [peerLangRaw, currentLang]);
   const peerGenderRaw = useMemo(() => String((peerInfo as any)?.gender ?? ""), [peerInfo]);
   const peerGenderLabel = useMemo(() => {
-    const direct = String((peerInfo as any)?.genderLabel ?? "").trim();
-    if (direct) return direct;
     const g = String(peerGenderRaw || "").trim().toLowerCase();
     if (!g) return "";
     if (g === "male" || g === "m") return t("gender.male");
     if (g === "female" || g === "f") return t("gender.female");
     return peerGenderRaw;
-  }, [peerInfo, peerGenderRaw, t]);
+  }, [peerGenderRaw, t]);
 
   const peerInfoText = useMemo(() => {
     const parts: string[] = [];
@@ -283,7 +303,7 @@ export default function CallScreen({ navigation }: Props) {
   const myCountryRaw = useMemo(() => String((prefs as any)?.country ?? ""), [prefs]);
   const myLangRaw = useMemo(() => String((prefs as any)?.language ?? (prefs as any)?.lang ?? ""), [prefs]);
   const myFlag = useMemo(() => countryCodeToFlagEmoji(myCountryRaw), [myCountryRaw]);
-  const myLangLabel = useMemo(() => normalizeLanguageLabel(myLangRaw), [myLangRaw]);
+  const myLangLabel = useMemo(() => normalizeLanguageLabel(myLangRaw, String(currentLang || "")), [myLangRaw, currentLang]);
   const myGenderRaw = useMemo(() => String((prefs as any)?.gender ?? ""), [prefs]);
   const myGenderLabel = useMemo(() => {
     const g = String(myGenderRaw || "").trim().toLowerCase();
@@ -422,6 +442,9 @@ export default function CallScreen({ navigation }: Props) {
   }, []);
 
   const stopAll = () => {
+    callStartTokenRef.current += 1;
+    beginCallGuardRef.current = false;
+
     adAllowedRef.current = false;
     interstitialTokenRef.current += 1;
 
@@ -454,6 +477,14 @@ export default function CallScreen({ navigation }: Props) {
 
     queueRunningRef.current = false;
     enqueuedRef.current = false;
+
+    const rid = roomIdRef.current;
+
+    if (rid) {
+      try {
+        wsRef.current?.leaveRoom(rid);
+      } catch {}
+    }
 
     try {
       wsRef.current?.leaveQueue();
@@ -614,6 +645,12 @@ export default function CallScreen({ navigation }: Props) {
   );
 
   const beginCall = async (ws: SignalClient, rid: string, caller: boolean) => {
+    if (beginCallGuardRef.current) return;
+    beginCallGuardRef.current = true;
+
+    const tokenNow = callStartTokenRef.current + 1;
+    callStartTokenRef.current = tokenNow;
+
     try {
       const rtc = new WebRTCSession({
         onLocalStream: (s) => setLocalStreamURL(s.toURL()),
@@ -660,6 +697,13 @@ export default function CallScreen({ navigation }: Props) {
       rtcRef.current = rtc;
       await rtc.start({ isCaller: caller });
 
+      if (callStartTokenRef.current !== tokenNow) {
+        try {
+          rtc.stop();
+        } catch {}
+        return;
+      }
+
       // ✅ 사용자가 꺼둔 상태(카메라/마이크)를 새 세션에도 즉시 적용
       try {
         rtcRef.current?.setLocalVideoEnabled(Boolean(myCamOnRef.current));
@@ -683,18 +727,19 @@ export default function CallScreen({ navigation }: Props) {
         }, FREE_CALL_LIMIT_MS);
       }
     } catch (e) {
+      if (callStartTokenRef.current !== tokenNow) return;
+
       useAppStore.getState().showGlobalModal(t("call.error_title"), t("call.error_start"));
       try {
         ws.leaveRoom(rid);
       } catch {}
-      stopAll();
-      navigation.goBack();
+      endCallAndRequeue("error");
     }
   };
 
   const endCallAndRequeue = (why: "remote_left" | "disconnect" | "error" | "find_other") => {
     if (why === "remote_left") {
-      setReMatchText(`${t("call.peer_left")}\n${queuedLabel}`);
+      setReMatchText(String(t("call.peer_left") || ""));
     } else if (why === "find_other") {
       setReMatchText(queuedLabel);
     } else {
@@ -731,7 +776,12 @@ export default function CallScreen({ navigation }: Props) {
     noMatchShownThisCycleRef.current = false;
     setFastMatchHint(false);
 
-    if (!canStart.current) {
+    const st: any = useAppStore.getState?.() ?? {};
+    const prefsNow = st.prefs ?? {};
+    const queueCountry = String(prefsNow.country || "");
+    const queueGender = String(prefsNow.gender || "");
+
+    if (!(queueCountry.length > 0 && queueGender.length > 0)) {
       useAppStore.getState().showGlobalModal(t("call.match_title"), t("call.match_filter_missing"));
       queueRunningRef.current = false;
       navigation.goBack();
@@ -762,8 +812,6 @@ export default function CallScreen({ navigation }: Props) {
                 language: myLangRaw,
                 gender: myGenderRaw,
                 flag: myFlag,
-                languageLabel: myLangLabel,
-                genderLabel: myGenderLabel,
               });
             } catch {}
 
@@ -781,7 +829,7 @@ export default function CallScreen({ navigation }: Props) {
         enqueuedRef.current = true;
 
         startNoMatchTimer();
-        ws.enqueue(String(prefs.country), String(prefs.gender));
+        ws.enqueue(queueCountry, queueGender);
       },
       onClose: () => {
         if (manualCloseRef.current) return;
@@ -846,8 +894,6 @@ export default function CallScreen({ navigation }: Props) {
               language: myLangRaw,
               gender: myGenderRaw,
               flag: myFlag,
-              languageLabel: myLangLabel,
-              genderLabel: myGenderLabel,
             });
           } catch {}
 
@@ -872,8 +918,6 @@ export default function CallScreen({ navigation }: Props) {
               language: String(d?.language ?? d?.lang ?? "").trim(),
               gender: String(d?.gender ?? "").trim(),
               flag: String(d?.flag ?? "").trim(),
-              languageLabel: String(d?.languageLabel ?? "").trim(),
-              genderLabel: String(d?.genderLabel ?? "").trim(),
             });
             return;
           }
@@ -1172,18 +1216,22 @@ export default function CallScreen({ navigation }: Props) {
 
 
       <View style={styles.stage}>
-        {/* ✅ 상대 영상 풀스크린/배경 블랙 */}
-        {remoteStreamURL && remoteVideoAllowed && remoteCamOn ? (
-          <RTCView streamURL={remoteStreamURL} style={styles.remote} objectFit="cover" zOrder={0} />
-        ) : (
-          <View style={styles.placeholder}>
-            {phase === "calling" && !remoteVideoAllowed ? (
-              <AppText style={styles.placeholderText}>{t("call.free_time_over")}</AppText>
-            ) : phase === "calling" && !remoteCamOn ? (
-              <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
-            ) : null}
+        {/* ✅ 상대 영상: 9:16 박스에 cover로 렌더링(상하 약간 여백) -> 좌우 크롭 감소 */}
+        <View style={styles.remoteStage}>
+          <View style={[styles.remoteBox, REMOTE_BOX, { transform: [{ translateY: REMOTE_SHIFT_Y }] }]}>
+            {remoteStreamURL && remoteVideoAllowed && remoteCamOn ? (
+              <RTCView streamURL={remoteStreamURL} style={styles.remoteVideo} objectFit="cover" zOrder={0} />
+            ) : (
+              <View style={styles.placeholder}>
+                {phase === "calling" && !remoteVideoAllowed ? (
+                  <AppText style={styles.placeholderText}>{t("call.free_time_over")}</AppText>
+                ) : phase === "calling" && !remoteCamOn ? (
+                  <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
+                ) : null}
+              </View>
+            )}
           </View>
-        )}
+        </View>
 
 
         {/* ✅ 내 캠 + 버튼(카메라/마이크/설정) 아래로 이동 + 선(라인) 제거 + 캠 OFF 오버레이 */}
@@ -1238,7 +1286,12 @@ export default function CallScreen({ navigation }: Props) {
 
             <View style={styles.centerTextDock}>
               {reMatchText ? (
-                <AppText style={styles.centerText}>{reMatchText}</AppText>
+                <View style={styles.reMatchTextWrap}>
+                  <AppText style={styles.reMatchTextTop}>{String(reMatchText).split("\n")[0] || ""}</AppText>
+                  {String(reMatchText).split("\n")[1] ? (
+                    <AppText style={styles.reMatchTextBottom}>{String(reMatchText).split("\n")[1]}</AppText>
+                  ) : null}
+                </View>
               ) : fastMatchHint ? (
                 <AppText style={styles.centerText}>{t("call.fast_matching")}...</AppText>
               ) : phase === "connecting" ? (
@@ -1519,13 +1572,42 @@ export default function CallScreen({ navigation }: Props) {
 }
 
 const W = Dimensions.get("window").width;
+const H = Dimensions.get("window").height;
+
+// ✅ 큰 창을 9:16 박스로 고정(화면 안에 항상 들어오게)
+// - 세로가 긴 폰(20:9 등)에서는 상하 여백이 생기고 좌우 크롭이 줄어듭니다.
+const REMOTE_BOX = (() => {
+  const w = W;
+  const h = Math.round((w * 16) / 9);
+  if (h <= H) return { width: w, height: h };
+
+  const hh = H;
+  const ww = Math.round((hh * 9) / 16);
+  return { width: ww, height: hh };
+})();
+
+// ✅ 큰 화면을 아래로 내리는 값(픽셀). 더 내리고 싶으면 숫자만 키우면 됨.
+const REMOTE_SHIFT_Y = -25;
+
 const BANNER_RESERVED_HEIGHT = 60;
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
 
   stage: { flex: 1, position: "relative", backgroundColor: "#000" },
 
-  remote: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
+  remoteStage: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  remoteBox: {
+    overflow: "hidden",
+    backgroundColor: "#000",
+  },
+
+  remoteVideo: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
 
   placeholder: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#000" },
   placeholderText: { fontSize: 14, color: "rgba(255,255,255,0.75)", fontWeight: "700" },
@@ -1619,6 +1701,28 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "rgba(139, 139, 139, 0.85)",
     lineHeight: 20,
+  },
+
+  reMatchTextWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  reMatchTextTop: {
+    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "600",
+    color: "rgba(139, 139, 139, 0.85)",
+    lineHeight: 26,
+  },
+
+  reMatchTextBottom: {
+    textAlign: "center",
+    fontSize: 24,
+    fontWeight: "800",
+    color: "rgba(139, 139, 139, 0.85)",
+    lineHeight: 30,
+    marginTop: 5,
   },
 
   queueAdDock: {

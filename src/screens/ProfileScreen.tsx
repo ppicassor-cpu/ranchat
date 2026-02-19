@@ -1,11 +1,11 @@
 ﻿// FILE: C:\ranchat\src\screens\ProfileScreen.tsx
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { theme } from "../config/theme";
 import { useAppStore } from "../store/useAppStore";
-import { refreshSubscription, openManageSubscriptions } from "../services/purchases/PurchaseManager";
+import { refreshSubscription } from "../services/purchases/PurchaseManager";
 import { APP_CONFIG, COUNTRY_OPTIONS } from "../config/app";
 import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
@@ -113,6 +113,32 @@ export default function ProfileScreen() {
     return getLangDisplayLabel(code, ui);
   }, [prefs.language, t, currentLang]);
 
+  const currentPlanLabel = useMemo(() => {
+    if (!sub?.isPremium) return "";
+
+    const pid = String(
+      (sub as any)?.productId ??
+      (sub as any)?.activeProductId ??
+      (sub as any)?.storeProductId ??
+      (sub as any)?.sku ??
+      (sub as any)?.planId ??
+      (sub as any)?.packageId ??
+      ""
+    ).toLowerCase();
+
+    const key =
+      pid.includes("year") ? "yearly" :
+      pid.includes("month") ? "monthly" :
+      pid.includes("week") ? "weekly" :
+      "";
+
+    if (key === "weekly") return safeT(t, "profile.plan.weekly", "주간 프리미엄", undefined);
+    if (key === "monthly") return safeT(t, "profile.plan.monthly", "월간 프리미엄", undefined);
+    if (key === "yearly") return safeT(t, "profile.plan.yearly", "VIP 연간프리미엄", undefined);
+
+    return safeT(t, "profile.plan.premium", "프리미엄", undefined);
+  }, [sub, t]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: () => <AppText style={styles.headerTitle}>{safeT(t, "profile.title", "프로필", undefined)}</AppText>,
@@ -186,14 +212,14 @@ export default function ProfileScreen() {
         : POLICY_URLS.operationUrl;
 
     if (!url) {
-      showGlobalModal(safeT(t, "policy.title", "정책", undefined), safeT(t, "policy.url_missing", "URL이 없습니다.", undefined));
+      showGlobalModal(safeT(t, "policy.title", "이용약관 및 정책", undefined), safeT(t, "policy.url_missing", "URL이 없습니다.", undefined));
       return;
     }
 
     try {
       await Linking.openURL(url);
     } catch (e) {
-      showGlobalModal(safeT(t, "policy.title", "정책", undefined), toErrMsg(e));
+      showGlobalModal(safeT(t, "policy.title", "이용약관 및 정책", undefined), toErrMsg(e));
     }
   };
 
@@ -206,17 +232,40 @@ export default function ProfileScreen() {
     await logoutAndWipe();
   };
 
+  const onPressManageSubscriptions = useCallback(async () => {
+    try {
+      const url =
+        Platform.OS === "ios"
+          ? "https://apps.apple.com/account/subscriptions"
+          : "https://play.google.com/store/account/subscriptions";
+
+      await Linking.openURL(url);
+    } catch (e) {
+      showGlobalModal(safeT(t, "profile.manage_subscription", "구독 관리", undefined), toErrMsg(e));
+    }
+  }, [showGlobalModal, t]);
+
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
       <View style={styles.card}>
-        <AppText style={styles.h1}>{safeT(t, "profile.subscription_status", "구독 상태", undefined)}</AppText>
-        <AppText style={styles.p}>{sub.isPremium ? safeT(t, "profile.premium_active", "프리미엄 이용 중", undefined) : safeT(t, "profile.free_active", "무료 이용 중", undefined)}</AppText>
+        <View style={styles.subHeaderRow}>
+          <View style={styles.subHeaderLeft}>
+            <AppText style={styles.h1}>{safeT(t, "profile.subscription_status", "구독 상태", undefined)}</AppText>
+            <AppText style={styles.p}>{sub.isPremium ? safeT(t, "profile.premium_active", "프리미엄 이용 중", undefined) : safeT(t, "profile.free_active", "무료 이용 중", undefined)}</AppText>
+          </View>
+
+          {sub.isPremium && currentPlanLabel ? (
+            <View style={styles.planPill}>
+              <AppText style={styles.planPillText}>{currentPlanLabel}</AppText>
+            </View>
+          ) : null}
+        </View>
 
         <View style={{ height: 10 }} />
 
         {!sub.isPremium ? <PrimaryButton title={safeT(t, "profile.apply_premium", "프리미엄 적용", undefined)} onPress={goPremium} /> : null}
         <View style={{ height: 10 }} />
-        <PrimaryButton title={safeT(t, "profile.manage_subscription", "구독 관리", undefined)} onPress={openManageSubscriptions} variant="ghost" />
+        <PrimaryButton title={safeT(t, "profile.manage_subscription", "구독 관리", undefined)} onPress={onPressManageSubscriptions} variant="ghost" />
       </View>
 
       <View style={styles.card}>
@@ -229,7 +278,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <PrimaryButton title={safeT(t, "profile.terms_and_policies", "약관 및 정책", undefined)} onPress={() => setPolicyModal(true)} variant="ghost" />
+        <PrimaryButton title={safeT(t, "profile.terms_and_policies", "이용약관 및 정책", undefined)} onPress={() => setPolicyModal(true)} variant="ghost" />
         <View style={{ height: 10 }} />
         <OutlineDangerButton title={safeT(t, "profile.withdraw", "회원탈퇴", undefined)} onPress={() => setWithdrawModal(true)} />
       </View>
@@ -289,6 +338,12 @@ export default function ProfileScreen() {
       >
         <AppText style={styles.p}>{safeT(t, "modal.withdraw.body", "정말 탈퇴하시겠습니까?", undefined)}</AppText>
       </AppModal>
+
+      <View style={{ width: "100%", alignItems: "center", paddingTop: 8, paddingBottom: 2 }}>
+        <AppText style={{ fontSize: 11, color: "#999", textAlign: "center" }}>
+          {"Designed by Son's Family in 2026. © 2026 Coms. All rights reserved."}
+        </AppText>
+      </View>
     </ScrollView>
   );
 }
@@ -625,7 +680,7 @@ function PolicyModal({
   return (
     <AppModal
       visible={visible}
-      title={safeT(t, "modal.policy.title", "약관/정책", undefined)}
+      title={safeT(t, "modal.policy.title", "이용약관 및 정책", undefined)}
       onClose={onClose}
       dismissible={true}
       footer={
@@ -634,12 +689,26 @@ function PolicyModal({
         </View>
       }
     >
-      <View style={{ gap: 10 }}>
-        <PrimaryButton title={safeT(t, "modal.policy.terms", "이용약관", undefined)} onPress={onPressTerms} variant="ghost" />
-        <PrimaryButton title={safeT(t, "modal.policy.privacy", "개인정보처리방침", undefined)} onPress={onPressPrivacy} variant="ghost" />
-        <PrimaryButton title={safeT(t, "modal.policy.operation", "운영정책", undefined)} onPress={onPressOperation} variant="ghost" />
+      <View style={{ gap: 10, width: "100%" }}>
+        <View style={{ width: "100%" }}>
+          <PrimaryButton title={safeT(t, "modal.policy.terms", "이용약관", undefined)} onPress={onPressTerms} variant="ghost" />
+        </View>
+        <View style={{ width: "100%" }}>
+          <PrimaryButton title={safeT(t, "modal.policy.privacy", "개인정보 처리방침", undefined)} onPress={onPressPrivacy} variant="ghost" />
+        </View>
+        <View style={{ width: "100%" }}>
+          <PrimaryButton title={safeT(t, "modal.policy.operation", "운영정책", undefined)} onPress={onPressOperation} variant="ghost" />
+        </View>
       </View>
     </AppModal>
+  );
+}
+
+function WidePolicyButton({ title, onPress }: { title: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.policyWideBtn, pressed ? { opacity: 0.75 } : null]}>
+      <AppText style={styles.policyWideTxt}>{title}</AppText>
+    </Pressable>
   );
 }
 
@@ -691,6 +760,32 @@ const styles = StyleSheet.create({
   },
   h1: { fontSize: 17, fontWeight: "700", color: theme.colors.text, marginBottom: 6 },
   p: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
+
+  subHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  subHeaderLeft: {
+    flex: 1,
+  },
+  planPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.pinkDeep,
+    backgroundColor: theme.colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  planPillText: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: theme.colors.pinkDeep,
+  },
 
   headerTitle: { fontSize: 20, fontWeight: "800", color: theme.colors.text },
   headerTitleContainer: { marginLeft: -10 },
@@ -806,6 +901,24 @@ const styles = StyleSheet.create({
   langChipTxt: {
     fontSize: 13,
     fontWeight: "800",
+  },
+
+  policyWideBtn: {
+    width: "100%",
+    minHeight: 48,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: theme.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  policyWideTxt: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: theme.colors.text,
   },
 
   dangerOutlineBtn: {

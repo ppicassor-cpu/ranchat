@@ -9,9 +9,9 @@ import { useAppStore } from "../store/useAppStore";
 import { useTranslation } from "../i18n/LanguageProvider";
 
 const PRODUCT_IDS = {
-  weekly: "ranchat_premium:weekly_-plan",
-  monthly: "ranchat_premium:monthly2_-plan",
-  yearly: "ranchat_premium:yearly2_-plan",
+  weekly: "ranchat_premium:weekly-plan",
+  monthly: "ranchat_premium:monthly2-plan",
+  yearly: "ranchat_premium:yearly2-plan",
 } as const;
 
 type PlanKey = keyof typeof PRODUCT_IDS;
@@ -208,6 +208,7 @@ const styles = StyleSheet.create({
   wrap: {
     padding: theme.spacing.lg,
     gap: theme.spacing.lg,
+    paddingBottom: 60,   // ← 시스템 버튼 겹침 방지용 추가
   },
 
   hero: {

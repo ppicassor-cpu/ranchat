@@ -2,7 +2,7 @@
   "expo": {
     "name": "ranchat",
     "slug": "ranchat",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -29,7 +29,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -42,9 +42,7 @@
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
         "INTERNET",
-        "ACCESS_NETWORK_STATE",
-        "BLUETOOTH",
-        "BLUETOOTH_CONNECT"
+        "ACCESS_NETWORK_STATE"
       ]
     },
     "web": {

@@ -1,6 +1,6 @@
-﻿// FILE: C:\ranchat\src\components\PremiumPaywallModal.tsx
-import React from "react";
+﻿import React from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 import PrimaryButton from "./PrimaryButton";
@@ -26,12 +26,19 @@ export default function PremiumPaywallModal({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
 
-      <View style={styles.sheetWrap} pointerEvents="box-none">
+      <View
+        style={[
+          styles.sheetWrap,
+          { paddingBottom: theme.spacing.lg + Math.max(insets.bottom, 12) },
+        ]}
+        pointerEvents="box-none"
+      >
         <View style={styles.sheet}>
           <View style={styles.top}>
             <AppText style={styles.title}>{title}</AppText>
