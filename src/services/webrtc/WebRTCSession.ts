@@ -1,7 +1,8 @@
 ﻿// FILE: C:\ranchat\src\services\webrtc\WebRTCSession.ts
 import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from "react-native-webrtc";
-import { PermissionsAndroid, Platform } from "react-native";
+import { PermissionsAndroid, Platform, DeviceEventEmitter } from "react-native";
 import { APP_CONFIG } from "../../config/app";
+
 // @ts-ignore
 import InCallManager from "react-native-incall-manager";
 
@@ -94,6 +95,11 @@ export class WebRTCSession {
   private remoteStream: MediaStream | null = null;
   private cb: Callbacks;
   private inCallStarted: boolean = false;
+  private wiredHeadsetSub: any = null;
+  private wiredHeadsetPlugged: boolean | null = null;
+  private audioDeviceSub: any = null;
+  private routeLockUntilMs: number = 0;
+  private lastAvailableAudioDevices: string[] = [];
 
   constructor(cb: Callbacks) {
     this.cb = cb;
@@ -232,12 +238,92 @@ export class WebRTCSession {
 
       const IC: any = InCallManager as any;
 
-      IC.start?.({ media: "video" });
+      IC.start?.({ media: "video", auto: true });
       IC.setKeepScreenOn?.(true);
 
-      // 스피커폰 강제
-      IC.setForceSpeakerphoneOn?.(true);
-      IC.setSpeakerphoneOn?.(true);
+      // ✅ 구조 변경: BT/유선이 "있으면" 그쪽 우선 → 일정 시간 안 들어오면 스피커 강제(earpiece 금지)
+      // (초기부터 스피커를 force로 박아버리면 BT로 넘어갈 여지가 줄어드는 케이스가 있어, fallback 시점에만 강제)
+      IC.setBluetoothOn?.(true);
+
+      this.routeLockUntilMs = Date.now() + 1200; // BT/유선 이벤트가 늦게 오는 단말 대비
+      this.wiredHeadsetPlugged = null;
+      this.lastAvailableAudioDevices = [];
+
+      const normalizeList = (raw: any): string[] => {
+        if (Array.isArray(raw)) return raw.map((x) => String(x));
+        if (typeof raw === "string") {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed.map((x) => String(x));
+          } catch {}
+        }
+        return [];
+      };
+
+      const hasAny = (list: string[], pred: (u: string) => boolean) => {
+        return (list || []).some((x) => pred(String(x || "").toUpperCase()));
+      };
+
+      const applyRoute = () => {
+        const list = this.lastAvailableAudioDevices || [];
+
+        const hasBt =
+          hasAny(list, (u) => u.includes("BLUETOOTH") || u.includes("BT"));
+
+        const hasWired =
+          this.wiredHeadsetPlugged === true ||
+          hasAny(list, (u) => u.includes("WIRED") || u.includes("HEADSET") || u.includes("HEADPHONE"));
+
+        if (hasBt) {
+          IC.setForceSpeakerphoneOn?.(false);
+          IC.setSpeakerphoneOn?.(false);
+          IC.setBluetoothOn?.(true);
+          IC.chooseAudioRoute?.("BLUETOOTH");
+          return;
+        }
+
+        if (hasWired) {
+          IC.setBluetoothOn?.(false);
+          IC.setForceSpeakerphoneOn?.(false);
+          IC.setSpeakerphoneOn?.(false);
+          IC.chooseAudioRoute?.("WIRED_HEADSET");
+          return;
+        }
+
+        if (Date.now() < this.routeLockUntilMs) return;
+
+        IC.setBluetoothOn?.(false);
+        IC.chooseAudioRoute?.("SPEAKER_PHONE");
+        IC.setForceSpeakerphoneOn?.(true);
+        IC.setSpeakerphoneOn?.(true);
+      };
+
+      if (!this.audioDeviceSub && typeof IC.addEventListener === "function") {
+        this.audioDeviceSub = IC.addEventListener("onAudioDeviceChanged", (data: any) => {
+          const avail = normalizeList(data?.availableAudioDeviceList);
+          this.lastAvailableAudioDevices = avail as any;
+          applyRoute();
+        });
+      }
+
+      if (!this.wiredHeadsetSub) {
+        this.wiredHeadsetSub = DeviceEventEmitter.addListener("WiredHeadset", (data: any) => {
+          this.wiredHeadsetPlugged = Boolean(data?.isPlugged);
+          applyRoute();
+        });
+      }
+
+      setTimeout(() => {
+        try {
+          applyRoute();
+        } catch {}
+      }, 300);
+
+      setTimeout(() => {
+        try {
+          applyRoute();
+        } catch {}
+      }, 900);
     } catch {}
   }
 
@@ -248,6 +334,24 @@ export class WebRTCSession {
 
       const IC: any = InCallManager as any;
 
+      try {
+        this.wiredHeadsetSub?.remove?.();
+      } catch {}
+      this.wiredHeadsetSub = null;
+      this.wiredHeadsetPlugged = null;
+
+      try {
+        this.audioDeviceSub?.remove?.();
+      } catch {}
+      try {
+        if (typeof this.audioDeviceSub === "function") this.audioDeviceSub();
+      } catch {}
+      this.audioDeviceSub = null;
+
+      this.lastAvailableAudioDevices = [];
+      this.routeLockUntilMs = 0;
+
+      IC.setBluetoothOn?.(false);
       IC.setKeepScreenOn?.(false);
       IC.stop?.();
     } catch {}
@@ -255,9 +359,22 @@ export class WebRTCSession {
 
   async ensurePermissions() {
     if (Platform.OS !== "android") return;
+
     const cam = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
     const mic = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    
     if (cam !== "granted" || mic !== "granted") throw new Error("PERMISSION_DENIED");
+
+    // ✅ 구조적 보완: Android 12(API 31)+ 에서는 BLUETOOTH_CONNECT 없으면 BT 상태/디바이스 감지/라우팅이 막히는 케이스가 있음
+    // (매니페스트(app.json/AndroidManifest.xml)에 선언도 필요)
+    try {
+      const btConnect = (PermissionsAndroid as any)?.PERMISSIONS?.BLUETOOTH_CONNECT;
+      if (Platform.Version >= 31 && typeof btConnect === "string") {
+        await (PermissionsAndroid as any).request(btConnect);
+      }
+    } catch {}
+
+
   }
 
   private async tuneSenders() {
@@ -296,7 +413,7 @@ export class WebRTCSession {
   async startLocal() {
     await this.ensurePermissions();
 
-    // ✅ 스피커폰 ON
+    // ✅ 스피커폰 ON(단, BT/유선 우선 구조로 라우팅)
     this.startSpeakerphone();
 
     // 720p/24fps(과하지 않게) + 실패 시 한 단계 다운 폴백

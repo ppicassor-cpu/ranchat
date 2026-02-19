@@ -162,9 +162,11 @@ export default function CallScreen({ navigation }: Props) {
   const [remoteStreamURL, setRemoteStreamURL] = useState<string | null>(null);
 
   const [remoteCamOn, setRemoteCamOn] = useState(true);
+  const [remoteMuted, setRemoteMuted] = useState(false);
 
   const [myCamOn, setMyCamOn] = useState(true);
   const [mySoundOn, setMySoundOn] = useState(true);
+
 
   const [limitModal, setLimitModal] = useState(false);
   const [remoteVideoAllowed, setRemoteVideoAllowed] = useState(true);
@@ -183,6 +185,7 @@ export default function CallScreen({ navigation }: Props) {
 
   const wsRef = useRef<SignalClient | null>(null);
   const rtcRef = useRef<WebRTCSession | null>(null);
+  const remoteStreamRef = useRef<any>(null);
   const limitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const beginCallGuardRef = useRef(false);
@@ -226,6 +229,8 @@ export default function CallScreen({ navigation }: Props) {
   const roomIdRef = useRef<string | null>(null);
   const myCamOnRef = useRef<boolean>(true);
   const mySoundOnRef = useRef<boolean>(true);
+  const remoteMutedRef = useRef<boolean>(false);
+
 
   const manualCloseRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -337,6 +342,11 @@ export default function CallScreen({ navigation }: Props) {
   useEffect(() => {
     mySoundOnRef.current = mySoundOn;
   }, [mySoundOn]);
+
+  useEffect(() => {
+    remoteMutedRef.current = remoteMuted;
+  }, [remoteMuted]);
+
 
   useEffect(() => {
     adsAliveRef.current = true;
@@ -654,8 +664,20 @@ export default function CallScreen({ navigation }: Props) {
     try {
       const rtc = new WebRTCSession({
         onLocalStream: (s) => setLocalStreamURL(s.toURL()),
-        onRemoteStream: (s) => setRemoteStreamURL(s.toURL()),
+        onRemoteStream: (s) => {
+          remoteStreamRef.current = s as any;
+
+          try {
+            const tracks = ((s as any)?.getAudioTracks?.() ?? []) as any[];
+            tracks.forEach((t: any) => {
+              t.enabled = !Boolean(remoteMutedRef.current);
+            });
+          } catch {}
+
+          setRemoteStreamURL(s.toURL());
+        },
         onIceCandidate: (c) => ws.sendIce(rid, c),
+
         onAnswer: (sdp) => ws.sendAnswer(rid, sdp),
         onOffer: (sdp) => ws.sendOffer(rid, sdp),
         onConnectionState: (s) => {
@@ -1014,6 +1036,21 @@ export default function CallScreen({ navigation }: Props) {
     rtcRef.current?.setLocalAudioEnabled(next);
   };
 
+  const toggleRemoteMute = () => {
+    const next = !Boolean(remoteMutedRef.current);
+    remoteMutedRef.current = next;
+    setRemoteMuted(next);
+
+    try {
+      const s: any = remoteStreamRef.current;
+      const tracks = (s?.getAudioTracks?.() ?? []) as any[];
+      tracks.forEach((t: any) => {
+        t.enabled = !next;
+      });
+    } catch {}
+  };
+
+
   const purchase = async () => {
     await purchasePremium();
     await refreshSubscription();
@@ -1265,9 +1302,10 @@ export default function CallScreen({ navigation }: Props) {
                 <Ionicons name={mySoundOn ? "mic" : "mic-off"} size={20} color="#fff" />
               </Pressable>
 
-              <Pressable onPress={() => setPrefsModal(true)} style={({ pressed }) => [styles.iconCircle, pressed ? { opacity: 0.7 } : null]}>
-                <Ionicons name="settings-outline" size={20} color="#fff" />
+              <Pressable onPress={toggleRemoteMute} style={({ pressed }) => [styles.iconCircle, pressed ? { opacity: 0.7 } : null]}>
+                <Ionicons name={remoteMuted ? "volume-mute" : "volume-high"} size={20} color="#fff" />
               </Pressable>
+
             </View>
           </View>
         ) : null}
