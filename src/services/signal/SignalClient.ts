@@ -28,6 +28,7 @@ type ServerMessage =
   | { type: "peer_left"; roomId?: string; sessionId?: string; peerSessionId?: string }
   | { type: "left"; roomId?: string; sessionId?: string }
   | { type: "left_ok"; roomId?: string | null; sessionId?: string } // ✅ 서버가 떠난 사람에게 주는 ack(무시)
+  | { type: "end"; roomId?: string; reason?: string } // ✅ 서버 최상위 end 지원
   | { type: "error"; reason?: string; message?: string };
 
 export class SignalClient {
@@ -211,7 +212,17 @@ export class SignalClient {
           return;
         }
 
+        // ✅ 서버 최상위 end 처리
+        if (msg?.type === "end") {
+          if (this.ended) return;
+          this.ended = true;
+          this.cb.onMessage({ type: "end" });
+          return;
+        }
+
         if (msg?.type === "peer_left" || msg?.type === "left") {
+          if (this.ended) return;
+          this.ended = true;
           this.cb.onMessage({ type: "end" });
           return;
         }
@@ -234,6 +245,8 @@ export class SignalClient {
             return;
           }
           if (t === "end" || t === "leave") {
+            if (this.ended) return;
+            this.ended = true;
             this.cb.onMessage({ type: "end" });
             return;
           }

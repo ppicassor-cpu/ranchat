@@ -99,7 +99,7 @@ export const translations = {
     "call.free_time_over": "무료 통화 시간이 종료되었습니다.",
     "call.peer_left": "상대방이 방을 떠났습니다.\n새로운 상대를 찾는중...",
     "call.fast_matching": "빠른 매칭 중...",
-    "call.connecting": "매칭 중...",
+    "call.connecting": "새로운 상대를 찾는중...",
     "call.matched": "매칭됨",
     "call.network_unstable": "네트워크 불안정",
     "common.settings": "설정",

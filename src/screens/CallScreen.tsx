@@ -1,6 +1,6 @@
 ﻿// FILE: C:\ranchat\src\screens\CallScreen.tsx
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ActivityIndicator, StyleSheet, View, Pressable, Dimensions, ScrollView, Text } from "react-native";
+import { ActivityIndicator, StyleSheet, View, Pressable, Dimensions, ScrollView, Text, BackHandler } from "react-native";
 import { RTCView } from "react-native-webrtc";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -219,6 +219,16 @@ export default function CallScreen({ navigation }: Props) {
   const mySoundOnRef = useRef<boolean>(true);
   const remoteMutedRef = useRef<boolean>(false);
 
+  const queueTokenRef = useRef(0);
+  const myPeerInfoNonceRef = useRef("");
+  const beginCallReqRef = useRef<{ ws: SignalClient; rid: string; caller: boolean; qTok: number } | null>(null);
+  const peerReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const webrtcConnectedRef = useRef(false);
+  const webrtcConnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const endCallOnceRef = useRef(0);
+  const suppressEndRelayRef = useRef(false);
 
   const manualCloseRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -320,6 +330,15 @@ export default function CallScreen({ navigation }: Props) {
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
+
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
+      onPressBack();
+      return true;
+    });
+
+    return () => backHandler.remove();
+  }, []);
 
   useEffect(() => {
     canStart.current = Boolean(String(prefs.country || "").length > 0 && String(prefs.gender || "").length > 0);
@@ -437,6 +456,14 @@ export default function CallScreen({ navigation }: Props) {
     clearReconnectTimer();
     clearWebrtcDownTimer();
 
+    if (peerReadyTimerRef.current) clearTimeout(peerReadyTimerRef.current);
+    peerReadyTimerRef.current = null;
+    beginCallReqRef.current = null;
+
+    if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
+    webrtcConnectTimerRef.current = null;
+    webrtcConnectedRef.current = false;
+
     setSignalUnstable(false);
 
     noMatchShownThisCycleRef.current = false;
@@ -453,7 +480,7 @@ export default function CallScreen({ navigation }: Props) {
       } catch {}
     }
 
-    if (rid && wsRef.current) {
+    if (rid && wsRef.current && !suppressEndRelayRef.current) {
       try {
         wsRef.current.relay(rid, { type: "end" });
       } catch {}
@@ -621,7 +648,18 @@ export default function CallScreen({ navigation }: Props) {
     [isPremium]
   );
 
-  const beginCall = async (ws: SignalClient, rid: string, caller: boolean) => {
+  const beginCall = async (ws: SignalClient, rid: string, caller: boolean, qTok: number) => {
+    if (queueTokenRef.current !== qTok) return;
+    if (wsRef.current !== ws) return;
+
+    beginCallReqRef.current = null;
+    if (peerReadyTimerRef.current) clearTimeout(peerReadyTimerRef.current);
+    peerReadyTimerRef.current = null;
+
+    if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
+    webrtcConnectTimerRef.current = null;
+    webrtcConnectedRef.current = false;
+
     if (beginCallGuardRef.current) return;
     beginCallGuardRef.current = true;
 
@@ -630,8 +668,12 @@ export default function CallScreen({ navigation }: Props) {
 
     try {
       const rtc = new WebRTCSession({
-        onLocalStream: (s) => setLocalStreamURL(s.toURL()),
+        onLocalStream: (s) => {
+          if (queueTokenRef.current !== qTok) return;
+          setLocalStreamURL(s.toURL());
+        },
         onRemoteStream: (s) => {
+          if (queueTokenRef.current !== qTok) return;
           remoteStreamRef.current = s as any;
 
           try {
@@ -651,6 +693,10 @@ export default function CallScreen({ navigation }: Props) {
           const st = String(s || "").toLowerCase();
 
           if (st === "connected") {
+            if (queueTokenRef.current !== qTok) return;
+            webrtcConnectedRef.current = true;
+            if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
+            webrtcConnectTimerRef.current = null;
             clearWebrtcDownTimer();
             return;
           }
@@ -663,7 +709,9 @@ export default function CallScreen({ navigation }: Props) {
             webrtcDownTimerRef.current = setTimeout(() => {
               if (webrtcDownTokenRef.current !== tokenNow) return;
               if (phaseRef.current !== "calling") return;
+              if (queueTokenRef.current !== qTok) return;
 
+              suppressEndRelayRef.current = true;
               endCallAndRequeue("remote_left");
             }, 500);
 
@@ -705,6 +753,16 @@ export default function CallScreen({ navigation }: Props) {
       setReMatchText("");
       setPhase("calling");
 
+      if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
+      webrtcConnectTimerRef.current = setTimeout(() => {
+        if (queueTokenRef.current !== qTok) return;
+        if (callStartTokenRef.current !== tokenNow) return;
+        if (webrtcConnectedRef.current) return;
+
+        suppressEndRelayRef.current = true;
+        endCallAndRequeue("disconnect");
+      }, 4000);
+
       try {
         ws.relay(rid, { type: "cam", enabled: Boolean(myCamOnRef.current) });
       } catch {}
@@ -728,6 +786,12 @@ export default function CallScreen({ navigation }: Props) {
   };
 
   const endCallAndRequeue = (why: "remote_left" | "disconnect" | "error" | "find_other") => {
+    const tok = queueTokenRef.current;
+    if (endCallOnceRef.current === tok) return;
+    endCallOnceRef.current = tok;
+
+    suppressEndRelayRef.current = why === "remote_left";
+
     if (why === "remote_left") {
       setReMatchText(String(t("call.peer_left") || ""));
     } else if (why === "find_other") {
@@ -745,13 +809,13 @@ export default function CallScreen({ navigation }: Props) {
       requeueTimerRef.current = setTimeout(() => {
         setPhase("connecting");
         startQueue();
-      }, 350);
+      }, 100);
     } else {
       setPhase("connecting");
       if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
       requeueTimerRef.current = setTimeout(() => {
         startQueue();
-      }, 350);
+      }, 100);
     }
   };
 
@@ -759,6 +823,21 @@ const startQueue = () => {
   if (queueRunningRef.current) return;
   queueRunningRef.current = true;
   enqueuedRef.current = false;
+
+  const qTok = queueTokenRef.current + 1;
+  queueTokenRef.current = qTok;
+
+  myPeerInfoNonceRef.current = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+  if (peerReadyTimerRef.current) clearTimeout(peerReadyTimerRef.current);
+  peerReadyTimerRef.current = null;
+  beginCallReqRef.current = null;
+
+  if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
+  webrtcConnectTimerRef.current = null;
+  webrtcConnectedRef.current = false;
+
+  suppressEndRelayRef.current = false;
 
   // WebSocket 연결 여부를 체크하는 조건 제거 (매칭이 정상적으로 진행되도록)
   if (wsRef.current) {
@@ -830,10 +909,12 @@ const startQueue = () => {
 
   const ws = new SignalClient({
     onOpen: () => {
+      if (wsRef.current !== ws) return;
+      if (queueTokenRef.current !== qTok) return;
+
       setSignalUnstable(false);
       reconnectAttemptRef.current = 0;
 
-      // 연결된 후에만 큐에 등록하도록 수정
       setPhase("queued");
       if (enqueuedRef.current) return;
       enqueuedRef.current = true;
@@ -841,28 +922,14 @@ const startQueue = () => {
       ws.enqueue(queueCountry, queueGender);
     },
     onClose: () => {
+      if (wsRef.current !== ws) return;
+      if (queueTokenRef.current !== qTok) return;
+
       if (manualCloseRef.current) return;
 
       if (phaseRef.current === "calling") {
-        setSignalUnstable(true);
-
-        if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-        const attempt = reconnectAttemptRef.current + 1;
-        reconnectAttemptRef.current = attempt;
-
-        const base = Math.min(15000, 500 * Math.pow(2, attempt - 1));
-        const jitter = Math.floor(Math.random() * 250);
-        const delay = Math.min(30000, base + jitter);
-
-        reconnectTimerRef.current = setTimeout(() => {
-          if (manualCloseRef.current) return;
-          if (phaseRef.current !== "calling") return;
-          if (wsRef.current !== ws) return;
-
-          const tokenNow = useAppStore.getState().auth.token;
-          ws.connect(APP_CONFIG.SIGNALING_URL, tokenNow);
-        }, delay);
-
+        suppressEndRelayRef.current = true;
+        endCallAndRequeue("remote_left");
         return;
       }
 
@@ -871,6 +938,31 @@ const startQueue = () => {
       }
     },
     onMessage: async (msg: SignalMessage) => {
+  if (wsRef.current !== ws) return;
+  if (queueTokenRef.current !== qTok) return;
+
+  if (msg.type === "signal") {
+    const d: any = (msg as any).data;
+
+    if (String(d?.type ?? "").toLowerCase() === "peer_info") {
+      if (String(d?.nonce ?? "") === String(myPeerInfoNonceRef.current)) return;
+
+      setPeerInfo(d);
+
+      const req = beginCallReqRef.current;
+      if (req && req.ws === ws && req.rid === (msg as any).roomId && req.qTok === qTok) {
+        beginCallReqRef.current = null;
+        if (peerReadyTimerRef.current) clearTimeout(peerReadyTimerRef.current);
+        peerReadyTimerRef.current = null;
+        beginCall(ws, req.rid, req.caller, req.qTok);
+      }
+
+      return;
+    }
+
+    return;
+  }
+
   if (msg.type === "queued") {
     setPhase("queued");
     startNoMatchTimer();
@@ -887,18 +979,39 @@ const startQueue = () => {
     enqueuedRef.current = false;
     setRoomId(msg.roomId);
     setIsCaller(Boolean(msg.isCaller));
-    setPhase("matched");
     try {
       ws.relay(msg.roomId, {
         type: "peer_info",
+        nonce: myPeerInfoNonceRef.current,
         country: myCountryRaw,
         language: myLangRaw,
         gender: myGenderRaw,
         flag: myFlag,
       });
     } catch {}
-    const run = () => beginCall(ws, msg.roomId, Boolean(msg.isCaller));
-    run();
+
+    beginCallReqRef.current = { ws, rid: msg.roomId, caller: Boolean(msg.isCaller), qTok };
+
+    if (peerReadyTimerRef.current) clearTimeout(peerReadyTimerRef.current);
+    peerReadyTimerRef.current = setTimeout(() => {
+      if (wsRef.current !== ws) return;
+      if (queueTokenRef.current !== qTok) return;
+      const req = beginCallReqRef.current;
+      if (!req || req.rid !== msg.roomId) return;
+
+      suppressEndRelayRef.current = true;
+      endCallAndRequeue("disconnect");
+    }, 1500);
+
+    return;
+  }
+  if (msg.type === "end") {
+    queueRunningRef.current = false;
+    manualCloseRef.current = true;
+    endCallAndRequeue("remote_left");
+    clearWebrtcDownTimer();
+    webrtcDownTokenRef.current += 1;
+    rtcRef.current?.stop();
     return;
   }
   if ((msg as any).type === "offer") {
@@ -1239,11 +1352,11 @@ const startQueue = () => {
                   ) : null}
                 </View>
               ) : authBooting ? (
-                <AppText style={styles.centerText}>{t("call.connecting")}...</AppText>
+                <AppText style={styles.centerText}>{t("call.connecting")}</AppText>
               ) : fastMatchHint ? (
-                <AppText style={styles.centerText}>{t("call.fast_matching")}...</AppText>
+                <AppText style={styles.centerText}>{t("call.fast_matching")}</AppText>
               ) : phase === "connecting" ? (
-                <AppText style={styles.centerText}>{t("call.connecting")}...</AppText>
+                <AppText style={styles.centerText}>{t("call.connecting")}</AppText>
               ) : phase === "matched" ? (
                 <AppText style={styles.centerText}>{t("call.matched")}</AppText>
               ) : phase === "queued" ? (
