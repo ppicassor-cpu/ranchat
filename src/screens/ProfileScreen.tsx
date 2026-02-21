@@ -341,7 +341,7 @@ export default function ProfileScreen() {
 
       <View style={{ width: "100%", alignItems: "center", paddingTop: 8, paddingBottom: 2 }}>
         <AppText style={{ fontSize: 11, color: "#999", textAlign: "center" }}>
-          {"Designed by Son's Family in 2026. © 2026 Coms. All rights reserved."}
+          {"Designed by Son's Family in 2026.\n© 2026 Coms. All rights reserved."}
         </AppText>
       </View>
     </ScrollView>

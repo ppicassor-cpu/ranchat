@@ -1,5 +1,4 @@
-﻿// FILE: C:\ranchat\src\services\signal\SignalClient.ts
-import { Platform } from "react-native";
+﻿import { Platform } from "react-native";
 import { getOrCreateDeviceKey } from "../device/DeviceKey";
 
 export type SignalMessage =
@@ -57,6 +56,8 @@ export class SignalClient {
   private wantEnqueue = false;
   private lastEnqueuePayload: { country: string; gender: string; platform: string } | null = null;
 
+  private ended = false; // 중복 end 방지용
+
   constructor(cb: Cb) {
     this.cb = cb;
   }
@@ -88,6 +89,8 @@ export class SignalClient {
     this.lastEnqueuePayload = null;
 
     this.reconnectAttempt = 0;
+
+    this.ended = false; // reset on new connect
 
     this.openSocket();
   }
@@ -129,7 +132,6 @@ export class SignalClient {
 
       // ✅ 수동 close가 아니면 자동 재연결(backoff)
       if (!this.manualClose) {
-        this.scheduleReconnect();
         return;
       }
 
@@ -258,31 +260,6 @@ export class SignalClient {
     };
   }
 
-  private scheduleReconnect() {
-    if (this.manualClose) return;
-
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = null;
-
-    // backoff: 500ms * 2^n (cap 10s) + jitter(0~250ms)
-    const base = 500;
-    const cap = 10_000;
-    const pow = Math.min(10, Math.max(0, this.reconnectAttempt));
-    const backoff = Math.min(cap, base * Math.pow(2, pow));
-    const jitter = Math.floor(Math.random() * 250);
-    const delay = backoff + jitter;
-
-    this.reconnectAttempt += 1;
-
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      if (this.manualClose) return;
-
-      // ✅ 다시 소켓 열기
-      this.openSocket();
-    }, delay);
-  }
-
   enqueue(country: string, gender: string) {
     // ✅ 재연결 후 자동으로 다시 enqueue되게 유지
     this.wantEnqueue = true;
@@ -382,7 +359,7 @@ export class SignalClient {
       if (obj?.type !== "register" && this.pending.length < 100) this.pending.push(obj);
       try {
         // 재연결 예약
-        if (!this.manualClose) this.scheduleReconnect();
+        if (!this.manualClose) {}
       } catch {}
     }
   }

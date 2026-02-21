@@ -12,8 +12,8 @@ import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
 import { useAppStore } from "../store/useAppStore";
 import { SignalClient, SignalMessage } from "../services/signal/SignalClient";
 import { WebRTCSession } from "../services/webrtc/WebRTCSession";
-import { BannerBar, createInterstitial, initAds } from "../services/ads/AdManager";
-import mobileAds, { AdEventType, NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, NativeMediaAspectRatio, TestIds } from "react-native-google-mobile-ads";
+import { createInterstitial, initAds } from "../services/ads/AdManager";
+import mobileAds, { AdEventType, NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, NativeMediaAspectRatio } from "react-native-google-mobile-ads";
 import { purchasePremium, refreshSubscription } from "../services/purchases/PurchaseManager";
 import type { MainStackParamList } from "../navigation/MainStack";
 import AppText from "../components/AppText";
@@ -25,13 +25,11 @@ type Props = NativeStackScreenProps<MainStackParamList, "Call">;
 
 type Phase = "connecting" | "queued" | "matched" | "calling" | "ended";
 
-// ✅ APP_CONFIG 타입에 값이 없어도 TS 에러 없이 동작하도록 fallback 상수로 사용
 const MATCH_TIMEOUT_MS = (() => {
   const v = Number((APP_CONFIG as any)?.MATCH_TIMEOUT_MS);
   return Number.isFinite(v) ? v : 60000;
 })();
 
-// ✅ 무료 30초 제한을 3000초로 변경(사실상 비활성 수준)
 const FREE_CALL_LIMIT_MS = (() => {
   const direct = Number((APP_CONFIG as any)?.FREE_CALL_LIMIT_MS);
   if (Number.isFinite(direct)) return direct;
@@ -42,7 +40,6 @@ const FREE_CALL_LIMIT_MS = (() => {
   return 3000 * 1000;
 })();
 
-// ✅ 전면광고 재노출 쿨다운(3분)
 const INTERSTITIAL_COOLDOWN_MS = 4 * 60 * 1000;
 
 function countryCodeToFlagEmoji(code: string) {
@@ -142,10 +139,6 @@ export default function CallScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { t, currentLang } = useTranslation();
 
-  const queuedLabel = useMemo(() => {
-    return String(t("call.connecting") || "");
-  }, [t]);
-
   const prefs = useAppStore((s) => s.prefs);
   const token = useAppStore((s) => s.auth.token);
   const isPremium = useAppStore((s) => s.sub.isPremium);
@@ -188,10 +181,11 @@ export default function CallScreen({ navigation }: Props) {
   const remoteStreamRef = useRef<any>(null);
   const limitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const pendingSignalRef = useRef<{ type: "offer" | "answer" | "ice"; sdp?: any; candidate?: any }[]>([]);
+
   const beginCallGuardRef = useRef(false);
   const callStartTokenRef = useRef(0);
 
-  const matchInterstitialRef = useRef<ReturnType<typeof createInterstitial> | null>(null);
   const lastInterstitialAtRef = useRef<number>(0);
 
   const enqueuedRef = useRef(false);
@@ -211,20 +205,14 @@ export default function CallScreen({ navigation }: Props) {
   const adsReadyRef = useRef(false);
   const adsAliveRef = useRef(true);
   const adsInitPromiseRef = useRef<Promise<any> | null>(null);
-  const [bannerMountKey, setBannerMountKey] = useState(0);
 
   const adAllowedRef = useRef(false);
   const interstitialTokenRef = useRef(0);
   const interstitialCleanupRef = useRef<(() => void) | null>(null);
   const interstitialTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const iceStatsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastIceInfoRef = useRef<any>(null);
-  const [iceInfoText, setIceInfoText] = useState<string>("");
-
   const [peerInfo, setPeerInfo] = useState<any>(null);
 
-  // ✅ 최신 상태 참조용 ref들(통화 중 ws close 시 재매칭/종료 방지)
   const phaseRef = useRef<Phase>("connecting");
   const roomIdRef = useRef<string | null>(null);
   const myCamOnRef = useRef<boolean>(true);
@@ -240,6 +228,15 @@ export default function CallScreen({ navigation }: Props) {
   const webrtcDownTokenRef = useRef(0);
 
   const [signalUnstable, setSignalUnstable] = useState(false);
+  const [authBooting, setAuthBooting] = useState(true);
+  const authBootInFlightRef = useRef(false);
+
+  const [stageH, setStageH] = useState(0);
+
+  const localBottom = 0;
+  const callingRatio = Number(String(OVERLAY_LOCAL_HEIGHT_CALLING).replace("%", "")) / 100;
+  const localCallingHeight = stageH > 0 ? Math.round(stageH * callingRatio) : 0;
+  const remoteBottom = stageH > 0 ? localBottom + localCallingHeight : 0;
 
   const waitAdsReady = useCallback(async (maxWaitMs = 1000) => {
     if (adsReadyRef.current) return true;
@@ -295,10 +292,11 @@ export default function CallScreen({ navigation }: Props) {
 
   const peerInfoText = useMemo(() => {
     const parts: string[] = [];
-    if (peerLangLabel) parts.push(peerLangLabel);
 
     const countryPart = (peerFlag ? `${peerFlag} ` : "") + (peerCountryRaw || "");
     if (countryPart.trim()) parts.push(countryPart.trim());
+
+    if (peerLangLabel) parts.push(peerLangLabel);
 
     if (peerGenderLabel) parts.push(peerGenderLabel);
 
@@ -356,11 +354,6 @@ export default function CallScreen({ navigation }: Props) {
     };
   }, [waitAdsReady]);
 
-  useEffect(() => {
-    if (!adsReady) return;
-    setBannerMountKey((k) => k + 1);
-  }, [adsReady]);
-
   const startNoMatchTimer = () => {
     if (noMatchShownThisCycleRef.current) return;
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
@@ -405,11 +398,6 @@ export default function CallScreen({ navigation }: Props) {
     premiumNoMatchAutoCloseRef.current = null;
   };
 
-  const clearIceStatsTimer = () => {
-    if (iceStatsTimerRef.current) clearInterval(iceStatsTimerRef.current);
-    iceStatsTimerRef.current = null;
-  };
-
   const clearReconnectTimer = () => {
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     reconnectTimerRef.current = null;
@@ -422,36 +410,11 @@ export default function CallScreen({ navigation }: Props) {
     webrtcDownTokenRef.current += 1;
   };
 
-  const updateIceInfo = useCallback(async () => {
-    try {
-      const info = await (rtcRef.current as any)?.getIcePathInfo?.();
-      if (!info) return;
+  const stopAll = (isUserExit = false) => {
+    if (isUserExit) {
+      manualCloseRef.current = true;
+    }
 
-      lastIceInfoRef.current = info;
-
-      const lc = String(info.localCandidateType ?? "").trim();
-      const rc = String(info.remoteCandidateType ?? "").trim();
-      const lp = String(info.localProtocol ?? "").trim();
-      const rp = String(info.remoteProtocol ?? "").trim();
-
-      const rttMs = Number.isFinite(Number(info.currentRoundTripTimeMs)) ? `${Math.round(Number(info.currentRoundTripTimeMs))}ms` : "";
-      const outKbps = Number.isFinite(Number(info.availableOutgoingBitrate))
-        ? `${Math.max(0, Math.round(Number(info.availableOutgoingBitrate) / 1000))}kbps`
-        : "";
-
-      const parts: string[] = [];
-      if (lc || lp) parts.push(`L:${lc || "?"}${lp ? `/${lp}` : ""}`);
-      if (rc || rp) parts.push(`R:${rc || "?"}${rp ? `/${rp}` : ""}`);
-      if (rttMs) parts.push(`RTT:${rttMs}`);
-      if (outKbps) parts.push(`OUT:${outKbps}`);
-
-      const text = parts.length ? `ICE ${parts.join(" · ")}` : "";
-
-      setIceInfoText((prev) => (prev === text ? prev : text));
-    } catch {}
-  }, []);
-
-  const stopAll = () => {
     callStartTokenRef.current += 1;
     beginCallGuardRef.current = false;
 
@@ -466,16 +429,10 @@ export default function CallScreen({ navigation }: Props) {
     } catch {}
     interstitialCleanupRef.current = null;
 
-    matchInterstitialRef.current = null;
-
     if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
     requeueTimerRef.current = null;
 
     clearNoMatchTimer();
-
-    clearIceStatsTimer();
-    lastIceInfoRef.current = null;
-    setIceInfoText("");
 
     clearReconnectTimer();
     clearWebrtcDownTimer();
@@ -496,11 +453,21 @@ export default function CallScreen({ navigation }: Props) {
       } catch {}
     }
 
+    if (rid && wsRef.current) {
+      try {
+        wsRef.current.relay(rid, { type: "end" });
+      } catch {}
+    }
+
     try {
       wsRef.current?.leaveQueue();
     } catch {}
-    try {
+
+    if (isUserExit) {
       manualCloseRef.current = true;
+    }
+
+    try {
       wsRef.current?.close();
     } catch {}
     wsRef.current = null;
@@ -546,7 +513,7 @@ export default function CallScreen({ navigation }: Props) {
   }, [navigation]);
 
   const onPressBack = () => {
-    stopAll();
+    stopAll(true);
     goHome();
   };
 
@@ -685,20 +652,10 @@ export default function CallScreen({ navigation }: Props) {
 
           if (st === "connected") {
             clearWebrtcDownTimer();
-
-            if (!iceStatsTimerRef.current) {
-              updateIceInfo();
-              iceStatsTimerRef.current = setInterval(() => {
-                updateIceInfo();
-              }, 2000);
-            }
             return;
           }
 
           if (st === "failed" || st === "disconnected" || st === "closed") {
-            clearIceStatsTimer();
-            updateIceInfo();
-
             const tokenNow = webrtcDownTokenRef.current + 1;
             webrtcDownTokenRef.current = tokenNow;
 
@@ -707,9 +664,8 @@ export default function CallScreen({ navigation }: Props) {
               if (webrtcDownTokenRef.current !== tokenNow) return;
               if (phaseRef.current !== "calling") return;
 
-              // ✅ 실제 WebRTC 끊김이 일정 시간 지속될 때만 재매칭
-              endCallAndRequeue("disconnect");
-            }, 8000);
+              endCallAndRequeue("remote_left");
+            }, 500);
 
             return;
           }
@@ -726,7 +682,19 @@ export default function CallScreen({ navigation }: Props) {
         return;
       }
 
-      // ✅ 사용자가 꺼둔 상태(카메라/마이크)를 새 세션에도 즉시 적용
+      try {
+        const pending = pendingSignalRef.current.splice(0);
+        for (const p of pending) {
+          if (p.type === "offer") {
+            await rtcRef.current?.handleRemoteOffer(p.sdp);
+          } else if (p.type === "answer") {
+            await rtcRef.current?.handleRemoteAnswer(p.sdp);
+          } else if (p.type === "ice") {
+            await rtcRef.current?.handleRemoteIce(p.candidate);
+          }
+        }
+      } catch {}
+
       try {
         rtcRef.current?.setLocalVideoEnabled(Boolean(myCamOnRef.current));
       } catch {}
@@ -763,262 +731,211 @@ export default function CallScreen({ navigation }: Props) {
     if (why === "remote_left") {
       setReMatchText(String(t("call.peer_left") || ""));
     } else if (why === "find_other") {
-      setReMatchText(queuedLabel);
+      setReMatchText(String(t("call.connecting") || ""));
     } else {
       setReMatchText("");
     }
 
-
-    stopAll();
+    stopAll(false);
     setNoMatchModal(false);
-    setPhase("connecting");
 
-    if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
-    requeueTimerRef.current = setTimeout(() => {
-      startQueue();
-    }, 350);
+    if (why === "remote_left") {
+      setPhase("ended");
+      if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
+      requeueTimerRef.current = setTimeout(() => {
+        setPhase("connecting");
+        startQueue();
+      }, 350);
+    } else {
+      setPhase("connecting");
+      if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
+      requeueTimerRef.current = setTimeout(() => {
+        startQueue();
+      }, 350);
+    }
   };
 
-  const startQueue = () => {
-    if (queueRunningRef.current) return;
-    queueRunningRef.current = true;
-    enqueuedRef.current = false;
+const startQueue = () => {
+  if (queueRunningRef.current) return;
+  queueRunningRef.current = true;
+  enqueuedRef.current = false;
 
-    if (wsRef.current) {
+  // WebSocket 연결 여부를 체크하는 조건 제거 (매칭이 정상적으로 진행되도록)
+  if (wsRef.current) {
+    try {
+      wsRef.current.close();
+    } catch {}
+    wsRef.current = null;
+  }
+
+  manualCloseRef.current = false;
+  clearReconnectTimer();
+  clearWebrtcDownTimer();
+
+  noMatchShownThisCycleRef.current = false;
+  setFastMatchHint(false);
+
+  const st: any = useAppStore.getState?.() ?? {};
+  const prefsNow = st.prefs ?? {};
+  const queueCountry = String(prefsNow.country || "");
+  const queueGender = String(prefsNow.gender || "");
+
+  if (!(queueCountry.length > 0 && queueGender.length > 0)) {
+    useAppStore.getState().showGlobalModal(t("call.match_title"), t("call.match_filter_missing"));
+    queueRunningRef.current = false;
+    navigation.goBack();
+    return;
+  }
+
+  const tokenNow = String(useAppStore.getState().auth.token ?? "").trim();
+  if (!tokenNow) {
+    queueRunningRef.current = false;
+
+    if (authBootInFlightRef.current) return;
+    authBootInFlightRef.current = true;
+
+    setAuthBooting(true);
+
+    (async () => {
       try {
-        wsRef.current.close();
-      } catch {}
-      wsRef.current = null;
-    }
+        await bootstrapDeviceBinding();
 
-    manualCloseRef.current = false;
-    clearReconnectTimer();
-    clearWebrtcDownTimer();
+        const tokenAfter = String(useAppStore.getState().auth.token ?? "").trim();
+        if (!tokenAfter) {
+          useAppStore.getState().showGlobalModal(t("auth.title"), "TOKEN_EMPTY");
+          navigation.goBack();
+          return;
+        }
 
-    noMatchShownThisCycleRef.current = false;
-    setFastMatchHint(false);
+        if (manualCloseRef.current) return;
+        setAuthBooting(false);
+        startQueue();
+      } catch (e) {
+        const m = typeof e === "object" && e && "message" in (e as any) ? String((e as any).message) : String(e);
+        useAppStore.getState().showGlobalModal(t("auth.title"), m || "BIND_FAILED");
+        navigation.goBack();
+      } finally {
+        authBootInFlightRef.current = false;
+      }
+    })();
 
-    const st: any = useAppStore.getState?.() ?? {};
-    const prefsNow = st.prefs ?? {};
-    const queueCountry = String(prefsNow.country || "");
-    const queueGender = String(prefsNow.gender || "");
+    return;
+  }
 
-    if (!(queueCountry.length > 0 && queueGender.length > 0)) {
-      useAppStore.getState().showGlobalModal(t("call.match_title"), t("call.match_filter_missing"));
-      queueRunningRef.current = false;
-      navigation.goBack();
+  setAuthBooting(false);
+
+  setNoMatchModal(false);
+  setPhase("connecting");
+  startNoMatchTimer();
+
+  const ws = new SignalClient({
+    onOpen: () => {
+      setSignalUnstable(false);
+      reconnectAttemptRef.current = 0;
+
+      // 연결된 후에만 큐에 등록하도록 수정
+      setPhase("queued");
+      if (enqueuedRef.current) return;
+      enqueuedRef.current = true;
+      startNoMatchTimer();
+      ws.enqueue(queueCountry, queueGender);
+    },
+    onClose: () => {
+      if (manualCloseRef.current) return;
+
+      if (phaseRef.current === "calling") {
+        setSignalUnstable(true);
+
+        if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+        const attempt = reconnectAttemptRef.current + 1;
+        reconnectAttemptRef.current = attempt;
+
+        const base = Math.min(15000, 500 * Math.pow(2, attempt - 1));
+        const jitter = Math.floor(Math.random() * 250);
+        const delay = Math.min(30000, base + jitter);
+
+        reconnectTimerRef.current = setTimeout(() => {
+          if (manualCloseRef.current) return;
+          if (phaseRef.current !== "calling") return;
+          if (wsRef.current !== ws) return;
+
+          const tokenNow = useAppStore.getState().auth.token;
+          ws.connect(APP_CONFIG.SIGNALING_URL, tokenNow);
+        }, delay);
+
+        return;
+      }
+
+      if (queueRunningRef.current) {
+        endCallAndRequeue("disconnect");
+      }
+    },
+    onMessage: async (msg: SignalMessage) => {
+  if (msg.type === "queued") {
+    setPhase("queued");
+    startNoMatchTimer();
+    return;
+  }
+  if (msg.type === "match") {
+    if (phaseRef.current === "calling") {
       return;
     }
-
+    clearNoMatchTimer();
     setNoMatchModal(false);
-    setPhase("connecting");
-    startNoMatchTimer();
+    setFastMatchHint(false);
+    queueRunningRef.current = false;
+    enqueuedRef.current = false;
+    setRoomId(msg.roomId);
+    setIsCaller(Boolean(msg.isCaller));
+    setPhase("matched");
+    try {
+      ws.relay(msg.roomId, {
+        type: "peer_info",
+        country: myCountryRaw,
+        language: myLangRaw,
+        gender: myGenderRaw,
+        flag: myFlag,
+      });
+    } catch {}
+    const run = () => beginCall(ws, msg.roomId, Boolean(msg.isCaller));
+    run();
+    return;
+  }
+  if ((msg as any).type === "offer") {
+    if (rtcRef.current) {
+      rtcRef.current.handleRemoteOffer((msg as any).sdp);
+    } else {
+      pendingSignalRef.current.push({ type: "offer", sdp: (msg as any).sdp });
+    }
+    return;
+  }
+  if ((msg as any).type === "answer") {
+    if (rtcRef.current) {
+      rtcRef.current.handleRemoteAnswer((msg as any).sdp);
+    } else {
+      pendingSignalRef.current.push({ type: "answer", sdp: (msg as any).sdp });
+    }
+    return;
+  }
+  if ((msg as any).type === "ice") {
+    if (rtcRef.current) {
+      rtcRef.current.handleRemoteIce((msg as any).candidate);
+    } else {
+      pendingSignalRef.current.push({ type: "ice", candidate: (msg as any).candidate });
+    }
+    return;
+  }
+  if ((msg as any).type === "cam") {
+    setRemoteCamOn(Boolean((msg as any).enabled));
+    return;
+  }
+},
+  });
 
-    matchInterstitialRef.current = null;
+  wsRef.current = ws;
 
-    const ws = new SignalClient({
-      onOpen: () => {
-        // ✅ 재연결 성공 시(통화 중 포함) 네트워크 불안정 표시 해제 + backoff 초기화
-        setSignalUnstable(false);
-        reconnectAttemptRef.current = 0;
-
-        // ✅ 통화 중 재연결은 "재매칭/재큐잉" 금지, 상태만 동기화
-        if (phaseRef.current === "calling") {
-          const rid = roomIdRef.current;
-
-          if (rid) {
-            try {
-              ws.relay(rid, {
-                type: "peer_info",
-                country: myCountryRaw,
-                language: myLangRaw,
-                gender: myGenderRaw,
-                flag: myFlag,
-              });
-            } catch {}
-
-            try {
-              ws.relay(rid, { type: "cam", enabled: Boolean(myCamOnRef.current) });
-            } catch {}
-          }
-
-          return;
-        }
-
-        setPhase("queued");
-
-        if (enqueuedRef.current) return;
-        enqueuedRef.current = true;
-
-        startNoMatchTimer();
-        ws.enqueue(queueCountry, queueGender);
-      },
-      onClose: () => {
-        if (manualCloseRef.current) return;
-
-        // ✅ 통화 중에는 재매칭/종료 금지 -> 재연결(backoff)만 수행 + "네트워크 불안정" 표시
-        if (phaseRef.current === "calling") {
-          setSignalUnstable(true);
-
-          if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-          const attempt = reconnectAttemptRef.current + 1;
-          reconnectAttemptRef.current = attempt;
-
-          const base = Math.min(15000, 500 * Math.pow(2, attempt - 1));
-          const jitter = Math.floor(Math.random() * 250);
-          const delay = Math.min(30000, base + jitter);
-
-          reconnectTimerRef.current = setTimeout(() => {
-            if (manualCloseRef.current) return;
-            if (phaseRef.current !== "calling") return;
-            if (wsRef.current !== ws) return;
-
-            const tokenNow = useAppStore.getState().auth.token;
-            ws.connect(APP_CONFIG.SIGNALING_URL, tokenNow);
-          }, delay);
-
-          return;
-        }
-
-        if (queueRunningRef.current) {
-          endCallAndRequeue("disconnect");
-        }
-      },
-      onMessage: async (msg: SignalMessage) => {
-        if (msg.type === "queued") {
-          setPhase("queued");
-          startNoMatchTimer();
-          return;
-        }
-
-        if (msg.type === "match") {
-          // ✅ 통화 중에는 재매칭 금지(순간 재연결/중복 match 방지)
-          if (phaseRef.current === "calling") {
-            return;
-          }
-
-          clearNoMatchTimer();
-          setNoMatchModal(false);
-          setFastMatchHint(false);
-
-          // ✅ 매칭되면 더 이상 "큐가 돈다"로 취급하지 않음(WS close로 재매칭 트리거 방지)
-          queueRunningRef.current = false;
-          enqueuedRef.current = false;
-
-          setRoomId(msg.roomId);
-          setIsCaller(Boolean(msg.isCaller));
-          setPhase("matched");
-
-          try {
-            ws.relay(msg.roomId, {
-              type: "peer_info",
-              country: myCountryRaw,
-              language: myLangRaw,
-              gender: myGenderRaw,
-              flag: myFlag,
-            });
-          } catch {}
-
-          const run = () => beginCall(ws, msg.roomId, Boolean(msg.isCaller));
-
-          run();
-          return;
-        }
-
-        if (msg.type === "signal") {
-          const d: any = (msg as any).data;
-          const t = String(d?.type ?? d?.kind ?? "").toLowerCase();
-
-          if (t === "cam") {
-            setRemoteCamOn(Boolean(d?.enabled));
-            return;
-          }
-
-          if (t === "peer_info") {
-            setPeerInfo({
-              country: String(d?.country ?? "").trim(),
-              language: String(d?.language ?? d?.lang ?? "").trim(),
-              gender: String(d?.gender ?? "").trim(),
-              flag: String(d?.flag ?? "").trim(),
-            });
-            return;
-          }
-        }
-
-        if (msg.type === "offer") {
-          await rtcRef.current?.handleRemoteOffer(msg.sdp);
-          return;
-        }
-        if (msg.type === "answer") {
-          await rtcRef.current?.handleRemoteAnswer(msg.sdp);
-          return;
-        }
-        if (msg.type === "ice") {
-          await rtcRef.current?.handleRemoteIce(msg.candidate);
-          return;
-        }
-        if (msg.type === "end") {
-          endCallAndRequeue("remote_left");
-          return;
-        }
-
-        if (msg.type === "error") {
-          const reason = String(msg.message ?? "").trim();
-          const reasonLower = reason.toLowerCase();
-
-          if (reasonLower === "session_replaced") {
-            try {
-              wsRef.current?.close();
-            } catch {}
-            stopAll();
-            goHome();
-            return;
-          }
-
-          // ✅ 재연결/중복 요청 등으로 나올 수 있는 서버 응답은 무시(모달/통화 실패 방지)
-          if (reasonLower === "already_in_room" || reasonLower === "not_in_room") {
-            return;
-          }
-
-          if (reasonLower === "not_registered") {
-            if (rebindOnceRef.current) {
-              useAppStore.getState().showGlobalModal(t("auth.title"), reason || "not_registered");
-              stopAll();
-              navigation.goBack();
-              return;
-            }
-
-            rebindOnceRef.current = true;
-            stopAll();
-            setNoMatchModal(false);
-            setPhase("connecting");
-
-            (async () => {
-              try {
-                await bootstrapDeviceBinding();
-                startQueue();
-              } catch (e) {
-                const m = typeof e === "object" && e && "message" in (e as any) ? String((e as any).message) : String(e);
-                useAppStore.getState().showGlobalModal(t("auth.title"), m || "BIND_FAILED");
-                navigation.goBack();
-              }
-            })();
-
-            return;
-          }
-
-          useAppStore.getState().showGlobalModal(t("call.match_title"), reason || t("common.error_occurred"));
-          endCallAndRequeue("error");
-          return;
-        }
-      },
-    });
-
-    wsRef.current = ws;
-
-    const tokenNow = useAppStore.getState().auth.token;
-    ws.connect(APP_CONFIG.SIGNALING_URL, tokenNow);
-  };
+  ws.connect(APP_CONFIG.SIGNALING_URL, tokenNow);
+};
 
   const toggleCam = () => {
     const next = !myCamOn;
@@ -1065,10 +982,42 @@ export default function CallScreen({ navigation }: Props) {
   };
 
   useEffect(() => {
-    lastInterstitialAtRef.current = Date.now();
-    startQueue();
-    return () => stopAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let alive = true;
+
+    lastInterstitialAtRef.current = 0;
+
+    (async () => {
+      try {
+        const st: any = useAppStore.getState?.() ?? {};
+        const tokenNow = String(st?.auth?.token ?? "").trim();
+
+        if (!tokenNow) {
+          setAuthBooting(true);
+          await bootstrapDeviceBinding();
+        }
+
+        const tokenAfter = String(useAppStore.getState().auth.token ?? "").trim();
+        if (!tokenAfter) {
+          useAppStore.getState().showGlobalModal(t("auth.title"), "TOKEN_EMPTY");
+          navigation.goBack();
+          return;
+        }
+
+        if (!alive) return;
+        setAuthBooting(false);
+        startQueue();
+      } catch (e) {
+        if (!alive) return;
+        const m = typeof e === "object" && e && "message" in (e as any) ? String((e as any).message) : String(e);
+        useAppStore.getState().showGlobalModal(t("auth.title"), m || "BIND_FAILED");
+        navigation.goBack();
+      }
+    })();
+
+    return () => {
+      alive = false;
+      stopAll(true);
+    };
   }, []);
 
   const endCall = () => {
@@ -1108,65 +1057,22 @@ export default function CallScreen({ navigation }: Props) {
     showInterstitialIfAllowed(go);
   };
 
-  const setLanguage = useCallback(
-    (lang: string) => {
-      const st: any = useAppStore.getState?.() ?? {};
-      const setPrefs = st.setPrefs;
-      const setPref = st.setPref;
-      const setPrefsField = st.setPrefsField;
+  const updatePref = useCallback((field: string, value: any) => {
+    const st: any = useAppStore.getState?.() ?? {};
+    const setPrefs = st.setPrefs;
+    const setPref = st.setPref;
+    const setPrefsField = st.setPrefsField;
 
-      if (typeof setPrefs === "function") {
-        setPrefs({ language: lang });
-      } else if (typeof setPref === "function") {
-        setPref("language", lang);
-      } else if (typeof setPrefsField === "function") {
-        setPrefsField("language", lang);
-      } else {
-        showGlobalModal(t("common.settings"), "언어 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
-      }
-    },
-    [showGlobalModal, t]
-  );
-
-  const setCountry = useCallback(
-    (iso: string) => {
-      const st: any = useAppStore.getState?.() ?? {};
-      const setPrefs = st.setPrefs;
-      const setPref = st.setPref;
-      const setPrefsField = st.setPrefsField;
-
-      if (typeof setPrefs === "function") {
-        setPrefs({ country: iso });
-      } else if (typeof setPref === "function") {
-        setPref("country", iso);
-      } else if (typeof setPrefsField === "function") {
-        setPrefsField("country", iso);
-      } else {
-        showGlobalModal(t("common.settings"), "나라 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
-      }
-    },
-    [showGlobalModal, t]
-  );
-
-  const setGender = useCallback(
-    (gender: string) => {
-      const st: any = useAppStore.getState?.() ?? {};
-      const setPrefs = st.setPrefs;
-      const setPref = st.setPref;
-      const setPrefsField = st.setPrefsField;
-
-      if (typeof setPrefs === "function") {
-        setPrefs({ gender });
-      } else if (typeof setPref === "function") {
-        setPref("gender", gender);
-      } else if (typeof setPrefsField === "function") {
-        setPrefsField("gender", gender);
-      } else {
-        showGlobalModal(t("common.settings"), "성별 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)");
-      }
-    },
-    [showGlobalModal, t]
-  );
+    if (typeof setPrefs === "function") {
+      setPrefs({ [field]: value });
+    } else if (typeof setPref === "function") {
+      setPref(field, value);
+    } else if (typeof setPrefsField === "function") {
+      setPrefsField(field, value);
+    } else {
+      showGlobalModal(t("common.settings"), `${field} 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)`);
+    }
+  }, [showGlobalModal, t]);
 
   const languageOptions = useMemo(
     () => [
@@ -1239,7 +1145,6 @@ export default function CallScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      {/* ✅ 상단 헤더 제거, 뒤로가기만 오버레이(테두리 없음) */}
       <Pressable
         onPress={onPressBack}
         style={({ pressed }) => [
@@ -1252,63 +1157,68 @@ export default function CallScreen({ navigation }: Props) {
       </Pressable>
 
 
-      <View style={styles.stage}>
-        {/* ✅ 상대 영상: 9:16 박스에 cover로 렌더링(상하 약간 여백) -> 좌우 크롭 감소 */}
-        <View style={styles.remoteStage}>
-          <View style={[styles.remoteBox, REMOTE_BOX, { transform: [{ translateY: REMOTE_SHIFT_Y }] }]}>
-            {remoteStreamURL && remoteVideoAllowed && remoteCamOn ? (
-              <RTCView streamURL={remoteStreamURL} style={styles.remoteVideo} objectFit="cover" zOrder={0} />
-            ) : (
-              <View style={styles.placeholder}>
-                {phase === "calling" && !remoteVideoAllowed ? (
-                  <AppText style={styles.placeholderText}>{t("call.free_time_over")}</AppText>
-                ) : phase === "calling" && !remoteCamOn ? (
-                  <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
-                ) : null}
-              </View>
-            )}
-          </View>
-        </View>
-
-
-        {/* ✅ 내 캠 + 버튼(카메라/마이크/설정) 아래로 이동 + 선(라인) 제거 + 캠 OFF 오버레이 */}
-        {phase === "calling" ? (
-          <View style={[styles.localDock, { top: insets.top + 12, right: 12 }]}>
-            <View style={styles.localFrame}>
-              {localStreamURL ? (
+      <View style={styles.stage} onLayout={(e) => setStageH(Math.round(e.nativeEvent.layout.height))}>
+        <View style={styles.overlayStage}>
+          <View style={styles.localLayer}>
+            <View
+              style={[
+                styles.localArea,
+                stageH > 0 ? { bottom: localBottom, height: localCallingHeight } : { bottom: localBottom },
+                stageH > 0 ? null : styles.localAreaCalling,
+              ]}
+            >
+              {localStreamURL && phase === "calling" ? (
                 myCamOn ? (
-                  <RTCView streamURL={localStreamURL} style={styles.localVideo} objectFit="cover" zOrder={1} />
+                  <View style={styles.localViewport} collapsable={false}>
+                    <View style={styles.localVideoMover} collapsable={false}>
+                      <RTCView
+                        streamURL={localStreamURL}
+                        style={styles.localVideoFull}
+                        objectFit="cover"
+                        zOrder={0}
+                      />
+                    </View>
+                  </View>
                 ) : (
-                  <View style={styles.localCamOffBg} />
+                  <View style={styles.localCamOffBgFull} />
                 )
               ) : (
-                <View style={styles.localEmpty} />
+                <View style={styles.localEmptyFull} />
               )}
 
               {!myCamOn ? (
-                <View style={styles.camOffOverlay}>
-                  <Ionicons name="videocam-off" size={34} color="rgba(255, 255, 255, 0.92)" />
+                <View style={styles.camOffOverlayFull}>
+                  <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
                 </View>
               ) : null}
             </View>
-
-
-            <View style={styles.localControls}>
-              <Pressable onPress={toggleCam} style={({ pressed }) => [styles.iconCircle, pressed ? { opacity: 0.7 } : null]}>
-                <Ionicons name={myCamOn ? "videocam" : "videocam-off"} size={20} color="#fff" />
-              </Pressable>
-
-              <Pressable onPress={toggleSound} style={({ pressed }) => [styles.iconCircle, pressed ? { opacity: 0.7 } : null]}>
-                <Ionicons name={mySoundOn ? "mic" : "mic-off"} size={20} color="#fff" />
-              </Pressable>
-
-              <Pressable onPress={toggleRemoteMute} style={({ pressed }) => [styles.iconCircle, pressed ? { opacity: 0.7 } : null]}>
-                <Ionicons name={remoteMuted ? "volume-mute" : "volume-high"} size={20} color="#fff" />
-              </Pressable>
-
-            </View>
           </View>
+
+          <View style={styles.remoteLayer}>
+  <View style={[styles.remoteArea, stageH > 0 ? { bottom: remoteBottom } : { bottom: OVERLAY_LOCAL_HEIGHT_CALLING }]}>
+    {remoteStreamURL && remoteVideoAllowed && remoteCamOn ? (
+      <RTCView streamURL={remoteStreamURL} style={styles.remoteVideo} objectFit="cover" zOrder={0} />
+    ) : (
+      <View style={styles.placeholder}>
+        {phase === "calling" && !remoteVideoAllowed ? (
+          <AppText style={styles.placeholderText}>{t("call.free_time_over")}</AppText>
+        ) : phase === "calling" && !remoteCamOn ? (
+          <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
         ) : null}
+      </View>
+    )}
+
+    {phase === "calling" && (peerInfoText || signalUnstable) ? (
+      <View pointerEvents="none" style={[styles.remoteInfoDock, { top: insets.top + 10 }]}>
+        {peerInfoText ? <AppText style={styles.remoteInfoText}>{peerInfoText}</AppText> : null}
+        {signalUnstable ? <AppText style={styles.remoteInfoSubText}>{t("call.network_unstable")}</AppText> : null}
+      </View>
+    ) : null}
+  </View>
+</View>
+
+        </View>
+
 
         {!isPremium && phase !== "calling" ? (
           <View style={[styles.queueAdDock, { top: insets.top + 55 }]}>
@@ -1316,8 +1226,6 @@ export default function CallScreen({ navigation }: Props) {
           </View>
         ) : null}
 
-
-        {/* ✅ 연결/재매칭 상태 오버레이(상대 나가면 안내문+스피너+자동 재매칭) */}
         {phase !== "calling" ? (
           <View style={styles.centerOverlay}>
             <ActivityIndicator />
@@ -1330,6 +1238,8 @@ export default function CallScreen({ navigation }: Props) {
                     <AppText style={styles.reMatchTextBottom}>{String(reMatchText).split("\n")[1]}</AppText>
                   ) : null}
                 </View>
+              ) : authBooting ? (
+                <AppText style={styles.centerText}>{t("call.connecting")}...</AppText>
               ) : fastMatchHint ? (
                 <AppText style={styles.centerText}>{t("call.fast_matching")}...</AppText>
               ) : phase === "connecting" ? (
@@ -1337,7 +1247,7 @@ export default function CallScreen({ navigation }: Props) {
               ) : phase === "matched" ? (
                 <AppText style={styles.centerText}>{t("call.matched")}</AppText>
               ) : phase === "queued" ? (
-                <AppText style={styles.centerText}>{queuedLabel}</AppText>
+                <AppText style={styles.centerText}>{String(t("call.connecting") || "")}</AppText>
               ) : null}
             </View>
 
@@ -1345,34 +1255,31 @@ export default function CallScreen({ navigation }: Props) {
         ) : null}
 
 
-        {/* ✅ 새로고침 버튼은 프리미엄이어도 항상 보여야 함 (배너 유무에 따라 아래로 내려옴) */}
-        <Pressable
-          onPress={onPressFindOther}
-          style={({ pressed }) => [
-            styles.findOtherBtn,
-            {
-              right: 12,
-              bottom: Math.max(insets.bottom, 8) + (isPremium ? 8 : 8 + (adsReady ? BANNER_RESERVED_HEIGHT : 0)),
-            },
-            pressed ? { opacity: 0.7 } : null,
-          ]}
-        >
-          <Ionicons name="sync-circle" size={60} color="rgba(255, 205, 230, 0.84)" />
-        </Pressable>
+        {phase === "calling" ? (
+          <View pointerEvents="box-none" style={[styles.controlsOverlay, { bottom: Math.max(insets.bottom, 8) + 14 }]}>
+            <View style={styles.controlsRow}>
+              <Pressable onPress={() => setPrefsModal(true)} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
+                <Ionicons name="color-wand" size={22} color="#f3cddb" />
+              </Pressable>
 
-        {/* ✅ 우측하단 배너 + 그 위 내 나라/국기/언어 */}
-        <View style={[styles.bannerDock, { paddingBottom: Math.max(insets.bottom, 8), left: 0, right: 0 }]}>
-          <View style={styles.myInfoRow}>
-            <View style={styles.myInfoCenter}>
-              {peerInfoText ? <AppText style={styles.myInfoText}>{peerInfoText}</AppText> : null}
-              {phase === "calling" && iceInfoText ? <AppText style={styles.myIceText}>{iceInfoText}</AppText> : null}
-              {phase === "calling" && signalUnstable ? <AppText style={styles.netUnstableText}>{t("call.network_unstable")}</AppText> : null}
+              <Pressable onPress={toggleCam} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
+                <Ionicons name={myCamOn ? "videocam" : "videocam-off"} size={22} color="#f3cddb" />
+              </Pressable>
+
+              <Pressable onPress={toggleSound} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
+                <Ionicons name={mySoundOn ? "mic" : "mic-off"} size={22} color="#f3cddb" />
+              </Pressable>
+
+              <Pressable onPress={toggleRemoteMute} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
+                <Ionicons name={remoteMuted ? "volume-mute" : "volume-high"} size={22} color="#f3cddb" />
+              </Pressable>
+
+              <Pressable onPress={onPressFindOther} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
+                <Ionicons name="refresh" size={22} color="#f3cddb" />
+              </Pressable>
             </View>
           </View>
-
-
-          {!isPremium && adsReady ? <BannerBar key={`banner_${bannerMountKey}`} /> : null}
-        </View>
+        ) : null}
       </View>
 
       <AppModal
@@ -1456,11 +1363,7 @@ export default function CallScreen({ navigation }: Props) {
       >
         <AppText style={styles.modalText}>{t("setting.description")}</AppText>
 
-        <View style={{ height: 0 }} />
-
         <AppText style={styles.sectionTitle}>{t("setting.country")}</AppText>
-
-        <View style={{ height: 0 }} />
 
         <Pressable
           onPress={() => {
@@ -1488,7 +1391,7 @@ export default function CallScreen({ navigation }: Props) {
                   <Pressable
                     key={opt.key}
                     onPress={() => {
-                      setCountry(opt.key);
+                      updatePref("country", opt.key);
                       setCountryOpen(false);
                     }}
                     style={({ pressed }) => [
@@ -1513,11 +1416,7 @@ export default function CallScreen({ navigation }: Props) {
           </View>
         ) : null}
 
-        <View style={{ height: 0 }} />
-
         <AppText style={styles.sectionTitle}>{t("setting.language")}</AppText>
-
-        <View style={{ height: 0 }} />
 
         <Pressable
           onPress={() => {
@@ -1539,7 +1438,7 @@ export default function CallScreen({ navigation }: Props) {
                 <Pressable
                   key={opt.key}
                   onPress={() => {
-                    setLanguage(opt.key);
+                    updatePref("language", opt.key);
                     setLangOpen(false);
                   }}
                   style={({ pressed }) => [
@@ -1556,11 +1455,7 @@ export default function CallScreen({ navigation }: Props) {
           </View>
         ) : null}
 
-        <View style={{ height: 0 }} />
-
         <AppText style={styles.sectionTitle}>{t("setting.gender")}</AppText>
-
-        <View style={{ height: 0 }} />
 
         <Pressable
           onPress={() => {
@@ -1582,7 +1477,7 @@ export default function CallScreen({ navigation }: Props) {
                 <Pressable
                   key={opt.key}
                   onPress={() => {
-                    setGender(opt.key);
+                    updatePref("gender", opt.key);
                     setGenderOpen(false);
                   }}
                   style={({ pressed }) => [
@@ -1599,8 +1494,6 @@ export default function CallScreen({ navigation }: Props) {
           </View>
         ) : null}
 
-        <View style={{ height: 0 }} />
-
         <AppText style={styles.sectionTitle}>{t("setting.font_size")}</AppText>
         <AppText style={styles.modalText}>{t("setting.font_size_desc", { percent: Math.round(fontScale * 100) })}</AppText>
         <FontSizeSlider value={fontScale} onChange={setFontScale} />
@@ -1610,42 +1503,61 @@ export default function CallScreen({ navigation }: Props) {
 }
 
 const W = Dimensions.get("window").width;
-const H = Dimensions.get("window").height;
 
-// ✅ 큰 창을 9:16 박스로 고정(화면 안에 항상 들어오게)
-// - 세로가 긴 폰(20:9 등)에서는 상하 여백이 생기고 좌우 크롭이 줄어듭니다.
-const REMOTE_BOX = (() => {
-  const w = W;
-  const h = Math.round((w * 16) / 9);
-  if (h <= H) return { width: w, height: h };
+const REMOTE_VIDEO_SCALE = 1.22;
+const REMOTE_SHIFT_Y = 0;
 
-  const hh = H;
-  const ww = Math.round((hh * 9) / 16);
-  return { width: ww, height: hh };
-})();
+const LOCAL_CROP_Y = 16;
 
-// ✅ 큰 화면을 아래로 내리는 값(픽셀). 더 내리고 싶으면 숫자만 키우면 됨.
-const REMOTE_SHIFT_Y = -25;
+const OVERLAY_LOCAL_HEIGHT_CALLING = "45%";
 
-const BANNER_RESERVED_HEIGHT = 60;
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
 
-  stage: { flex: 1, position: "relative", backgroundColor: "#000" },
+  stage: { flex: 1, position: "relative", backgroundColor: "#c0b2b2" },
 
-  remoteStage: {
+  overlayStage: { flex: 1 },
+
+  localLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+    elevation: 1,
+  },
+
+  localArea: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: "50%",
+    backgroundColor: "#000",
+    overflow: "hidden",
+  },
+
+  localAreaCalling: {
+    height: OVERLAY_LOCAL_HEIGHT_CALLING,
+  },
+
+  remoteLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+    elevation: 2,
+  },
+
+  remoteArea: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: "#000",
+    overflow: "hidden",
+  },
+
+  remoteVideo: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",
-    alignItems: "center",
-    justifyContent: "center",
+    transform: [{ scale: REMOTE_VIDEO_SCALE }, { translateY: REMOTE_SHIFT_Y }],
   },
-
-  remoteBox: {
-    overflow: "hidden",
-    backgroundColor: "#000",
-  },
-
-  remoteVideo: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
 
   placeholder: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#000" },
   placeholderText: { fontSize: 14, color: "rgba(255,255,255,0.75)", fontWeight: "700" },
@@ -1653,70 +1565,74 @@ const styles = StyleSheet.create({
   backBtn: {
     position: "absolute",
     zIndex: 20,
+    elevation: 20,
     width: 44,
     height: 44,
     alignItems: "flex-start",
     justifyContent: "center",
   },
 
-  localDock: {
+  remoteInfoDock: {
     position: "absolute",
-    zIndex: 15,
+    top: 0,
+    right: 12,
     alignItems: "flex-end",
-    gap: 10,
+    justifyContent: "center",
+    zIndex: 50,
+    elevation: 50,
+    gap: 3,
   },
 
-  localFrame: {
-    width: Math.min(180, W * 0.36),
-    height: Math.min(200, W * 0.46),
-    borderRadius: 12,
+  remoteInfoText: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+
+  remoteInfoSubText: {
+    color: "rgba(255, 170, 170, 0.92)",
+    fontSize: 11,
+    fontWeight: "900",
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+
+  localViewport: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
     overflow: "hidden",
-    backgroundColor: "#000",
   },
 
-  localVideo: {
+  localVideoMover: {
+    ...StyleSheet.absoluteFillObject,
+    transform: [{ translateY: -LOCAL_CROP_Y }],
+  },
+
+  localVideoFull: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",
-    transform: [{ scale: 1.03 }],
+    transform: [{ scale: 1.08 }],
   },
 
-  localEmpty: {
+  localEmptyFull: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(0,0,0,0)",
   },
 
-  localCamOffBg: {
+  localCamOffBgFull: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",
-    borderRadius: 12,
   },
 
-  camOffOverlay: {
+  camOffOverlayFull: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#000",
-    borderRadius: 12,
-  },
-
-  localControls: {
-    width: Math.min(140, W * 0.34),
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-    position: "relative",
-    right: -6,
-  },
-
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.45)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
   },
 
   centerOverlay: {
@@ -1809,63 +1725,29 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 
-  bannerDock: {
+  controlsOverlay: {
     position: "absolute",
     zIndex: 12,
-    bottom: 0,
     left: 0,
     right: 0,
     alignItems: "center",
-    gap: 6,
   },
 
-  myInfoRow: {
+  controlsRow: {
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-evenly",
     paddingHorizontal: 12,
-    position: "relative",
-    minHeight: 52,
   },
 
-  myInfoCenter: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+  controlBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  myInfoText: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  myIceText: {
-    color: "rgba(255,255,255,0.72)",
-    fontSize: 11,
-    fontWeight: "700",
-    marginTop: 4,
-  },
-
-  netUnstableText: {
-    color: "rgba(255, 170, 170, 0.92)",
-    fontSize: 11,
-    fontWeight: "900",
-    marginTop: 3,
-  },
-
-  findOtherBtn: {
-    position: "absolute",
-    zIndex: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: "#3f323770",
   },
 
   modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
@@ -1877,8 +1759,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.line,
     backgroundColor: theme.colors.card,
     flexDirection: "row",
     alignItems: "center",
@@ -1910,15 +1790,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.line,
     backgroundColor: theme.colors.card,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   dropdownRowActive: {
-    borderColor: theme.colors.pinkDeep,
     backgroundColor: theme.colors.cardSoft,
   },
   dropdownText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },

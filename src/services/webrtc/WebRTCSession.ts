@@ -1,4 +1,4 @@
-﻿// FILE: C:\ranchat\src\services\webrtc\WebRTCSession.ts
+﻿// FILE: C:\ranchat\src\services\webrtc\WebRTCSession.ts 
 import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from "react-native-webrtc";
 import { PermissionsAndroid, Platform, DeviceEventEmitter } from "react-native";
 import { APP_CONFIG } from "../../config/app";
@@ -17,8 +17,9 @@ type Callbacks = {
   onAnswer?: (sdp: any) => void;
 };
 
+// ✅ 4:3 송출 유도 (세로 과확대/크롭 감소 목적)
 const VIDEO_W = 720;
-const VIDEO_H = 1280;
+const VIDEO_H = 540;
 const VIDEO_FPS = 24;
 
 // 모바일 체감 기준(끊김/딜레이 줄이기용 상한)
@@ -416,7 +417,7 @@ export class WebRTCSession {
     // ✅ 스피커폰 ON(단, BT/유선 우선 구조로 라우팅)
     this.startSpeakerphone();
 
-    // 720p/24fps(과하지 않게) + 실패 시 한 단계 다운 폴백
+    // 4:3 / 24fps(과하지 않게) + 실패 시 한 단계 다운 폴백
     let stream: any = null;
 
     try {
@@ -436,7 +437,7 @@ export class WebRTCSession {
           facingMode: "user",
           frameRate: { ideal: 20, max: 20 },
           width: { ideal: 640, max: 640 },
-          height: { ideal: 960, max: 960 },
+          height: { ideal: 480, max: 480 },
         },
       } as any);
     }

@@ -1,10 +1,12 @@
 ﻿// FILE: C:\ranchat\src\services\ads\AdManager.tsx
 import React from "react";
 import { Platform } from "react-native";
-import mobileAds, { BannerAd, BannerAdSize, InterstitialAd, TestIds } from "react-native-google-mobile-ads";
+import mobileAds, { AdEventType, BannerAd, BannerAdSize, InterstitialAd, TestIds } from "react-native-google-mobile-ads";
 
 let _initPromise: Promise<boolean> | null = null;
 let _adsReady = false;
+
+let _interstitialShowing = false;
 
 type ReadyListener = (ready: boolean) => void;
 const _readyListeners = new Set<ReadyListener>();
@@ -73,7 +75,39 @@ function getInterstitialUnitId() {
 
 export function createInterstitial() {
   const unitId = getInterstitialUnitId();
-  return InterstitialAd.createForAdRequest(unitId, { requestNonPersonalizedAdsOnly: false });
+  const ad = InterstitialAd.createForAdRequest(unitId, { requestNonPersonalizedAdsOnly: false });
+
+  // ✅ 전역 1회 가드: 닫힘/에러에서만 해제
+  try {
+    ad.addAdEventListener(AdEventType.CLOSED, () => {
+      _interstitialShowing = false;
+    });
+  } catch {}
+
+  try {
+    ad.addAdEventListener(AdEventType.ERROR, () => {
+      _interstitialShowing = false;
+    });
+  } catch {}
+
+  // ✅ show() 직전에 true, 이미 true면 show 무시
+  try {
+    const origShow = (ad as any).show?.bind(ad);
+    if (typeof origShow === "function") {
+      (ad as any).show = async (...args: any[]) => {
+        if (_interstitialShowing) return;
+        _interstitialShowing = true;
+        try {
+          return await origShow(...args);
+        } catch (e) {
+          _interstitialShowing = false;
+          throw e;
+        }
+      };
+    }
+  } catch {}
+
+  return ad;
 }
 
 export function BannerBar() {
