@@ -244,9 +244,8 @@ export default function CallScreen({ navigation }: Props) {
   const [stageH, setStageH] = useState(0);
 
   const localBottom = 0;
-  const callingRatio = Number(String(OVERLAY_LOCAL_HEIGHT_CALLING).replace("%", "")) / 100;
-  const localCallingHeight = stageH > 0 ? Math.round(stageH * callingRatio) : 0;
-  const remoteBottom = stageH > 0 ? localBottom + localCallingHeight : 0;
+  const localCallingHeight = OVERLAY_LOCAL_HEIGHT_CALLING;
+  const remoteBottom = OVERLAY_LOCAL_HEIGHT_CALLING;
 
   const waitAdsReady = useCallback(async (maxWaitMs = 1000) => {
     if (adsReadyRef.current) return true;
