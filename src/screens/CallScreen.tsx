@@ -1,6 +1,6 @@
 ﻿// FILE: C:\ranchat\src\screens\CallScreen.tsx
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ActivityIndicator, StyleSheet, View, Pressable, Dimensions, ScrollView, Text, BackHandler } from "react-native";
+import { ActivityIndicator, StyleSheet, View, Pressable, Dimensions, ScrollView, Text, BackHandler, NativeModules } from "react-native";
 import { RTCView } from "react-native-webrtc";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +20,7 @@ import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "../i18n/LanguageProvider";
+import CallBeautySheet, { BeautyConfig } from "./CallBeautySheet";
 
 type Props = NativeStackScreenProps<MainStackParamList, "Call">;
 
@@ -172,12 +173,96 @@ export default function CallScreen({ navigation }: Props) {
 
   const [prefsModal, setPrefsModal] = useState(false);
 
+  const [beautyOpen, setBeautyOpen] = useState(false);
+  const openBeauty = useCallback(() => setBeautyOpen(true), []);
+  const closeBeauty = useCallback(() => setBeautyOpen(false), []);
+
+  const [beautyConfig, setBeautyConfig] = useState<BeautyConfig>({
+    enabled: false,
+    preset: "none",
+    brightness: 0.5,
+    saturation: 0.5,
+    contrast: 0.5,
+    bgFocus: false,
+    bgFocusStrength: 0,
+  });
+
+  const beautyLastPushAtRef = useRef(0);
+  const beautyPushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const beautyPendingRef = useRef<BeautyConfig | null>(null);
+  const beautyEffectStateRef = useRef<{ trackId: string | null; enabled: boolean }>({ trackId: null, enabled: false });
+
+  const getLocalVideoTrack = useCallback(() => {
+    const s: any = localStreamRef.current;
+    const tracks = (s?.getVideoTracks?.() ?? []) as any[];
+    return tracks[0] ?? null;
+  }, []);
+
+  const pushBeautyConfigThrottled = useCallback((trackId: string, cfg: BeautyConfig) => {
+    beautyPendingRef.current = cfg;
+
+    if (beautyPushTimerRef.current) return;
+
+    const now = Date.now();
+    const wait = Math.max(0, 120 - (now - beautyLastPushAtRef.current));
+
+    beautyPushTimerRef.current = setTimeout(() => {
+      beautyPushTimerRef.current = null;
+
+      const latest = beautyPendingRef.current;
+      if (!latest || !latest.enabled) return;
+
+      try {
+        (NativeModules as any)?.WebRTCModule?.mediaStreamTrackSetVideoEffectConfig?.(trackId, latest);
+        beautyLastPushAtRef.current = Date.now();
+      } catch {}
+    }, wait);
+  }, []);
+
+  useEffect(() => {
+    const track: any = getLocalVideoTrack();
+    const trackId = String(track?.id ?? "");
+    if (!trackId) return;
+
+    const wantEnabled = Boolean(beautyConfig.enabled);
+    const last = beautyEffectStateRef.current;
+
+    if (last.trackId !== trackId || last.enabled !== wantEnabled) {
+      try {
+        track._setVideoEffects(wantEnabled ? ["beauty"] : []);
+      } catch {}
+      beautyEffectStateRef.current = { trackId, enabled: wantEnabled };
+    }
+
+    if (wantEnabled) {
+      pushBeautyConfigThrottled(trackId, beautyConfig);
+    }
+  }, [beautyConfig.enabled, localStreamURL, getLocalVideoTrack, pushBeautyConfigThrottled]);
+
+  useEffect(() => {
+    if (!beautyConfig.enabled) return;
+
+    const track: any = getLocalVideoTrack();
+    const trackId = String(track?.id ?? "");
+    if (!trackId) return;
+
+    pushBeautyConfigThrottled(trackId, beautyConfig);
+  }, [beautyConfig, localStreamURL, getLocalVideoTrack, pushBeautyConfigThrottled]);
+
+  useEffect(() => {
+    return () => {
+      if (beautyPushTimerRef.current) clearTimeout(beautyPushTimerRef.current);
+      beautyPushTimerRef.current = null;
+    };
+  }, []);
+
   const [langOpen, setLangOpen] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
   const [genderOpen, setGenderOpen] = useState(false);
 
   const wsRef = useRef<SignalClient | null>(null);
   const rtcRef = useRef<WebRTCSession | null>(null);
+  const localStreamRef = useRef<any>(null);
   const remoteStreamRef = useRef<any>(null);
   const limitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -669,6 +754,7 @@ export default function CallScreen({ navigation }: Props) {
       const rtc = new WebRTCSession({
         onLocalStream: (s) => {
           if (queueTokenRef.current !== qTok) return;
+          localStreamRef.current = s as any;
           setLocalStreamURL(s.toURL());
         },
         onRemoteStream: (s) => {
@@ -1257,6 +1343,7 @@ const startQueue = () => {
 
   return (
     <View style={styles.root}>
+      <CallBeautySheet visible={beautyOpen} onClose={closeBeauty} config={beautyConfig} onConfigChange={setBeautyConfig} />
       <Pressable
         onPress={onPressBack}
         style={({ pressed }) => [
@@ -1277,6 +1364,7 @@ const startQueue = () => {
                 styles.localArea,
                 stageH > 0 ? { bottom: localBottom, height: localCallingHeight } : { bottom: localBottom },
                 stageH > 0 ? null : styles.localAreaCalling,
+                beautyOpen ? { top: 0, bottom: 0, height: "100%" } : null,
               ]}
             >
               {localStreamURL && phase === "calling" ? (
@@ -1306,7 +1394,8 @@ const startQueue = () => {
             </View>
           </View>
 
-          <View style={styles.remoteLayer}>
+          {!beautyOpen ? (
+            <View style={styles.remoteLayer}>
   <View style={[styles.remoteArea, stageH > 0 ? { bottom: remoteBottom } : { bottom: OVERLAY_LOCAL_HEIGHT_CALLING }]}>
     {remoteStreamURL && remoteVideoAllowed && remoteCamOn ? (
       <RTCView streamURL={remoteStreamURL} style={styles.remoteVideo} objectFit="cover" zOrder={0} />
@@ -1328,6 +1417,7 @@ const startQueue = () => {
     ) : null}
   </View>
 </View>
+          ) : null}
 
         </View>
 
@@ -1370,9 +1460,10 @@ const startQueue = () => {
         {phase === "calling" ? (
           <View pointerEvents="box-none" style={[styles.controlsOverlay, { bottom: Math.max(insets.bottom, 8) + 14 }]}>
             <View style={styles.controlsRow}>
-              <Pressable onPress={() => setPrefsModal(true)} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
+              <Pressable onPress={openBeauty} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
                 <Ionicons name="color-wand" size={22} color="#f3cddb" />
               </Pressable>
+              
 
               <Pressable onPress={toggleCam} style={({ pressed }) => [styles.controlBtn, pressed ? { opacity: 0.7 } : null]}>
                 <Ionicons name={myCamOn ? "videocam" : "videocam-off"} size={22} color="#f3cddb" />

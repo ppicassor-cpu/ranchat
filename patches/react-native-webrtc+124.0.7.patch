@@ -1,0 +1,626 @@
+diff --git a/node_modules/react-native-webrtc/android/build.gradle b/node_modules/react-native-webrtc/android/build.gradle
+index 033a226..7688613 100644
+--- a/node_modules/react-native-webrtc/android/build.gradle
++++ b/node_modules/react-native-webrtc/android/build.gradle
+@@ -1,7 +1,10 @@
+ apply plugin: 'com.android.library'
+ 
+ def safeExtGet(prop, fallback) {
+-    rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
++    ext {
++    minSdkVersion = 23
++}
++rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+ }
+ 
+ android {
+@@ -30,6 +33,9 @@ android {
+ }
+ 
+ dependencies {
++    implementation 'com.google.mlkit:face-mesh-detection:16.0.0-beta3'
++    implementation 'com.google.mlkit:segmentation-selfie:16.0.0-beta6'
++
+     implementation "com.facebook.react:react-android:+"
+     api 'org.jitsi:webrtc:124.+'
+     implementation "androidx.core:core:1.7.0"
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
+index a9f51cb..26b64ab 100644
+--- a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
++++ b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
+@@ -1,5 +1,8 @@
+ package com.oney.WebRTCModule;
+ 
++
++import com.oney.WebRTCModule.videoEffects.BeautyConfigStore;
++import com.oney.WebRTCModule.videoEffects.BeautyEngineProcessor;
+ import android.app.Activity;
+ import android.content.Context;
+ import android.content.Intent;
+@@ -38,7 +41,9 @@ import java.util.stream.Collectors;
+  * order to reduce complexity and to (somewhat) separate concerns.
+  */
+ class GetUserMediaImpl {
+-    /**
++    
++    private final BeautyConfigStore beautyConfigStore = new BeautyConfigStore();
++/**
+      * The {@link Log} tag with which {@code GetUserMediaImpl} is to log.
+      */
+     private static final String TAG = WebRTCModule.TAG;
+@@ -419,6 +424,15 @@ class GetUserMediaImpl {
+      * @param trackId TrackPrivate id
+      * @param names VideoEffectProcessor names
+      */
++
++    /**
++     * Application/library-specific private members of local
++     * {@code MediaStreamTrack}s created by {@code GetUserMediaImpl}.
++     */
++    void setVideoEffectConfig(String trackId, ReadableMap config) {
++        beautyConfigStore.update(trackId, config);
++    }
++
+     void setVideoEffects(String trackId, ReadableArray names) {
+         TrackPrivate track = tracks.get(trackId);
+ 
+@@ -426,35 +440,40 @@ class GetUserMediaImpl {
+             VideoSource videoSource = (VideoSource) track.mediaSource;
+             SurfaceTextureHelper surfaceTextureHelper = track.surfaceTextureHelper;
+ 
+-            if (names != null) {
+-                List<VideoFrameProcessor> processors =
+-                        names.toArrayList()
+-                                .stream()
+-                                .filter(name -> name instanceof String)
+-                                .map(name -> {
+-                                    VideoFrameProcessor videoFrameProcessor =
+-                                            ProcessorProvider.getProcessor((String) name);
+-                                    if (videoFrameProcessor == null) {
+-                                        Log.e(TAG, "no videoFrameProcessor associated with this name: " + name);
+-                                    }
+-                                    return videoFrameProcessor;
+-                                })
+-                                .filter(Objects::nonNull)
+-                                .collect(Collectors.toList());
+-
+-                VideoEffectProcessor videoEffectProcessor = new VideoEffectProcessor(processors, surfaceTextureHelper);
+-                videoSource.setVideoProcessor(videoEffectProcessor);
++            if (names == null || names.size() == 0) {
++                videoSource.setVideoProcessor(null);
++                return;
++            }
++
++            java.util.List<VideoFrameProcessor> processors = new java.util.ArrayList<>();
+ 
+-            } else {
++            for (Object name : names.toArrayList()) {
++                if (!(name instanceof String)) continue;
++                String n = (String) name;
++
++                if ("beauty".equals(n)) {
++                    processors.add(new BeautyEngineProcessor(trackId, beautyConfigStore));
++                    continue;
++                }
++
++                VideoFrameProcessor p = ProcessorProvider.getProcessor(n);
++                if (p == null) {
++                    Log.e(TAG, "no videoFrameProcessor associated with this name: " + n);
++                    continue;
++                }
++                processors.add(p);
++            }
++
++            if (processors.isEmpty()) {
+                 videoSource.setVideoProcessor(null);
++                return;
+             }
++
++            VideoEffectProcessor videoEffectProcessor = new VideoEffectProcessor(processors, surfaceTextureHelper);
++            videoSource.setVideoProcessor(videoEffectProcessor);
+         }
+     }
+ 
+-    /**
+-     * Application/library-specific private members of local
+-     * {@code MediaStreamTrack}s created by {@code GetUserMediaImpl}.
+-     */
+     private static class TrackPrivate {
+         /**
+          * The {@code MediaSource} from which {@link #track} was created.
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
+index 996648c..85ddd22 100644
+--- a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
++++ b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
+@@ -945,6 +945,11 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
+         ThreadUtils.runOnExecutor(() -> { getUserMediaImpl.setVideoEffects(id, names); });
+     }
+ 
++    @ReactMethod
++    public void mediaStreamTrackSetVideoEffectConfig(String id, ReadableMap config) {
++        ThreadUtils.runOnExecutor(() -> { getUserMediaImpl.setVideoEffectConfig(id, config); });
++    }
++
+     @ReactMethod
+     public void peerConnectionSetConfiguration(ReadableMap configuration, int id) {
+         ThreadUtils.runOnExecutor(() -> {
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/videoEffects/BeautyConfigStore.java b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/videoEffects/BeautyConfigStore.java
+new file mode 100644
+index 0000000..d955c5d
+--- /dev/null
++++ b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/videoEffects/BeautyConfigStore.java
+@@ -0,0 +1,128 @@
++package com.oney.WebRTCModule.videoEffects;
++
++import com.facebook.react.bridge.ReadableMap;
++import com.facebook.react.bridge.ReadableType;
++
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicReference;
++
++public final class BeautyConfigStore {
++    public static final class Config {
++        public final boolean enabled;
++        public final String preset;
++        public final float brightness;
++        public final float saturation;
++        public final float contrast;
++        public final boolean bgFocus;
++        public final float bgFocusStrength;
++
++        public Config(
++                boolean enabled,
++                String preset,
++                float brightness,
++                float saturation,
++                float contrast,
++                boolean bgFocus,
++                float bgFocusStrength
++        ) {
++            this.enabled = enabled;
++            this.preset = preset;
++            this.brightness = brightness;
++            this.saturation = saturation;
++            this.contrast = contrast;
++            this.bgFocus = bgFocus;
++            this.bgFocusStrength = bgFocusStrength;
++        }
++    }
++
++    private static float clamp01(float v) {
++        if (v < 0f) return 0f;
++        if (v > 1f) return 1f;
++        return v;
++    }
++
++    private static Config defaults() {
++        return new Config(
++                false,
++                "none",
++                0.5f,
++                0.5f,
++                0.5f,
++                false,
++                0f
++        );
++    }
++
++    private final ConcurrentHashMap<String, AtomicReference<Config>> map = new ConcurrentHashMap<>();
++
++    public Config get(String trackId) {
++        AtomicReference<Config> ref = map.get(trackId);
++        if (ref == null) {
++            Config d = defaults();
++            AtomicReference<Config> created = new AtomicReference<>(d);
++            AtomicReference<Config> prev = map.putIfAbsent(trackId, created);
++            return prev != null ? prev.get() : d;
++        }
++        Config c = ref.get();
++        return c != null ? c : defaults();
++    }
++
++    public void remove(String trackId) {
++        map.remove(trackId);
++    }
++
++    public void update(String trackId, ReadableMap m) {
++        if (trackId == null || m == null) return;
++
++        AtomicReference<Config> ref = map.get(trackId);
++        if (ref == null) {
++            ref = new AtomicReference<>(defaults());
++            AtomicReference<Config> prev = map.putIfAbsent(trackId, ref);
++            if (prev != null) ref = prev;
++        }
++
++        Config base = ref.get();
++        if (base == null) base = defaults();
++
++        boolean enabled = getBool(m, "enabled", base.enabled);
++        String preset = getString(m, "preset", base.preset);
++
++        float brightness = clamp01(getFloat(m, "brightness", base.brightness));
++        float saturation = clamp01(getFloat(m, "saturation", base.saturation));
++        float contrast = clamp01(getFloat(m, "contrast", base.contrast));
++
++        boolean bgFocus = getBool(m, "bgFocus", base.bgFocus);
++        float bgFocusStrength = clamp01(getFloat(m, "bgFocusStrength", base.bgFocusStrength));
++
++        ref.set(new Config(
++                enabled,
++                preset != null ? preset : base.preset,
++                brightness,
++                saturation,
++                contrast,
++                bgFocus,
++                bgFocusStrength
++        ));
++    }
++
++    private static boolean getBool(ReadableMap m, String k, boolean def) {
++        if (!m.hasKey(k)) return def;
++        ReadableType t = m.getType(k);
++        if (t == ReadableType.Boolean) return m.getBoolean(k);
++        return def;
++    }
++
++    private static float getFloat(ReadableMap m, String k, float def) {
++        if (!m.hasKey(k)) return def;
++        ReadableType t = m.getType(k);
++        if (t == ReadableType.Number) return (float) m.getDouble(k);
++        return def;
++    }
++
++    private static String getString(ReadableMap m, String k, String def) {
++        if (!m.hasKey(k)) return def;
++        ReadableType t = m.getType(k);
++        if (t == ReadableType.String) return m.getString(k);
++        return def;
++    }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/videoEffects/BeautyEngineProcessor.java b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/videoEffects/BeautyEngineProcessor.java
+new file mode 100644
+index 0000000..8f349f1
+--- /dev/null
++++ b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/videoEffects/BeautyEngineProcessor.java
+@@ -0,0 +1,338 @@
++package com.oney.WebRTCModule.videoEffects;
++
++import com.google.mlkit.vision.common.InputImage;
++import com.google.mlkit.vision.segmentation.Segmentation;
++import com.google.mlkit.vision.segmentation.SegmentationMask;
++import com.google.mlkit.vision.segmentation.Segmenter;
++import com.google.mlkit.vision.segmentation.selfie.SelfieSegmenterOptions;
++
++import org.webrtc.JavaI420Buffer;
++import org.webrtc.SurfaceTextureHelper;
++import org.webrtc.VideoFrame;
++
++import java.nio.ByteBuffer;
++import java.nio.FloatBuffer;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.atomic.AtomicBoolean;
++
++public final class BeautyEngineProcessor implements VideoFrameProcessor {
++    private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
++
++    private static final Segmenter SEGMENTER = Segmentation.getClient(
++            new SelfieSegmenterOptions.Builder().setDetectorMode(SelfieSegmenterOptions.STREAM_MODE).build()
++    );
++
++    private final String trackId;
++    private final BeautyConfigStore store;
++
++    private final AtomicBoolean segRunning = new AtomicBoolean(false);
++    private volatile float[] segMask;
++    private volatile int segMaskW;
++    private volatile int segMaskH;
++    private volatile long segTsMs;
++
++    private int lastW;
++    private int lastH;
++
++    private byte[] yArr;
++    private byte[] uArr;
++    private byte[] vArr;
++
++    private byte[] yBlur;
++    private byte[] tmpBlur;
++
++    private byte[] outY;
++    private byte[] outU;
++    private byte[] outV;
++
++    private byte[] nv21;
++
++    public BeautyEngineProcessor(String trackId, BeautyConfigStore store) {
++        this.trackId = trackId;
++        this.store = store;
++    }
++
++    private static int clamp255(int v) {
++        if (v < 0) return 0;
++        if (v > 255) return 255;
++        return v;
++    }
++
++    private static float clamp01f(float v) {
++        if (v < 0f) return 0f;
++        if (v > 1f) return 1f;
++        return v;
++    }
++
++    private static int radiusFrom01(float v) {
++        if (v <= 0.05f) return 0;
++        if (v <= 0.20f) return 1;
++        if (v <= 0.50f) return 2;
++        return 3;
++    }
++
++    private void ensureBuffers(int w, int h) {
++        if (w == lastW && h == lastH && yArr != null) return;
++        lastW = w;
++        lastH = h;
++
++        yArr = new byte[w * h];
++        uArr = new byte[(w / 2) * (h / 2)];
++        vArr = new byte[(w / 2) * (h / 2)];
++
++        yBlur = new byte[w * h];
++        tmpBlur = new byte[w * h];
++
++        outY = new byte[w * h];
++        outU = new byte[(w / 2) * (h / 2)];
++        outV = new byte[(w / 2) * (h / 2)];
++
++        nv21 = new byte[w * h + (w * h / 2)];
++    }
++
++    private static void readPlane(ByteBuffer src, int srcStride, int w, int h, byte[] dst) {
++        int di = 0;
++        for (int y = 0; y < h; y++) {
++            int si = y * srcStride;
++            for (int x = 0; x < w; x++) {
++                dst[di++] = src.get(si + x);
++            }
++        }
++    }
++
++    private static void writePlane(byte[] src, int w, int h, ByteBuffer dst, int dstStride) {
++        int si = 0;
++        for (int y = 0; y < h; y++) {
++            int di = y * dstStride;
++            for (int x = 0; x < w; x++) {
++                dst.put(di + x, src[si++]);
++            }
++        }
++    }
++
++    private static void blurBox3(byte[] src, byte[] dst, int w, int h) {
++        int idx = 0;
++        for (int y = 0; y < h; y++) {
++            int y0 = (y == 0) ? 0 : (y - 1);
++            int y2 = (y == h - 1) ? (h - 1) : (y + 1);
++            int row0 = y0 * w;
++            int row1 = y * w;
++            int row2 = y2 * w;
++            for (int x = 0; x < w; x++) {
++                int x0 = (x == 0) ? 0 : (x - 1);
++                int x2 = (x == w - 1) ? (w - 1) : (x + 1);
++
++                int s =
++                        (src[row0 + x0] & 0xff) + (src[row0 + x] & 0xff) + (src[row0 + x2] & 0xff) +
++                        (src[row1 + x0] & 0xff) + (src[row1 + x] & 0xff) + (src[row1 + x2] & 0xff) +
++                        (src[row2 + x0] & 0xff) + (src[row2 + x] & 0xff) + (src[row2 + x2] & 0xff);
++
++                dst[idx++] = (byte) (s / 9);
++            }
++        }
++    }
++
++    private static void blurRepeat(byte[] buf, byte[] tmp, int w, int h, int r) {
++        if (r <= 0) return;
++        blurBox3(buf, tmp, w, h);
++        if (r == 1) {
++            System.arraycopy(tmp, 0, buf, 0, w * h);
++            return;
++        }
++        blurBox3(tmp, buf, w, h);
++        if (r == 2) return;
++        blurBox3(buf, tmp, w, h);
++        System.arraycopy(tmp, 0, buf, 0, w * h);
++    }
++
++    private void fillNv21(byte[] y, byte[] u, byte[] v, int w, int h) {
++        int ySize = w * h;
++        System.arraycopy(y, 0, nv21, 0, ySize);
++
++        int uvW = w / 2;
++        int uvH = h / 2;
++        int di = ySize;
++
++        int vi = 0;
++        int ui = 0;
++        for (int yy = 0; yy < uvH; yy++) {
++            for (int xx = 0; xx < uvW; xx++) {
++                nv21[di++] = v[vi++];
++                nv21[di++] = u[ui++];
++            }
++        }
++    }
++
++    private void maybeRunSegmentation(int w, int h, int rotation, boolean on) {
++        if (!on) return;
++
++        long now = android.os.SystemClock.uptimeMillis();
++        if (now - segTsMs < 140) return;
++
++        if (!segRunning.compareAndSet(false, true)) return;
++
++        final byte[] input = new byte[nv21.length];
++        System.arraycopy(nv21, 0, input, 0, input.length);
++
++        EXEC.execute(() -> {
++            try {
++                InputImage img = InputImage.fromByteArray(input, w, h, rotation, InputImage.IMAGE_FORMAT_NV21);
++                SEGMENTER.process(img)
++                        .addOnSuccessListener((SegmentationMask sm) -> {
++                            try {
++                                ByteBuffer buf = sm.getBuffer();
++                                int mw = sm.getWidth();
++                                int mh = sm.getHeight();
++                                buf.rewind();
++                                FloatBuffer fb = buf.asFloatBuffer();
++                                float[] out = new float[fb.remaining()];
++                                fb.get(out);
++                                segMask = out;
++                                segMaskW = mw;
++                                segMaskH = mh;
++                                segTsMs = android.os.SystemClock.uptimeMillis();
++                            } catch (Throwable ignored) {}
++                        })
++                        .addOnFailureListener(e -> {})
++                        .addOnCompleteListener(t -> segRunning.set(false));
++            } catch (Throwable t) {
++                segRunning.set(false);
++            }
++        });
++    }
++
++    private static int applyY(int y, float bOff, float c) {
++        float yy = (y - 128f) * c + 128f + bOff;
++        return clamp255((int) (yy + 0.5f));
++    }
++
++    private static int applyUv(int v, float s, int add) {
++        float vv = 128f + (v - 128f) * s + add;
++        return clamp255((int) (vv + 0.5f));
++    }
++
++    @Override
++    public VideoFrame process(VideoFrame frame, SurfaceTextureHelper textureHelper) {
++        BeautyConfigStore.Config cfg = store.get(trackId);
++        if (cfg == null || !cfg.enabled) return null;
++
++        String preset = cfg.preset != null ? cfg.preset : "none";
++        boolean presetOn = !"none".equals(preset);
++
++        float bOff = (clamp01f(cfg.brightness) - 0.5f) * 90f;
++        float sat = clamp01f(cfg.saturation);
++        float con = clamp01f(cfg.contrast);
++
++        boolean satOn = Math.abs(sat - 0.5f) > 0.001f;
++        boolean conOn = Math.abs(con - 0.5f) > 0.001f;
++        boolean briOn = Math.abs(clamp01f(cfg.brightness) - 0.5f) > 0.001f;
++
++        boolean bgOn = cfg.bgFocus;
++        float bgSRaw = clamp01f(cfg.bgFocusStrength);
++        float bgS = bgOn ? (bgSRaw > 0.001f ? bgSRaw : 0.55f) : 0f;
++
++        boolean any = briOn || satOn || conOn || bgOn || presetOn;
++        if (!any) return null;
++
++        VideoFrame.I420Buffer i420 = null;
++        try {
++            i420 = frame.getBuffer().toI420();
++            if (i420 == null) return null;
++
++            int w = i420.getWidth();
++            int h = i420.getHeight();
++            ensureBuffers(w, h);
++
++            readPlane(i420.getDataY(), i420.getStrideY(), w, h, yArr);
++            readPlane(i420.getDataU(), i420.getStrideU(), w / 2, h / 2, uArr);
++            readPlane(i420.getDataV(), i420.getStrideV(), w / 2, h / 2, vArr);
++
++            if (bgOn) {
++                fillNv21(yArr, uArr, vArr, w, h);
++                maybeRunSegmentation(w, h, frame.getRotation(), true);
++            }
++
++            float c = 0.2f + 1.6f * con;
++
++            float[] m = segMask;
++            int mw = segMaskW;
++            int mh = segMaskH;
++            boolean hasMask = bgOn && bgS > 0.001f && m != null && mw > 0 && mh > 0;
++
++            int r = hasMask ? radiusFrom01(bgS) : 0;
++            if (r > 0) {
++                System.arraycopy(yArr, 0, yBlur, 0, w * h);
++                blurRepeat(yBlur, tmpBlur, w, h, r);
++            }
++
++            int idx = 0;
++            float bgMixK = hasMask ? clamp01f(bgS * 1.35f) : 0f;
++
++            for (int yy = 0; yy < h; yy++) {
++                int my = hasMask ? (yy * mh) / h : 0;
++                int mRow = my * mw;
++
++                for (int xx = 0; xx < w; xx++) {
++                    int y0 = yArr[idx] & 0xff;
++                    int yv = applyY(y0, bOff, c);
++
++                    if (hasMask) {
++                        int mx = (xx * mw) / w;
++                        float fg = m[mRow + mx];
++                        float wbg = (1f - fg) * bgMixK;
++                        int yb0 = yBlur[idx] & 0xff;
++                        int yb = applyY(yb0, bOff, c);
++                        yv = clamp255((int) (yv * (1f - wbg) + yb * wbg + 0.5f));
++                    }
++
++                    outY[idx++] = (byte) yv;
++                }
++            }
++
++            boolean mono = "mono".equals(preset);
++
++            float s = 0.2f + 1.6f * sat;
++
++            int addU = 0;
++            int addV = 0;
++            if ("warm".equals(preset)) {
++                addU = -6;
++                addV = 10;
++            } else if ("cool".equals(preset)) {
++                addU = 10;
++                addV = -6;
++            }
++
++            int uvSize = (w / 2) * (h / 2);
++            if (mono) {
++                for (int i = 0; i < uvSize; i++) {
++                    outU[i] = (byte) 128;
++                    outV[i] = (byte) 128;
++                }
++            } else {
++                for (int i = 0; i < uvSize; i++) {
++                    int u0 = uArr[i] & 0xff;
++                    int v0 = vArr[i] & 0xff;
++
++                    int u1 = applyUv(u0, s, addU);
++                    int v1 = applyUv(v0, s, addV);
++
++                    outU[i] = (byte) u1;
++                    outV[i] = (byte) v1;
++                }
++            }
++
++            JavaI420Buffer out = JavaI420Buffer.allocate(w, h);
++            writePlane(outY, w, h, out.getDataY(), out.getStrideY());
++            writePlane(outU, w / 2, h / 2, out.getDataU(), out.getStrideU());
++            writePlane(outV, w / 2, h / 2, out.getDataV(), out.getStrideV());
++
++            return new VideoFrame(out, frame.getRotation(), frame.getTimestampNs());
++        } catch (Throwable t) {
++            return null;
++        } finally {
++            if (i420 != null) i420.release();
++        }
++    }
++}
+\ No newline at end of file
