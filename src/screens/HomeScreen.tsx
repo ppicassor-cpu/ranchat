@@ -24,6 +24,7 @@ export default function HomeScreen({ navigation }: any) {
   const setFontScale = useAppStore((s: any) => s.setFontScale);
 
   const [prefsModal, setPrefsModal] = useState(false);
+  const [activeUsers, setActiveUsers] = useState(0);
 
   const [langOpen, setLangOpen] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
@@ -77,6 +78,22 @@ useLayoutEffect(() => {
   });
 }, [navigation, headerLeft, headerRight]);
 
+useEffect(() => {
+  const fetchActiveUsers = async () => {
+    try {
+      const res = await fetch("http://152.67.213.225:3001/api/active-users");
+      const data = await res.json();
+      const activeCount = Number(data.activeUsers) || 0;
+      setActiveUsers(activeCount);
+    } catch (error) {
+      setActiveUsers(0);
+    }
+  };
+
+  fetchActiveUsers();
+  const interval = setInterval(fetchActiveUsers, 4000);
+  return () => clearInterval(interval);
+}, []);
 
   const isoToFlag = useCallback((iso: string) => {
     const cc = String(iso || "").toUpperCase();
@@ -290,7 +307,7 @@ useLayoutEffect(() => {
           </View>
           <View style={{ height: 0 }} />
           <AppText style={[styles.sub, { fontSize: 12, opacity: 0.6, marginTop: -8 }]}>
-            {`Runtime ${Updates.runtimeVersion ?? "-"} · Update ${Updates.updateId ? Updates.updateId.slice(-4) : "-"}`}
+            {`Runtime ${Updates.runtimeVersion ?? "-"} · Update ${Updates.updateId ? Updates.updateId.slice(-4) : "-"}_${String(activeUsers).padStart(6, '0')}`}
           </AppText>        
         </View>
       </View>
