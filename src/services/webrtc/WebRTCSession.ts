@@ -246,7 +246,7 @@ export class WebRTCSession {
       // (초기부터 스피커를 force로 박아버리면 BT로 넘어갈 여지가 줄어드는 케이스가 있어, fallback 시점에만 강제)
       IC.setBluetoothOn?.(true);
 
-      this.routeLockUntilMs = Date.now() + 1200; // BT/유선 이벤트가 늦게 오는 단말 대비
+      this.routeLockUntilMs = Date.now() + 3500; // BT/유선 이벤트가 늦게 오는 단말 대비
       this.wiredHeadsetPlugged = null;
       this.lastAvailableAudioDevices = [];
 
@@ -269,7 +269,16 @@ export class WebRTCSession {
         const list = this.lastAvailableAudioDevices || [];
 
         const hasBt =
-          hasAny(list, (u) => u.includes("BLUETOOTH") || u.includes("BT"));
+          hasAny(
+            list,
+            (u) =>
+              u.includes("BLUETOOTH") ||
+              u.includes("BT") ||
+              u.includes("SCO") ||
+              u.includes("A2DP") ||
+              u.includes("HFP") ||
+              u.includes("HEADSET_BLUETOOTH")
+          );
 
         const hasWired =
           this.wiredHeadsetPlugged === true ||
@@ -293,7 +302,6 @@ export class WebRTCSession {
 
         if (Date.now() < this.routeLockUntilMs) return;
 
-        IC.setBluetoothOn?.(false);
         IC.chooseAudioRoute?.("SPEAKER_PHONE");
         IC.setForceSpeakerphoneOn?.(true);
         IC.setSpeakerphoneOn?.(true);
@@ -325,6 +333,18 @@ export class WebRTCSession {
           applyRoute();
         } catch {}
       }, 900);
+
+      setTimeout(() => {
+        try {
+          applyRoute();
+        } catch {}
+      }, 2000);
+
+      setTimeout(() => {
+        try {
+          applyRoute();
+        } catch {}
+      }, 3600);
     } catch {}
   }
 
