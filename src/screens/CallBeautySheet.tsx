@@ -238,7 +238,7 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
             <Switch
               value={Boolean(current.enabled)}
               onValueChange={(v) => update({ enabled: v })}
-              trackColor={{ false: "rgba(255,255,255,0.35)", true: "rgba(255,255,255,0.72)" }}
+              trackColor={{ false: "rgba(255,255,255,0.35)", true: "rgba(247, 159, 207, 0.78)" }}
               thumbColor={"#ffffff"}
             />
           </View>

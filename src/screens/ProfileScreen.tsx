@@ -91,6 +91,7 @@ export default function ProfileScreen() {
 
   const [updateModal, setUpdateModal] = useState(false);
   const [updateBusy, setUpdateBusy] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
   const updateCheckedRef = useRef(false);
 
   const countryLabel = useMemo(() => {
@@ -245,6 +246,20 @@ export default function ProfileScreen() {
     }
   }, [showGlobalModal, t]);
 
+  const onPressRestoreSubscription = useCallback(async () => {
+    if (restoreBusy) return;
+    setRestoreBusy(true);
+
+    try {
+      await refreshSubscription();
+      showGlobalModal(t("profile.restore_subscription"), t("profile.restore_subscription_done"));
+    } catch (e) {
+      showGlobalModal(t("profile.restore_subscription"), toErrMsg(e));
+    } finally {
+      setRestoreBusy(false);
+    }
+  }, [restoreBusy, showGlobalModal, t]);
+
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
       <View style={styles.card}>
@@ -266,6 +281,13 @@ export default function ProfileScreen() {
         {!sub.isPremium ? <PrimaryButton title={safeT(t, "profile.apply_premium", "프리미엄 적용", undefined)} onPress={goPremium} /> : null}
         <View style={{ height: 10 }} />
         <PrimaryButton title={safeT(t, "profile.manage_subscription", "구독 관리", undefined)} onPress={onPressManageSubscriptions} variant="ghost" />
+        <View style={{ height: 10 }} />
+        <PrimaryButton
+          title={restoreBusy ? t("profile.restore_subscription_loading") : t("profile.restore_subscription")}
+          onPress={onPressRestoreSubscription}
+          variant="ghost"
+          disabled={restoreBusy}
+        />
       </View>
 
       <View style={styles.card}>

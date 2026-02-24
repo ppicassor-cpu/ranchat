@@ -1,0 +1,18 @@
+<lint-module
+    format="1"
+    dir="C:\ranchat\modules\ranchat-call-audio\android"
+    name=":ranchat-call-audio"
+    type="LIBRARY"
+    maven="expo.modules.ranchatcallaudio:ranchat-call-audio:0.7.6"
+    agpVersion="8.11.0"
+    buildFolder="build"
+    bootClassPath="C:\Users\Home\AppData\Local\Android\Sdk\platforms\android-36\android.jar;C:\Users\Home\AppData\Local\Android\Sdk\build-tools\35.0.0\core-lambda-stubs.jar"
+    javaSourceLevel="17"
+    compileTarget="android-36"
+    neverShrinking="true">
+  <lintOptions
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="release"/>
+</lint-module>

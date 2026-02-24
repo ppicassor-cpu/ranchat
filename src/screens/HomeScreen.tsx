@@ -25,6 +25,7 @@ export default function HomeScreen({ navigation }: any) {
 
   const [prefsModal, setPrefsModal] = useState(false);
   const [activeUsers, setActiveUsers] = useState(0);
+  const [bannerH, setBannerH] = useState(0);
 
   const [langOpen, setLangOpen] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
@@ -292,7 +293,7 @@ useEffect(() => {
       <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
         <ImageBackground
           source={require("../../assets/back.png")}
-          style={StyleSheet.absoluteFillObject}
+          style={[StyleSheet.absoluteFillObject, !isPremium ? { transform: [{ translateY: -bannerH }] } : null]}
           resizeMode="cover"
         />
       </View>
@@ -313,7 +314,10 @@ useEffect(() => {
       </View>
 
       {!isPremium ? (
-        <View style={[styles.banner, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        <View
+          onLayout={(e) => setBannerH(e.nativeEvent.layout.height)}
+          style={[styles.banner, { paddingBottom: Math.max(insets.bottom, 8) }]}
+        >
           <BannerBar />
         </View>
       ) : null}
@@ -441,8 +445,10 @@ const styles = StyleSheet.create({
   matchBtnWrap: { width: "100%", maxWidth: 420 },
 
   banner: {
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.line,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "transparent",
     alignItems: "center",
   },
