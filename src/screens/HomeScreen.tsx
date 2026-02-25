@@ -11,10 +11,11 @@ import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "../i18n/LanguageProvider";
+import { COUNTRY_CODES, LANGUAGE_CODES, getCountryName, getLanguageName, normalizeLanguageCode } from "../i18n/displayNames";
 import * as Updates from "expo-updates";
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { t, currentLang } = useTranslation();
+  const { t } = useTranslation();
 
   const prefs = useAppStore((s: any) => s.prefs);
   const isPremium = useAppStore((s: any) => s.sub.isPremium);
@@ -156,76 +157,15 @@ useEffect(() => {
     else showGlobalModal(t("setting.title"), t("setting.gender_save_error"));
   }, [showGlobalModal, t]);
 
-  const getLangLabel = useCallback((lang: string) => {
-    const codeRaw = String(lang || "").trim().toLowerCase();
-    const code = codeRaw === "kr" ? "ko" : codeRaw;
-    const ui = String(currentLang || "ko").trim().toLowerCase();
+  const languageOptions = useMemo(
+    () => LANGUAGE_CODES.map((code) => ({ key: code, label: getLanguageName(t, code) })),
+    [t]
+  );
 
-    const labelsKo: Record<string, string> = {
-      ko: "한국어",
-      en: "영어",
-      ja: "일본어",
-      zh: "중국어",
-      es: "스페인어",
-      de: "독일어",
-      fr: "프랑스어",
-      it: "이탈리아어",
-      ru: "러시아어",
-    };
-
-    const labelsEn: Record<string, string> = {
-      ko: "Korean",
-      en: "English",
-      ja: "Japanese",
-      zh: "Chinese",
-      es: "Spanish",
-      de: "German",
-      fr: "French",
-      it: "Italian",
-      ru: "Russian",
-    };
-
-    const map = ui === "ko" ? labelsKo : labelsEn;
-    return map[code] || code || t("common.not_set");
-  }, [currentLang, t]);
-
-  const languageOptions = useMemo(() => [
-    { key: "ko", label: getLangLabel("ko") },
-    { key: "en", label: getLangLabel("en") },
-    { key: "ja", label: getLangLabel("ja") },
-    { key: "zh", label: getLangLabel("zh") },
-    { key: "es", label: getLangLabel("es") },
-    { key: "de", label: getLangLabel("de") },
-    { key: "fr", label: getLangLabel("fr") },
-    { key: "it", label: getLangLabel("it") },
-    { key: "ru", label: getLangLabel("ru") },
-  ], [getLangLabel]);
-
-  const countryOptions = useMemo(() => [
-    { key: "KR", name: "Korea" },
-    { key: "JP", name: "Japan" },
-    { key: "CN", name: "China" },
-    { key: "TW", name: "Taiwan" },
-    { key: "HK", name: "Hong Kong" },
-    { key: "SG", name: "Singapore" },
-    { key: "TH", name: "Thailand" },
-    { key: "VN", name: "Vietnam" },
-    { key: "PH", name: "Philippines" },
-    { key: "ID", name: "Indonesia" },
-    { key: "MY", name: "Malaysia" },
-    { key: "IN", name: "India" },
-    { key: "US", name: "United States" },
-    { key: "CA", name: "Canada" },
-    { key: "GB", name: "United Kingdom" },
-    { key: "AU", name: "Australia" },
-    { key: "DE", name: "Germany" },
-    { key: "FR", name: "France" },
-    { key: "RU", name: "Russia" },
-    { key: "ES", name: "Spain" },
-    { key: "IT", name: "Italy" },
-    { key: "BR", name: "Brazil" },
-    { key: "MX", name: "Mexico" },
-  ], []);
+  const countryOptions = useMemo(
+    () => COUNTRY_CODES.map((code) => ({ key: code, name: getCountryName(t, code) })),
+    [t]
+  );
 
   const genderOptions = useMemo(() => [
     { key: "male", label: t("gender.male") },
@@ -233,11 +173,10 @@ useEffect(() => {
   ], [t]);
 
   const currentLanguageLabel = useMemo(() => {
-    const raw = String(prefs.language || "").trim().toLowerCase();
-    const cur = raw === "kr" ? "ko" : raw;
+    const cur = normalizeLanguageCode(String(prefs.language || ""));
     const found = languageOptions.find((x) => x.key === cur);
-    return found ? found.label : cur ? getLangLabel(cur) : t("common.not_set");
-  }, [getLangLabel, languageOptions, prefs.language, t]);
+    return found ? found.label : cur ? getLanguageName(t, cur) : t("common.not_set");
+  }, [languageOptions, prefs.language, t]);
 
   const currentCountryDisplay = useMemo(() => {
     const cur = String(prefs.country || "").toUpperCase();
@@ -321,7 +260,11 @@ useEffect(() => {
           </View>
           <View style={{ height: 0 }} />
           <AppText style={[styles.sub, { fontSize: 12, opacity: 0.6, marginTop: -8 }]}>
-            {`Runtime ${Updates.runtimeVersion ?? "-"} · Update ${Updates.updateId ? Updates.updateId.slice(-4) : "-"}_${String(activeUsers).padStart(6, '0')}`}
+            {t("home.runtime_info", {
+              runtime: Updates.runtimeVersion ?? "-",
+              update: Updates.updateId ? Updates.updateId.slice(-4) : "-",
+              users: String(activeUsers).padStart(6, "0"),
+            })}
           </AppText>        
         </View>
       </View>

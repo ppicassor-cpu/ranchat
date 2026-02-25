@@ -22,8 +22,21 @@ const PRICES = {
   yearly: 89000,
 } as const;
 
-function formatWon(n: number) {
-  return n.toLocaleString("ko-KR") + "원";
+function localeFromLang(lang: string) {
+  const lower = String(lang || "").toLowerCase();
+  if (lower === "ko") return "ko-KR";
+  if (lower === "ja") return "ja-JP";
+  if (lower === "zh") return "zh-CN";
+  if (lower === "es") return "es-ES";
+  if (lower === "de") return "de-DE";
+  if (lower === "fr") return "fr-FR";
+  if (lower === "it") return "it-IT";
+  if (lower === "ru") return "ru-RU";
+  return "en-US";
+}
+
+function formatKrw(n: number, locale: string, suffix: string) {
+  return n.toLocaleString(locale) + suffix;
 }
 
 function calcDiscountPercent(base: number, target: number) {
@@ -33,8 +46,10 @@ function calcDiscountPercent(base: number, target: number) {
 }
 
 export default function PremiumScreen() {
-  const { t } = useTranslation();
+  const { t, currentLang } = useTranslation();
   const sub = useAppStore((s) => s.sub);
+  const priceLocale = useMemo(() => localeFromLang(currentLang), [currentLang]);
+  const krwSuffix = t("currency.krw_suffix");
 
   const [payModal, setPayModal] = useState(false);
   const [selected, setSelected] = useState<PlanKey>("monthly");
@@ -115,7 +130,7 @@ export default function PremiumScreen() {
             </View>
           </View>
           <View style={styles.planMid}>
-            <AppText style={styles.planPrice}>{formatWon(PRICES.weekly)}</AppText>
+            <AppText style={styles.planPrice}>{formatKrw(PRICES.weekly, priceLocale, krwSuffix)}</AppText>
             <AppText style={styles.planUnit}>/ {t("premium.week")}</AppText>
           </View>
           <PrimaryButton title={t("premium.start_weekly")} onPress={() => onSelect("weekly")} />
@@ -134,7 +149,7 @@ export default function PremiumScreen() {
             </View>
           </View>
           <View style={styles.planMid}>
-            <AppText style={styles.planPrice}>{formatWon(PRICES.monthly)}</AppText>
+            <AppText style={styles.planPrice}>{formatKrw(PRICES.monthly, priceLocale, krwSuffix)}</AppText>
             <AppText style={styles.planUnit}>/ {t("premium.month")}</AppText>
           </View>
           <PrimaryButton title={t("premium.pay_monthly")} onPress={() => onSelect("monthly")} />
@@ -150,7 +165,7 @@ export default function PremiumScreen() {
             </View>
           </View>
           <View style={styles.planMid}>
-            <AppText style={styles.planPrice}>{formatWon(PRICES.yearly)}</AppText>
+            <AppText style={styles.planPrice}>{formatKrw(PRICES.yearly, priceLocale, krwSuffix)}</AppText>
             <AppText style={styles.planUnit}>/ {t("premium.year")}</AppText>
           </View>
           <PrimaryButton title={t("premium.pay_yearly")} onPress={() => onSelect("yearly")} />
@@ -180,10 +195,10 @@ export default function PremiumScreen() {
         title={selected === "weekly" ? t("premium.weekly_pay") : selected === "monthly" ? t("premium.monthly_pay") : t("premium.yearly_pay")}
         price={
           selected === "weekly"
-            ? `${formatWon(PRICES.weekly)} / ${t("premium.week")}`
+            ? `${formatKrw(PRICES.weekly, priceLocale, krwSuffix)} / ${t("premium.week")}`
             : selected === "monthly"
-              ? `${formatWon(PRICES.monthly)} / ${t("premium.month")}`
-              : `${formatWon(PRICES.yearly)} / ${t("premium.year")}`
+              ? `${formatKrw(PRICES.monthly, priceLocale, krwSuffix)} / ${t("premium.month")}`
+              : `${formatKrw(PRICES.yearly, priceLocale, krwSuffix)} / ${t("premium.year")}`
         }
         discountText={
           selected === "monthly"

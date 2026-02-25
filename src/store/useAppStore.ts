@@ -31,6 +31,8 @@ type GlobalModal = {
 
 type Ui = {
   fontScale: number; // 0.85~1.25 권장
+  hideMatchingActionsModal: boolean;
+  callMatchedSignal: number;
 };
 
 type Store = {
@@ -57,6 +59,8 @@ type Store = {
   setAuth: (a: Partial<Auth>) => void;
 
   setFontScale: (v: number) => void;
+  setHideMatchingActionsModal: (v: boolean) => void;
+  setCallMatchedSignal: (v: number) => void;
 
   logoutAndWipe: () => void;
 
@@ -74,7 +78,7 @@ export const useAppStore = create<Store>()(
       sub: { isPremium: false, entitlementId: null, lastCheckedAt: null },
       auth: { verified: false, token: null, userId: null, deviceKey: null },
 
-      ui: { fontScale: 1 },
+      ui: { fontScale: 1, hideMatchingActionsModal: false, callMatchedSignal: 0 },
 
       globalModal: { visible: false, title: "", message: "" },
 
@@ -94,6 +98,16 @@ export const useAppStore = create<Store>()(
         if (!Number.isFinite(n)) return;
         const clamped = Math.min(1.25, Math.max(0.85, n));
         set({ ui: { ...get().ui, fontScale: Number(clamped.toFixed(2)) } });
+      },
+
+      setHideMatchingActionsModal: (v) => {
+        set({ ui: { ...get().ui, hideMatchingActionsModal: Boolean(v) } });
+      },
+
+      setCallMatchedSignal: (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return;
+        set({ ui: { ...get().ui, callMatchedSignal: n } });
       },
 
       logoutAndWipe: () => {

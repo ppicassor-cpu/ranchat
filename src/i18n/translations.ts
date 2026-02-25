@@ -112,6 +112,16 @@ export const translations = {
     "payment.proceed": "결제 진행",
     "common.cancel": "취소",
     "screen.premium": "프리미엄",
+    "call.waiting_actions_title": "매칭 중 잠깐 이용해 보세요",
+    "call.waiting_actions_desc": "매칭이 조금 지연되고 있어요. 아래 기능을 이용하면 시간이 더 빨리 갑니다.",
+    "call.waiting_actions_beauty": "카메라효과",
+    "call.waiting_actions_fortune": "오늘의 운세",
+    "call.waiting_actions_game": "디노 플레이하기",
+    "call.waiting_actions_do_not_show": "다시 보지 않기",
+    "call.waiting_fortune_title": "오늘의 운세",
+    "call.waiting_fortune_desc": "오늘의 운세 기능은 곧 제공될 예정입니다.",
+    "call.waiting_game_title": "디노 플레이하기",
+    "call.waiting_game_desc": "디노 플레이하기를 시작합니다.",
   },
   en: {
     "home.title": "Random Video Chat",
@@ -225,6 +235,16 @@ export const translations = {
     "payment.proceed": "Proceed to payment",
     "common.cancel": "Cancel",
     "screen.premium": "Premium",
+    "call.waiting_actions_title": "Try these while matching",
+    "call.waiting_actions_desc": "Matching is taking a bit longer. Try these while you wait.",
+    "call.waiting_actions_beauty": "Camera Effects",
+    "call.waiting_actions_fortune": "Today's Fortune",
+    "call.waiting_actions_game": "Mini Game",
+    "call.waiting_actions_do_not_show": "Don't show again",
+    "call.waiting_fortune_title": "Today's Fortune",
+    "call.waiting_fortune_desc": "This feature will be available soon.",
+    "call.waiting_game_title": "Mini Game",
+    "call.waiting_game_desc": "This feature will be available soon.",
 
     "common.hyphen": "-"
   },
@@ -340,6 +360,16 @@ export const translations = {
     "payment.proceed": "支払いを続行",
     "common.cancel": "キャンセル",
     "screen.premium": "プレミアム",
+    "call.waiting_actions_title": "マッチ待機中に使ってみましょう",
+    "call.waiting_actions_desc": "マッチングに少し時間がかかっています。下の機能をお試しください。",
+    "call.waiting_actions_beauty": "カメラ効果",
+    "call.waiting_actions_fortune": "今日の運勢",
+    "call.waiting_actions_game": "ミニゲーム",
+    "call.waiting_actions_do_not_show": "今後表示しない",
+    "call.waiting_fortune_title": "今日の運勢",
+    "call.waiting_fortune_desc": "今日の運勢機能はまもなく提供予定です。",
+    "call.waiting_game_title": "ミニゲーム",
+    "call.waiting_game_desc": "ミニゲーム機能はまもなく提供予定です。",
 
     "common.hyphen": "-"
   },
@@ -455,6 +485,16 @@ export const translations = {
     "payment.proceed": "继续支付",
     "common.cancel": "取消",
     "screen.premium": "高级会员",
+    "call.waiting_actions_title": "匹配等待时可先体验",
+    "call.waiting_actions_desc": "匹配稍有延迟，先试试下面的功能。",
+    "call.waiting_actions_beauty": "相机特效",
+    "call.waiting_actions_fortune": "今日运势",
+    "call.waiting_actions_game": "小游戏",
+    "call.waiting_actions_do_not_show": "不再显示",
+    "call.waiting_fortune_title": "今日运势",
+    "call.waiting_fortune_desc": "今日运势功能即将上线。",
+    "call.waiting_game_title": "小游戏",
+    "call.waiting_game_desc": "小游戏功能即将上线。",
 
     "common.hyphen": "-"
   },
@@ -570,6 +610,16 @@ export const translations = {
     "payment.proceed": "Proceder al pago",
     "common.cancel": "Cancelar",
     "screen.premium": "Premium",
+    "call.waiting_actions_title": "Prueba esto mientras esperas",
+    "call.waiting_actions_desc": "La coincidencia tarda un poco mas. Prueba estas funciones mientras esperas.",
+    "call.waiting_actions_beauty": "Efectos de camara",
+    "call.waiting_actions_fortune": "Fortuna de hoy",
+    "call.waiting_actions_game": "Mini juego",
+    "call.waiting_actions_do_not_show": "No volver a mostrar",
+    "call.waiting_fortune_title": "Fortuna de hoy",
+    "call.waiting_fortune_desc": "La funcion de fortuna estara disponible pronto.",
+    "call.waiting_game_title": "Mini juego",
+    "call.waiting_game_desc": "La funcion de mini juego estara disponible pronto.",
 
     "common.hyphen": "-"
   },
@@ -684,6 +734,16 @@ export const translations = {
     "payment.proceed": "Zur Zahlung fortfahren",
     "common.cancel": "Abbrechen",
     "screen.premium": "Premium",
+    "call.waiting_actions_title": "Nutze dies waehrend der Suche",
+    "call.waiting_actions_desc": "Das Matching dauert etwas laenger. Nutze diese Funktionen waehrenddessen.",
+    "call.waiting_actions_beauty": "Kameraeffekte",
+    "call.waiting_actions_fortune": "Tageshoroskop",
+    "call.waiting_actions_game": "Mini-Spiel",
+    "call.waiting_actions_do_not_show": "Nicht mehr anzeigen",
+    "call.waiting_fortune_title": "Tageshoroskop",
+    "call.waiting_fortune_desc": "Diese Funktion kommt bald.",
+    "call.waiting_game_title": "Mini-Spiel",
+    "call.waiting_game_desc": "Diese Funktion kommt bald.",
 
     "common.hyphen": "-"
   },
@@ -799,6 +859,16 @@ export const translations = {
     "payment.proceed": "Procéder au paiement",
     "common.cancel": "Annuler",
     "screen.premium": "Premium",
+    "call.waiting_actions_title": "Essayez pendant l'attente",
+    "call.waiting_actions_desc": "Le matching prend un peu plus de temps. Essayez ces fonctions en attendant.",
+    "call.waiting_actions_beauty": "Effets camera",
+    "call.waiting_actions_fortune": "Horoscope du jour",
+    "call.waiting_actions_game": "Mini-jeu",
+    "call.waiting_actions_do_not_show": "Ne plus afficher",
+    "call.waiting_fortune_title": "Horoscope du jour",
+    "call.waiting_fortune_desc": "Cette fonctionnalite arrive bientot.",
+    "call.waiting_game_title": "Mini-jeu",
+    "call.waiting_game_desc": "Cette fonctionnalite arrive bientot.",
 
     "common.hyphen": "-"
   },
@@ -914,6 +984,16 @@ export const translations = {
     "payment.proceed": "Procedi al pagamento",
     "common.cancel": "Annulla",
     "screen.premium": "Premium",
+    "call.waiting_actions_title": "Prova mentre aspetti",
+    "call.waiting_actions_desc": "Il matching richiede un po piu tempo. Prova queste funzioni nell'attesa.",
+    "call.waiting_actions_beauty": "Effetti fotocamera",
+    "call.waiting_actions_fortune": "Fortuna di oggi",
+    "call.waiting_actions_game": "Mini gioco",
+    "call.waiting_actions_do_not_show": "Non mostrare piu",
+    "call.waiting_fortune_title": "Fortuna di oggi",
+    "call.waiting_fortune_desc": "Questa funzione sara disponibile presto.",
+    "call.waiting_game_title": "Mini gioco",
+    "call.waiting_game_desc": "Questa funzione sara disponibile presto.",
 
     "common.hyphen": "-"
   },
@@ -1029,7 +1109,423 @@ export const translations = {
     "payment.proceed": "Перейти к оплате",
     "common.cancel": "Отмена",
     "screen.premium": "Премиум",
+    "call.waiting_actions_title": "Попробуйте во время ожидания",
+    "call.waiting_actions_desc": "Подбор занимает чуть больше времени. Попробуйте функции ниже.",
+    "call.waiting_actions_beauty": "Эффекты камеры",
+    "call.waiting_actions_fortune": "Гороскоп на сегодня",
+    "call.waiting_actions_game": "Мини-игра",
+    "call.waiting_actions_do_not_show": "Больше не показывать",
+    "call.waiting_fortune_title": "Гороскоп на сегодня",
+    "call.waiting_fortune_desc": "Функция скоро появится.",
+    "call.waiting_game_title": "Мини-игра",
+    "call.waiting_game_desc": "Функция скоро появится.",
 
     "common.hyphen": "-"
   }
 } as const;
+
+const missingEn: Record<string, string> = {
+  "call.delay_matching": "Matching is delayed",
+  "call.delay_matching_desc": "Matching is delayed. Please retry or try again shortly.",
+  "call.error_start": "Could not start the call. Please try again.",
+  "call.error_title": "Call Error",
+  "call.fast_matching_desc": "There are fewer users right now, so matching may take longer.",
+  "call.limit_message": "Free users can use calls for up to {seconds} seconds.",
+  "call.limit_premium": "Continue with Premium",
+  "call.limit_title": "Free Call Time Limit",
+  "call.match_filter_missing": "Please set country/language/gender before matching.",
+  "call.match_title": "Matching Setup Required",
+  "common.ad": "Ad",
+  "common.exit": "Exit",
+  "common.retry": "Retry",
+  "payment.notice": "Subscriptions may auto-renew according to each store policy.",
+  "payment.processing": "Processing payment...",
+  "profile.plan.monthly": "Monthly Premium",
+  "profile.plan.premium": "Premium",
+  "profile.plan.weekly": "Weekly Premium",
+  "profile.plan.yearly": "Yearly Premium",
+  "screen.call": "Call",
+  "screen.dino": "Dino Play",
+  "screen.home": "Home",
+  "screen.profile": "Profile",
+  "setting.country_save_error": "Failed to save country.",
+  "setting.gender_save_error": "Failed to save gender.",
+  "setting.language_save_error": "Failed to save language.",
+  "subscription.manage": "Manage Subscription",
+  "subscription.manage_failed": "Could not open subscription management.",
+  "subscription.no_offering": "No purchasable products are available right now.",
+  "subscription.payment_failed": "Payment failed. Please try again later.",
+  "subscription.title": "Subscription",
+  "dino.score": "SCORE",
+  "dino.best": "BEST",
+  "dino.game_over": "GAME OVER",
+  "dino.title": "DINO RUN",
+  "dino.tap_restart": "Tap to restart",
+  "dino.tap_start_jump": "Tap to start / jump",
+  "fortune.title": "Today's Fortune",
+  "fortune.subtitle": "Choose your birth date and birth hour, then check your fortune. Your input is not saved.",
+  "fortune.name_label": "Name",
+  "fortune.name_placeholder": "Enter your name",
+  "fortune.birthdate_label": "Birth date",
+  "fortune.birthhour_label": "Birth hour",
+  "fortune.view_button": "View Fortune",
+  "fortune.loading_title": "The crystal ball is reading your fortune...",
+  "fortune.loading_sub": "Please wait a moment",
+  "fortune.matched_title": "Matched",
+  "fortune.matched_desc": "This screen will close automatically and move to the call screen.",
+  "fortune.result_title": "Today's Fortune Result",
+  "fortune.default_name": "You",
+  "fortune.result_hello": "{name}, this is your fortune for today.",
+  "fortune.label.overall": "Overall Fortune",
+  "fortune.label.love": "Love Fortune",
+  "fortune.label.money": "Money Fortune",
+  "fortune.label.work": "Work/Study Fortune",
+  "fortune.label.matching": "Today's Matching Fortune",
+  "fortune.score_value": "{score} pts",
+  "fortune.disclaimer": "This fortune is for entertainment/reference only and does not predict the actual future. Please make important decisions carefully.",
+  "fortune.error_name_required": "Please enter your name.",
+  "home.runtime_info": "Runtime {runtime} · Update {update}_{users}",
+  "setting.save_handler_missing": "No save handler found for {field}.",
+  "call.camera_preview_failed": "Camera preview failed.",
+  "profile.footer_copyright": "Designed by Son's Family in 2026.\n© 2026 Coms. All rights reserved.",
+  "currency.krw_suffix": " KRW",
+  "common.on": "ON",
+  "common.off": "OFF",
+};
+
+const missingKo: Record<string, string> = {
+  "call.delay_matching": "매칭이 지연되고 있어요",
+  "call.delay_matching_desc": "매칭이 지연되고 있어요. 다시 시도하거나 잠시 후 다시 이용해 주세요.",
+  "call.error_start": "통화를 시작하지 못했습니다. 다시 시도해 주세요.",
+  "call.error_title": "통화 오류",
+  "call.fast_matching_desc": "매칭 인원이 적어 시간이 더 걸리고 있어요. 잠시만 기다려 주세요.",
+  "call.limit_message": "무료 사용자는 최대 {seconds}초까지 이용할 수 있습니다.",
+  "call.limit_premium": "프리미엄으로 계속하기",
+  "call.limit_title": "무료 통화 시간 안내",
+  "call.match_filter_missing": "매칭을 위해 나라/언어/성별을 먼저 설정해 주세요.",
+  "call.match_title": "매칭 설정 필요",
+  "common.ad": "광고",
+  "common.exit": "나가기",
+  "common.retry": "다시 시도",
+  "payment.notice": "결제를 진행하면 스토어 정책에 따라 자동 갱신될 수 있습니다.",
+  "payment.processing": "결제 처리 중...",
+  "profile.plan.monthly": "월간 프리미엄",
+  "profile.plan.premium": "프리미엄",
+  "profile.plan.weekly": "주간 프리미엄",
+  "profile.plan.yearly": "VIP 연간프리미엄",
+  "screen.call": "통화",
+  "screen.dino": "디노 플레이하기",
+  "screen.home": "홈",
+  "screen.profile": "프로필",
+  "setting.country_save_error": "나라 저장에 실패했습니다.",
+  "setting.gender_save_error": "성별 저장에 실패했습니다.",
+  "setting.language_save_error": "언어 저장에 실패했습니다.",
+  "subscription.manage": "구독 관리",
+  "subscription.manage_failed": "구독 관리 화면을 열지 못했습니다.",
+  "subscription.no_offering": "현재 구매 가능한 상품이 없습니다.",
+  "subscription.payment_failed": "결제에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+  "subscription.title": "구독",
+  "dino.score": "점수",
+  "dino.best": "최고",
+  "dino.game_over": "게임 오버",
+  "dino.title": "디노 런",
+  "dino.tap_restart": "탭해서 다시 시작",
+  "dino.tap_start_jump": "탭해서 시작 / 점프",
+  "fortune.title": "오늘의 운세",
+  "fortune.subtitle": "생년월일과 태어난 시를 선택한 뒤 운세를 확인해 보세요. 입력한 정보는 저장되지 않습니다.",
+  "fortune.name_label": "이름",
+  "fortune.name_placeholder": "이름 입력",
+  "fortune.birthdate_label": "생년월일",
+  "fortune.birthhour_label": "태어난 시",
+  "fortune.view_button": "운세 보기",
+  "fortune.loading_title": "마법구슬이 운세를 읽는 중...",
+  "fortune.loading_sub": "잠시만 기다려 주세요",
+  "fortune.matched_title": "매칭되었습니다",
+  "fortune.matched_desc": "운세 화면이 자동으로 닫히고 통화 화면으로 이동합니다.",
+  "fortune.result_title": "오늘의 운세 결과",
+  "fortune.default_name": "당신",
+  "fortune.result_hello": "{name}님의 오늘의 운세입니다.",
+  "fortune.label.overall": "전체 운세",
+  "fortune.label.love": "연애운",
+  "fortune.label.money": "금전운",
+  "fortune.label.work": "일/학업운",
+  "fortune.label.matching": "오늘의 매칭운",
+  "fortune.score_value": "{score}점",
+  "fortune.disclaimer": "이 운세는 오락/참고용이며 실제 미래를 예측하지 않습니다. 중요한 결정은 신중히 하세요.",
+  "fortune.error_name_required": "이름을 입력해 주세요.",
+  "home.runtime_info": "Runtime {runtime} · Update {update}_{users}",
+  "setting.save_handler_missing": "{field} 저장 함수를 찾을 수 없습니다.",
+  "call.camera_preview_failed": "카메라 미리보기를 시작할 수 없습니다.",
+  "profile.footer_copyright": "Designed by Son's Family in 2026.\n© 2026 Coms. All rights reserved.",
+  "currency.krw_suffix": "원",
+  "common.on": "켜짐",
+  "common.off": "꺼짐",
+};
+
+const fortuneOverallEn = [
+  "Today flows smoothly from start to finish.",
+  "Small choices are likely to lead to good outcomes.",
+  "If you avoid overdoing it, satisfaction rises steadily.",
+  "Keeping pace with others helps luck come faster.",
+  "You may get a better response than expected.",
+  "It may start slow, but momentum improves later.",
+  "Tidying up priorities is your lucky point today.",
+  "Something started lightly may grow bigger than expected.",
+  "Today is a good day to decide with confidence.",
+  "Relaxing tension a bit will noticeably lift your condition.",
+];
+
+const fortuneLoveEn = [
+  "Conversations may click and widen mutual understanding.",
+  "Reacting to subtle changes first can warm the mood.",
+  "A softer tone can quickly raise likability.",
+  "A calm pace feels more attractive today.",
+  "A light compliment can brighten the relationship.",
+  "Timing for contact is good, so chats may continue.",
+  "Lower expectations and your satisfaction may increase.",
+  "Short, sincere messages work best today.",
+  "Listening to the other side first is the key point.",
+  "Keeping a comfortable tone helps reduce emotional drain.",
+];
+
+const fortuneMoneyEn = [
+  "Spending control is strong, so balance management feels easier.",
+  "Small saving habits help more than expected.",
+  "Separate needs from wants to boost financial luck.",
+  "Comparing prices one more time is favorable today.",
+  "Even surprise spending should stay manageable.",
+  "If a payment was postponed, recheck priorities first.",
+  "Noting cash flow now makes next choices easier.",
+  "Discount timing and deal luck look decent today.",
+  "Avoid overspending signals to improve financial satisfaction.",
+  "Stable management beats aggressive spending right now.",
+];
+
+const fortuneWorkEn = [
+  "Focus can rise, improving your processing speed.",
+  "Starting from core tasks makes progress easier to feel.",
+  "Splitting work into steps can reduce mistakes.",
+  "Opening collaboration requests early helps things move faster.",
+  "Deadline discipline matters more than perfection today.",
+  "Keeping records now will simplify repeated work later.",
+  "Frequent small completions are efficient today.",
+  "Separating focus and breaks can boost performance.",
+  "Reordering priorities lowers perceived difficulty.",
+  "Asking questions quickly can save significant time.",
+];
+
+const fortuneMatchingEn = [
+  "Matching responses may come relatively quickly today.",
+  "Keeping conditions slightly flexible can raise match probability.",
+  "After early waiting, a better flow may arrive.",
+  "Polishing first-impression elements can improve results.",
+  "Small time-slot adjustments may change outcomes a lot.",
+  "Staying calm can strengthen connection luck later.",
+  "Retry timing luck is fairly good today.",
+  "One more short conversation may help more than rushing judgment.",
+  "Doing activities while waiting can reduce perceived wait time.",
+  "Clear standards help, but avoid narrowing them too much.",
+];
+
+const fortuneOverallKo = [
+  "오늘은 전체 흐름이 매끄럽게 이어지는 날이에요.",
+  "작은 선택이 좋은 결과로 연결될 가능성이 높아요.",
+  "무리하지 않으면 안정적으로 만족도가 올라갑니다.",
+  "주변과 보조를 맞추면 운이 더 빠르게 붙어요.",
+  "계획했던 일에서 예상보다 좋은 반응을 받을 수 있어요.",
+  "초반엔 느려도 후반으로 갈수록 흐름이 좋아집니다.",
+  "정리와 우선순위 조정이 행운 포인트예요.",
+  "가볍게 시작한 일이 의외로 크게 풀릴 수 있어요.",
+  "오늘은 자신감 있게 결정을 내려도 괜찮은 날입니다.",
+  "긴장만 조금 풀면 전체 컨디션이 확실히 올라가요.",
+];
+
+const fortuneLoveKo = [
+  "대화의 결이 잘 맞아 공감대가 넓어질 수 있어요.",
+  "상대의 작은 변화에 먼저 반응하면 분위기가 좋아집니다.",
+  "표현을 조금만 부드럽게 하면 호감이 빠르게 올라가요.",
+  "서두르지 않는 태도가 더 매력적으로 보이는 날입니다.",
+  "가벼운 칭찬 한마디가 관계를 확실히 살려줘요.",
+  "연락 타이밍이 좋아서 대화가 끊기지 않을 수 있어요.",
+  "기대치를 낮추면 오히려 만족도가 높아지는 흐름이에요.",
+  "진심을 짧게 전달하는 방식이 가장 잘 먹힙니다.",
+  "상대의 입장을 먼저 듣는 것이 오늘의 핵심 포인트예요.",
+  "편안한 톤을 유지하면 감정 소모를 크게 줄일 수 있어요.",
+];
+
+const fortuneMoneyKo = [
+  "지출 통제가 잘되는 날이라 잔액 관리가 수월해요.",
+  "작은 절약 습관이 생각보다 크게 도움이 됩니다.",
+  "필요 지출과 욕구 지출을 분리하면 운이 붙어요.",
+  "오늘은 가격 비교를 한 번 더 하는 것이 유리합니다.",
+  "예상 외 지출이 생겨도 회복 가능한 범위에서 정리돼요.",
+  "보류했던 결제가 있다면 우선순위 점검이 필요해요.",
+  "현금 흐름을 메모해 두면 다음 선택이 훨씬 쉬워집니다.",
+  "할인 정보와 타이밍 운이 괜찮게 들어오는 날이에요.",
+  "과소비 신호만 피하면 재정 만족도가 올라갑니다.",
+  "지금은 공격적 소비보다 안정적 관리가 이득인 흐름입니다.",
+];
+
+const fortuneWorkKo = [
+  "집중력이 올라가서 처리 속도가 좋아질 수 있어요.",
+  "핵심 업무부터 정리하면 성과 체감이 분명해집니다.",
+  "단계별로 나누어 진행하면 실수가 크게 줄어요.",
+  "협업 요청을 먼저 열어두면 일이 더 빨리 풀립니다.",
+  "오늘은 완성도보다 마감 준수가 더 중요한 포인트예요.",
+  "기록을 남겨두면 이후 반복 작업이 훨씬 편해져요.",
+  "작은 완료를 자주 만드는 방식이 효율적입니다.",
+  "집중 구간과 휴식 구간을 분리하면 퍼포먼스가 올라가요.",
+  "우선순위 재정렬만으로도 체감 난이도가 낮아집니다.",
+  "질문을 빠르게 하는 쪽이 시간을 크게 절약해 줍니다.",
+];
+
+const fortuneMatchingKo = [
+  "오늘은 매칭 반응이 비교적 빠르게 들어올 수 있어요.",
+  "조건을 살짝 유연하게 두면 연결 확률이 더 올라갑니다.",
+  "초반 대기 후 좋은 흐름이 들어오는 패턴이 강합니다.",
+  "프로필 첫인상 요소를 정리하면 체감이 좋아질 수 있어요.",
+  "시간대를 조금만 조정해도 결과 차이가 크게 날 수 있어요.",
+  "침착하게 이어가면 중반 이후 연결 운이 강해집니다.",
+  "오늘은 재시도 타이밍 운이 괜찮게 붙는 편이에요.",
+  "너무 빠른 판단보다 한 번 더 대화를 이어보는 게 유리해요.",
+  "매칭 대기 중 활동을 병행하면 체감 시간이 줄어듭니다.",
+  "기준을 명확히 하되 지나치게 좁히지 않는 것이 핵심이에요.",
+];
+
+fortuneOverallEn.forEach((v, i) => {
+  missingEn[`fortune.text.overall.${i + 1}`] = v;
+});
+fortuneLoveEn.forEach((v, i) => {
+  missingEn[`fortune.text.love.${i + 1}`] = v;
+});
+fortuneMoneyEn.forEach((v, i) => {
+  missingEn[`fortune.text.money.${i + 1}`] = v;
+});
+fortuneWorkEn.forEach((v, i) => {
+  missingEn[`fortune.text.work.${i + 1}`] = v;
+});
+fortuneMatchingEn.forEach((v, i) => {
+  missingEn[`fortune.text.matching.${i + 1}`] = v;
+});
+
+fortuneOverallKo.forEach((v, i) => {
+  missingKo[`fortune.text.overall.${i + 1}`] = v;
+});
+fortuneLoveKo.forEach((v, i) => {
+  missingKo[`fortune.text.love.${i + 1}`] = v;
+});
+fortuneMoneyKo.forEach((v, i) => {
+  missingKo[`fortune.text.money.${i + 1}`] = v;
+});
+fortuneWorkKo.forEach((v, i) => {
+  missingKo[`fortune.text.work.${i + 1}`] = v;
+});
+fortuneMatchingKo.forEach((v, i) => {
+  missingKo[`fortune.text.matching.${i + 1}`] = v;
+});
+
+const languageNameEn: Record<string, string> = {
+  ko: "Korean",
+  en: "English",
+  ja: "Japanese",
+  zh: "Chinese",
+  es: "Spanish",
+  de: "German",
+  fr: "French",
+  it: "Italian",
+  ru: "Russian",
+};
+
+const languageNameKo: Record<string, string> = {
+  ko: "한국어",
+  en: "영어",
+  ja: "일본어",
+  zh: "중국어",
+  es: "스페인어",
+  de: "독일어",
+  fr: "프랑스어",
+  it: "이탈리아어",
+  ru: "러시아어",
+};
+
+const countryNameEn: Record<string, string> = {
+  kr: "Korea",
+  jp: "Japan",
+  cn: "China",
+  tw: "Taiwan",
+  hk: "Hong Kong",
+  sg: "Singapore",
+  th: "Thailand",
+  vn: "Vietnam",
+  ph: "Philippines",
+  id: "Indonesia",
+  my: "Malaysia",
+  in: "India",
+  us: "United States",
+  ca: "Canada",
+  gb: "United Kingdom",
+  au: "Australia",
+  de: "Germany",
+  fr: "France",
+  ru: "Russia",
+  es: "Spain",
+  it: "Italy",
+  br: "Brazil",
+  mx: "Mexico",
+};
+
+const countryNameKo: Record<string, string> = {
+  kr: "대한민국",
+  jp: "일본",
+  cn: "중국",
+  tw: "대만",
+  hk: "홍콩",
+  sg: "싱가포르",
+  th: "태국",
+  vn: "베트남",
+  ph: "필리핀",
+  id: "인도네시아",
+  my: "말레이시아",
+  in: "인도",
+  us: "미국",
+  ca: "캐나다",
+  gb: "영국",
+  au: "호주",
+  de: "독일",
+  fr: "프랑스",
+  ru: "러시아",
+  es: "스페인",
+  it: "이탈리아",
+  br: "브라질",
+  mx: "멕시코",
+};
+
+Object.entries(languageNameEn).forEach(([code, label]) => {
+  missingEn[`lang.name.${code}`] = label;
+});
+Object.entries(languageNameKo).forEach(([code, label]) => {
+  missingKo[`lang.name.${code}`] = label;
+});
+Object.entries(countryNameEn).forEach(([code, label]) => {
+  missingEn[`country.name.${code}`] = label;
+});
+Object.entries(countryNameKo).forEach(([code, label]) => {
+  missingKo[`country.name.${code}`] = label;
+});
+
+const missingByLang: Record<string, Record<string, string>> = {
+  ko: missingKo,
+  en: missingEn,
+  ja: missingEn,
+  zh: missingEn,
+  es: missingEn,
+  de: missingEn,
+  fr: missingEn,
+  it: missingEn,
+  ru: missingEn,
+};
+
+const translationMap = translations as unknown as Record<string, Record<string, string>>;
+Object.entries(missingByLang).forEach(([lang, dict]) => {
+  translationMap[lang] = { ...(translationMap[lang] || {}), ...dict };
+});

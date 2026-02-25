@@ -3,6 +3,7 @@ import { Animated, Dimensions, Pressable, StyleSheet, Switch, View, Text } from 
 import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 type BeautyPreset = "none" | "warm" | "cool" | "mono";
 
@@ -42,6 +43,7 @@ type ControlKey = "brightness" | "saturation" | "contrast" | "focus";
 
 export default function CallBeautySheet({ visible, onClose, config, defaultConfig, onConfigChange }: Props) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const sheetH = useMemo(() => {
     const h = Dimensions.get("window").height;
@@ -234,7 +236,7 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
           </View>
 
           <View style={styles.toggleWrap}>
-            <Text style={styles.toggleLabel}>{current.enabled ? "ON" : "OFF"}</Text>
+            <Text style={styles.toggleLabel}>{current.enabled ? t("common.on") : t("common.off")}</Text>
             <Switch
               value={Boolean(current.enabled)}
               onValueChange={(v) => update({ enabled: v })}

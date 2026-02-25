@@ -6,12 +6,13 @@ import PrimaryButton from "../components/PrimaryButton";
 import { theme } from "../config/theme";
 import { useAppStore } from "../store/useAppStore";
 import { refreshSubscription } from "../services/purchases/PurchaseManager";
-import { APP_CONFIG, COUNTRY_OPTIONS } from "../config/app";
+import { APP_CONFIG } from "../config/app";
 import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useNavigation } from "@react-navigation/native";
 import * as Updates from "expo-updates";
 import { useTranslation } from "../i18n/LanguageProvider";
+import { COUNTRY_CODES, LANGUAGE_CODES, getCountryName, getLanguageName, normalizeLanguageCode } from "../i18n/displayNames";
 
 
 function toErrMsg(e: unknown) {
@@ -20,55 +21,9 @@ function toErrMsg(e: unknown) {
   return "UNKNOWN_ERROR";
 }
 
-function safeT(t: (key: string, params?: Record<string, any>) => string, key: string, fallback: string, params?: Record<string, any>) {
-  const v = t(key, params);
-  if (!v || v === key) {
-    let text = fallback;
-    if (params) {
-      Object.keys(params).forEach((k) => {
-        text = text.replace(`{${k}}`, String(params[k]));
-      });
-    }
-    return text;
-  }
-  return v;
-}
-
-function getLangDisplayLabel(lang: string, uiLang: string) {
-  const code = String(lang || "").trim().toLowerCase();
-  const ui = String(uiLang || "").trim().toLowerCase();
-
-  const labelsKo: Record<string, string> = {
-    ko: "한국어",
-    en: "영어",
-    ja: "일본어",
-    zh: "중국어",
-    es: "스페인어",
-    de: "독일어",
-    fr: "프랑스어",
-    it: "이탈리아어",
-    ru: "러시아어",
-  };
-
-  const labelsEn: Record<string, string> = {
-    ko: "Korean",
-    en: "English",
-    ja: "Japanese",
-    zh: "Chinese",
-    es: "Spanish",
-    de: "German",
-    fr: "French",
-    it: "Italian",
-    ru: "Russian",
-  };
-
-  const map = ui === "ko" ? labelsKo : labelsEn;
-  return map[code] || code || "-";
-}
-
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
-  const { t, currentLang } = useTranslation();
+  const { t } = useTranslation();
 
   const prefs = useAppStore((s) => s.prefs);
   const sub = useAppStore((s) => s.sub);
@@ -95,24 +50,24 @@ export default function ProfileScreen() {
   const updateCheckedRef = useRef(false);
 
   const countryLabel = useMemo(() => {
-    const c = COUNTRY_OPTIONS.find((x) => x.code === prefs.country);
-    return c?.label ?? safeT(t, "common.hyphen", "-", undefined);
+    const code = String(prefs.country || "").toUpperCase();
+    if (!code) return t("common.hyphen");
+    return getCountryName(t, code);
   }, [prefs.country, t]);
 
   const genderLabel = useMemo(() => {
-    const hy = safeT(t, "common.hyphen", "-", undefined);
-    if (prefs.gender === "male") return safeT(t, "gender.male", "남성", undefined);
-    if (prefs.gender === "female") return safeT(t, "gender.female", "여성", undefined);
+    const hy = t("common.hyphen");
+    if (prefs.gender === "male") return t("gender.male");
+    if (prefs.gender === "female") return t("gender.female");
     return hy;
   }, [prefs.gender, t]);
 
   const languageLabel = useMemo(() => {
-    const hy = safeT(t, "common.hyphen", "-", undefined);
-    const ui = String(currentLang || "ko");
-    const code = String(prefs.language || "").trim().toLowerCase();
+    const hy = t("common.hyphen");
+    const code = normalizeLanguageCode(String(prefs.language || ""));
     if (!code) return hy;
-    return getLangDisplayLabel(code, ui);
-  }, [prefs.language, t, currentLang]);
+    return getLanguageName(t, code);
+  }, [prefs.language, t]);
 
   const currentPlanLabel = useMemo(() => {
     if (!sub?.isPremium) return "";
@@ -133,16 +88,16 @@ export default function ProfileScreen() {
       pid.includes("week") ? "weekly" :
       "";
 
-    if (key === "weekly") return safeT(t, "profile.plan.weekly", "주간 프리미엄", undefined);
-    if (key === "monthly") return safeT(t, "profile.plan.monthly", "월간 프리미엄", undefined);
-    if (key === "yearly") return safeT(t, "profile.plan.yearly", "VIP 연간프리미엄", undefined);
+    if (key === "weekly") return t("profile.plan.weekly");
+    if (key === "monthly") return t("profile.plan.monthly");
+    if (key === "yearly") return t("profile.plan.yearly");
 
-    return safeT(t, "profile.plan.premium", "프리미엄", undefined);
+    return t("profile.plan.premium");
   }, [sub, t]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: () => <AppText style={styles.headerTitle}>{safeT(t, "profile.title", "프로필", undefined)}</AppText>,
+      headerTitle: () => <AppText style={styles.headerTitle}>{t("profile.title")}</AppText>,
       headerTitleAlign: "center",
       animation: "slide_from_left",
       headerLeftContainerStyle: styles.headerLeftContainer,
@@ -186,7 +141,7 @@ export default function ProfileScreen() {
       await Updates.reloadAsync();
     } catch (e) {
       setUpdateBusy(false);
-      showGlobalModal(safeT(t, "modal.update.title", "업데이트", undefined), toErrMsg(e));
+      showGlobalModal(t("modal.update.title"), toErrMsg(e));
     }
   };
 
@@ -213,14 +168,14 @@ export default function ProfileScreen() {
         : POLICY_URLS.operationUrl;
 
     if (!url) {
-      showGlobalModal(safeT(t, "policy.title", "이용약관 및 정책", undefined), safeT(t, "policy.url_missing", "URL이 없습니다.", undefined));
+      showGlobalModal(t("policy.title"), t("policy.url_missing"));
       return;
     }
 
     try {
       await Linking.openURL(url);
     } catch (e) {
-      showGlobalModal(safeT(t, "policy.title", "이용약관 및 정책", undefined), toErrMsg(e));
+      showGlobalModal(t("policy.title"), toErrMsg(e));
     }
   };
 
@@ -242,7 +197,7 @@ export default function ProfileScreen() {
 
       await Linking.openURL(url);
     } catch (e) {
-      showGlobalModal(safeT(t, "profile.manage_subscription", "구독 관리", undefined), toErrMsg(e));
+      showGlobalModal(t("profile.manage_subscription"), toErrMsg(e));
     }
   }, [showGlobalModal, t]);
 
@@ -265,8 +220,8 @@ export default function ProfileScreen() {
       <View style={styles.card}>
         <View style={styles.subHeaderRow}>
           <View style={styles.subHeaderLeft}>
-            <AppText style={styles.h1}>{safeT(t, "profile.subscription_status", "구독 상태", undefined)}</AppText>
-            <AppText style={styles.p}>{sub.isPremium ? safeT(t, "profile.premium_active", "프리미엄 이용 중", undefined) : safeT(t, "profile.free_active", "무료 이용 중", undefined)}</AppText>
+            <AppText style={styles.h1}>{t("profile.subscription_status")}</AppText>
+            <AppText style={styles.p}>{sub.isPremium ? t("profile.premium_active") : t("profile.free_active")}</AppText>
           </View>
 
           {sub.isPremium && currentPlanLabel ? (
@@ -278,9 +233,9 @@ export default function ProfileScreen() {
 
         <View style={{ height: 10 }} />
 
-        {!sub.isPremium ? <PrimaryButton title={safeT(t, "profile.apply_premium", "프리미엄 적용", undefined)} onPress={goPremium} /> : null}
+        {!sub.isPremium ? <PrimaryButton title={t("profile.apply_premium")} onPress={goPremium} /> : null}
         <View style={{ height: 10 }} />
-        <PrimaryButton title={safeT(t, "profile.manage_subscription", "구독 관리", undefined)} onPress={onPressManageSubscriptions} variant="ghost" />
+        <PrimaryButton title={t("profile.manage_subscription")} onPress={onPressManageSubscriptions} variant="ghost" />
         <View style={{ height: 10 }} />
         <PrimaryButton
           title={restoreBusy ? t("profile.restore_subscription_loading") : t("profile.restore_subscription")}
@@ -291,18 +246,18 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <AppText style={styles.h1}>{safeT(t, "profile.language_section", "언어", undefined)}</AppText>
-        <AppText style={styles.p}>{safeT(t, "profile.current_language", "현재 언어: {language}", { language: languageLabel })}</AppText>
+        <AppText style={styles.h1}>{t("profile.language_section")}</AppText>
+        <AppText style={styles.p}>{t("profile.current_language", { language: languageLabel })}</AppText>
 
         <View style={{ height: 14 }} />
 
-        <PrimaryButton title={safeT(t, "profile.change_language", "언어 변경", undefined)} onPress={() => setLangModal(true)} variant="ghost" />
+        <PrimaryButton title={t("profile.change_language")} onPress={() => setLangModal(true)} variant="ghost" />
       </View>
 
       <View style={styles.card}>
-        <PrimaryButton title={safeT(t, "profile.terms_and_policies", "이용약관 및 정책", undefined)} onPress={() => setPolicyModal(true)} variant="ghost" />
+        <PrimaryButton title={t("profile.terms_and_policies")} onPress={() => setPolicyModal(true)} variant="ghost" />
         <View style={{ height: 10 }} />
-        <OutlineDangerButton title={safeT(t, "profile.withdraw", "회원탈퇴", undefined)} onPress={() => setWithdrawModal(true)} />
+        <OutlineDangerButton title={t("profile.withdraw")} onPress={() => setWithdrawModal(true)} />
       </View>
 
       <PrefsModal
@@ -326,7 +281,7 @@ export default function ProfileScreen() {
 
       <AppModal
         visible={updateModal}
-        title={safeT(t, "modal.update.title", "업데이트", undefined)}
+        title={t("modal.update.title")}
         onClose={() => {
           if (updateBusy) return;
           setUpdateModal(false);
@@ -335,35 +290,35 @@ export default function ProfileScreen() {
         footer={
           <View style={{ gap: 10 }}>
             <PrimaryButton
-              title={updateBusy ? safeT(t, "modal.update.applying", "적용 중...", undefined) : safeT(t, "modal.update.apply", "지금 적용", undefined)}
+              title={updateBusy ? t("modal.update.applying") : t("modal.update.apply")}
               onPress={doApplyUpdate}
               disabled={updateBusy}
             />
-            <PrimaryButton title={safeT(t, "modal.update.later", "나중에", undefined)} onPress={() => setUpdateModal(false)} variant="ghost" disabled={updateBusy} />
+            <PrimaryButton title={t("modal.update.later")} onPress={() => setUpdateModal(false)} variant="ghost" disabled={updateBusy} />
           </View>
         }
       >
-        <AppText style={styles.p}>{safeT(t, "modal.update.body", "업데이트가 있습니다.", undefined)}</AppText>
+        <AppText style={styles.p}>{t("modal.update.body")}</AppText>
       </AppModal>
 
       <AppModal
         visible={withdrawModal}
-        title={safeT(t, "modal.withdraw.title", "회원탈퇴", undefined)}
+        title={t("modal.withdraw.title")}
         onClose={() => setWithdrawModal(false)}
         dismissible={true}
         footer={
           <View style={{ gap: 10 }}>
-            <PrimaryButton title={safeT(t, "modal.withdraw.confirm", "탈퇴하기", undefined)} onPress={doWithdraw} variant="danger" />
-            <PrimaryButton title={safeT(t, "modal.withdraw.cancel", "취소", undefined)} onPress={() => setWithdrawModal(false)} variant="ghost" />
+            <PrimaryButton title={t("modal.withdraw.confirm")} onPress={doWithdraw} variant="danger" />
+            <PrimaryButton title={t("modal.withdraw.cancel")} onPress={() => setWithdrawModal(false)} variant="ghost" />
           </View>
         }
       >
-        <AppText style={styles.p}>{safeT(t, "modal.withdraw.body", "정말 탈퇴하시겠습니까?", undefined)}</AppText>
+        <AppText style={styles.p}>{t("modal.withdraw.body")}</AppText>
       </AppModal>
 
       <View style={{ width: "100%", alignItems: "center", paddingTop: 8, paddingBottom: 2 }}>
         <AppText style={{ fontSize: 11, color: "#999", textAlign: "center" }}>
-          {"Designed by Son's Family in 2026.\n© 2026 Coms. All rights reserved."}
+          {t("profile.footer_copyright")}
         </AppText>
       </View>
     </ScrollView>
@@ -385,7 +340,7 @@ function PrefsModal({
   countryLabel: string;
   genderLabel: string;
 }) {
-  const { t, currentLang } = useTranslation();
+  const { t } = useTranslation();
   const showGlobalModal = useAppStore((s: any) => s.showGlobalModal);
 
   const fontScale = useAppStore((s: any) => s.ui.fontScale);
@@ -412,12 +367,6 @@ function PrefsModal({
     return String.fromCodePoint(A + (c1 - 65), A + (c2 - 65));
   }, []);
 
-  const normalizeLang = useCallback((v: string) => {
-    const code = String(v || "").trim().toLowerCase();
-    if (code === "kr") return "ko";
-    return code;
-  }, []);
-
   const setLanguage = useCallback((lang: string) => {
     if (typeof setPrefs === "function") setPrefs({ language: lang });
     else showGlobalModal(t("setting.title"), t("setting.language_save_error"));
@@ -433,46 +382,15 @@ function PrefsModal({
     else showGlobalModal(t("setting.title"), t("setting.gender_save_error"));
   }, [setPrefs, showGlobalModal, t]);
 
-  const languageOptions = useMemo(() => {
-    const ui = String(currentLang || "ko");
-    return [
-      { key: "ko", label: getLangDisplayLabel("ko", ui) },
-      { key: "en", label: getLangDisplayLabel("en", ui) },
-      { key: "ja", label: getLangDisplayLabel("ja", ui) },
-      { key: "zh", label: getLangDisplayLabel("zh", ui) },
-      { key: "es", label: getLangDisplayLabel("es", ui) },
-      { key: "de", label: getLangDisplayLabel("de", ui) },
-      { key: "fr", label: getLangDisplayLabel("fr", ui) },
-      { key: "it", label: getLangDisplayLabel("it", ui) },
-      { key: "ru", label: getLangDisplayLabel("ru", ui) },
-    ];
-  }, [currentLang]);
+  const languageOptions = useMemo(
+    () => LANGUAGE_CODES.map((code) => ({ key: code, label: getLanguageName(t, code) })),
+    [t]
+  );
 
-  const countryOptions = useMemo(() => [
-    { key: "KR", name: "Korea" },
-    { key: "JP", name: "Japan" },
-    { key: "CN", name: "China" },
-    { key: "TW", name: "Taiwan" },
-    { key: "HK", name: "Hong Kong" },
-    { key: "SG", name: "Singapore" },
-    { key: "TH", name: "Thailand" },
-    { key: "VN", name: "Vietnam" },
-    { key: "PH", name: "Philippines" },
-    { key: "ID", name: "Indonesia" },
-    { key: "MY", name: "Malaysia" },
-    { key: "IN", name: "India" },
-    { key: "US", name: "United States" },
-    { key: "CA", name: "Canada" },
-    { key: "GB", name: "United Kingdom" },
-    { key: "AU", name: "Australia" },
-    { key: "DE", name: "Germany" },
-    { key: "FR", name: "France" },
-    { key: "RU", name: "Russia" },
-    { key: "ES", name: "Spain" },
-    { key: "IT", name: "Italy" },
-    { key: "BR", name: "Brazil" },
-    { key: "MX", name: "Mexico" },
-  ], []);
+  const countryOptions = useMemo(
+    () => COUNTRY_CODES.map((code) => ({ key: code, name: getCountryName(t, code) })),
+    [t]
+  );
 
   const genderOptions = useMemo(() => [
     { key: "male", label: t("gender.male") },
@@ -480,10 +398,10 @@ function PrefsModal({
   ], [t]);
 
   const currentLanguageLabel = useMemo(() => {
-    const cur = normalizeLang(String(prefs.language || ""));
+    const cur = normalizeLanguageCode(String(prefs.language || ""));
     const found = languageOptions.find((x) => x.key === cur);
     return found ? found.label : cur || t("common.not_set");
-  }, [languageOptions, normalizeLang, prefs.language, t]);
+  }, [languageOptions, prefs.language, t]);
 
   const currentCountryDisplay = useMemo(() => {
     const cur = String(prefs.country || "").toUpperCase();
@@ -501,7 +419,7 @@ function PrefsModal({
     return found ? found.label : cur || t("common.not_set");
   }, [genderOptions, prefs.gender, t]);
 
-  const activeLang = normalizeLang(String(prefs.language || ""));
+  const activeLang = normalizeLanguageCode(String(prefs.language || ""));
 
   return (
     <AppModal
@@ -623,7 +541,7 @@ function LanguageModal({
   prefs: any;
   setPrefs: (p: any) => void;
 }) {
-  const { t, currentLang } = useTranslation();
+  const { t } = useTranslation();
   const [language, setLanguage] = useState(prefs.language);
 
   useEffect(() => {
@@ -637,35 +555,24 @@ function LanguageModal({
     onClose();
   };
 
-  const ui = String(currentLang || "ko");
-  const languageOptions = [
-    { key: "ko", label: getLangDisplayLabel("ko", ui) },
-    { key: "en", label: getLangDisplayLabel("en", ui) },
-    { key: "ja", label: getLangDisplayLabel("ja", ui) },
-    { key: "zh", label: getLangDisplayLabel("zh", ui) },
-    { key: "es", label: getLangDisplayLabel("es", ui) },
-    { key: "de", label: getLangDisplayLabel("de", ui) },
-    { key: "fr", label: getLangDisplayLabel("fr", ui) },
-    { key: "it", label: getLangDisplayLabel("it", ui) },
-    { key: "ru", label: getLangDisplayLabel("ru", ui) },
-  ];
+  const languageOptions = LANGUAGE_CODES.map((code) => ({ key: code, label: getLanguageName(t, code) }));
 
   return (
     <AppModal
       visible={visible}
-      title={safeT(t, "modal.lang.title", "언어 변경", undefined)}
+      title={t("modal.lang.title")}
       onClose={onClose}
       dismissible={true}
       footer={
         <View style={{ gap: 10 }}>
-          <PrimaryButton title={safeT(t, "common.save", "저장", undefined)} onPress={save} disabled={!language} />
+          <PrimaryButton title={t("common.save")} onPress={save} disabled={!language} />
         </View>
       }
     >
-      <AppText style={styles.p}>{safeT(t, "modal.lang.body", "표시 언어를 선택하세요.", undefined)}</AppText>
+      <AppText style={styles.p}>{t("modal.lang.body")}</AppText>
 
       <View style={styles.pickerGroup}>
-        <AppText style={styles.pickerTitle}>{safeT(t, "prefs.language_title", "언어", undefined)}</AppText>
+        <AppText style={styles.pickerTitle}>{t("prefs.language_title")}</AppText>
         <View style={styles.langGrid}>
           {languageOptions.map((opt) => {
             const active = language === opt.key;
@@ -702,24 +609,24 @@ function PolicyModal({
   return (
     <AppModal
       visible={visible}
-      title={safeT(t, "modal.policy.title", "이용약관 및 정책", undefined)}
+      title={t("modal.policy.title")}
       onClose={onClose}
       dismissible={true}
       footer={
         <View style={{ gap: 10 }}>
-          <PrimaryButton title={safeT(t, "common.close", "닫기", undefined)} onPress={onClose} variant="ghost" />
+          <PrimaryButton title={t("common.close")} onPress={onClose} variant="ghost" />
         </View>
       }
     >
       <View style={{ gap: 10, width: "100%" }}>
         <View style={{ width: "100%" }}>
-          <PrimaryButton title={safeT(t, "modal.policy.terms", "이용약관", undefined)} onPress={onPressTerms} variant="ghost" />
+          <PrimaryButton title={t("modal.policy.terms")} onPress={onPressTerms} variant="ghost" />
         </View>
         <View style={{ width: "100%" }}>
-          <PrimaryButton title={safeT(t, "modal.policy.privacy", "개인정보 처리방침", undefined)} onPress={onPressPrivacy} variant="ghost" />
+          <PrimaryButton title={t("modal.policy.privacy")} onPress={onPressPrivacy} variant="ghost" />
         </View>
         <View style={{ width: "100%" }}>
-          <PrimaryButton title={safeT(t, "modal.policy.operation", "운영정책", undefined)} onPress={onPressOperation} variant="ghost" />
+          <PrimaryButton title={t("modal.policy.operation")} onPress={onPressOperation} variant="ghost" />
         </View>
       </View>
     </AppModal>

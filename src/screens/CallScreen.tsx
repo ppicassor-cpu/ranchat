@@ -1,8 +1,9 @@
 ﻿// FILE: C:\ranchat\src\screens\CallScreen.tsx
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { ActivityIndicator, StyleSheet, View, Pressable, Dimensions, ScrollView, Text, BackHandler, NativeModules } from "react-native";
-import { RTCView } from "react-native-webrtc";
+import { RTCView, mediaDevices } from "react-native-webrtc";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AppModal from "../components/AppModal";
@@ -21,7 +22,9 @@ import AppText from "../components/AppText";
 import FontSizeSlider from "../components/FontSizeSlider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "../i18n/LanguageProvider";
+import { COUNTRY_CODES, LANGUAGE_CODES, getCountryName, getLanguageName, normalizeLanguageCode } from "../i18n/displayNames";
 import CallBeautySheet, { BeautyConfig } from "./CallBeautySheet";
+import MatchingWaitActionsModal from "../components/MatchingWaitActionsModal";
 
 type Props = NativeStackScreenProps<MainStackParamList, "Call">;
 
@@ -43,6 +46,7 @@ const FREE_CALL_LIMIT_MS = (() => {
 })();
 
 const INTERSTITIAL_COOLDOWN_MS = 4 * 60 * 1000;
+const MATCHING_ACTIONS_DELAY_MS = 7500;
 
 function countryCodeToFlagEmoji(code: string) {
   const cc = String(code || "").trim().toUpperCase();
@@ -52,37 +56,6 @@ function countryCodeToFlagEmoji(code: string) {
   const c2 = cc.charCodeAt(1) - 65;
   if (c1 < 0 || c1 > 25 || c2 < 0 || c2 > 25) return "";
   return String.fromCodePoint(A + c1, A + c2);
-}
-
-function normalizeLanguageLabel(v: string, uiLang: string) {
-  const s = String(v || "").trim();
-  const lower = s.toLowerCase();
-  if (!s) return "";
-
-  const code = (() => {
-    if (lower === "ko" || lower === "kor" || lower === "korean") return "ko";
-    if (lower === "en" || lower === "eng" || lower === "english") return "en";
-    if (lower === "ja" || lower === "jpn" || lower === "japanese") return "ja";
-    if (lower === "zh" || lower === "chi" || lower === "chinese") return "zh";
-    return lower;
-  })();
-
-  const u = String(uiLang || "").trim().toLowerCase();
-
-  const MAP: Record<string, Record<string, string>> = {
-    ko: { ko: "한국어", en: "영어", ja: "일본어", zh: "중국어", es: "스페인어", de: "독일어", fr: "프랑스어", it: "이탈리아어", ru: "러시아어" },
-    en: { ko: "Korean", en: "English", ja: "Japanese", zh: "Chinese", es: "Spanish", de: "German", fr: "French", it: "Italian", ru: "Russian" },
-    ja: { ko: "韓国語", en: "英語", ja: "日本語", zh: "中国語", es: "スペイン語", de: "ドイツ語", fr: "フランス語", it: "イタリア語", ru: "ロシア語" },
-    zh: { ko: "韩语", en: "英语", ja: "日语", zh: "中文", es: "西班牙语", de: "德语", fr: "法语", it: "意大利语", ru: "俄语" },
-    es: { ko: "Coreano", en: "Inglés", ja: "Japonés", zh: "Chino", es: "Español", de: "Alemán", fr: "Francés", it: "Italiano", ru: "Ruso" },
-    de: { ko: "Koreanisch", en: "Englisch", ja: "Japanisch", zh: "Chinesisch", es: "Spanisch", de: "Deutsch", fr: "Französisch", it: "Italienisch", ru: "Russisch" },
-    fr: { ko: "Coréen", en: "Anglais", ja: "Japonais", zh: "Chinois", es: "Espagnol", de: "Allemand", fr: "Français", it: "Italien", ru: "Russe" },
-    it: { ko: "Coreano", en: "Inglese", ja: "Giapponese", zh: "Cinese", es: "Spagnolo", de: "Tedesco", fr: "Francese", it: "Italiano", ru: "Russo" },
-    ru: { ko: "Корейский", en: "Английский", ja: "Японский", zh: "Китайский", es: "Испанский", de: "Немецкий", fr: "Французский", it: "Итальянский", ru: "Русский" },
-  };
-
-  const dict = MAP[u] || MAP.en;
-  return dict[code] || s;
 }
 
 const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").trim() || "ca-app-pub-5144004139813427/8416045900";
@@ -139,7 +112,7 @@ function QueueNativeAd256x144() {
 export default function CallScreen({ navigation }: Props) {
 
   const insets = useSafeAreaInsets();
-  const { t, currentLang } = useTranslation();
+  const { t } = useTranslation();
 
   const prefs = useAppStore((s) => s.prefs);
   const token = useAppStore((s) => s.auth.token);
@@ -148,6 +121,8 @@ export default function CallScreen({ navigation }: Props) {
 
   const fontScale = useAppStore((s: any) => s.ui.fontScale);
   const setFontScale = useAppStore((s: any) => s.setFontScale);
+  const hideMatchingActionsModal = useAppStore((s: any) => Boolean(s.ui?.hideMatchingActionsModal));
+  const setHideMatchingActionsModal = useAppStore((s: any) => s.setHideMatchingActionsModal);
 
   const [phase, setPhase] = useState<Phase>("connecting");
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -169,6 +144,7 @@ export default function CallScreen({ navigation }: Props) {
   const [upgradeModal, setUpgradeModal] = useState(false);
   const [noMatchModal, setNoMatchModal] = useState(false);
   const [fastMatchHint, setFastMatchHint] = useState(false);
+  const [matchingActionsVisible, setMatchingActionsVisible] = useState(false);
 
   const [reMatchText, setReMatchText] = useState<string>("");
 
@@ -176,7 +152,6 @@ export default function CallScreen({ navigation }: Props) {
 
   const [beautyOpen, setBeautyOpen] = useState(false);
   const openBeauty = useCallback(() => setBeautyOpen(true), []);
-  const closeBeauty = useCallback(() => setBeautyOpen(false), []);
 
   const [beautyConfig, setBeautyConfig] = useState<BeautyConfig>({
     enabled: false,
@@ -264,6 +239,8 @@ export default function CallScreen({ navigation }: Props) {
   const wsRef = useRef<SignalClient | null>(null);
   const rtcRef = useRef<WebRTCSession | null>(null);
   const localStreamRef = useRef<any>(null);
+  const previewStreamRef = useRef<any>(null);
+  const previewOpeningRef = useRef(false);
   const remoteStreamRef = useRef<any>(null);
   const limitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -280,6 +257,7 @@ export default function CallScreen({ navigation }: Props) {
   const rebindOnceRef = useRef(false);
 
   const noMatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const matchingActionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requeueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const premiumNoMatchAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -299,6 +277,7 @@ export default function CallScreen({ navigation }: Props) {
 
   const [peerInfo, setPeerInfo] = useState<any>(null);
 
+  const beautyOpenRef = useRef(false);
   const phaseRef = useRef<Phase>("connecting");
   const roomIdRef = useRef<string | null>(null);
   const myCamOnRef = useRef<boolean>(true);
@@ -375,8 +354,8 @@ export default function CallScreen({ navigation }: Props) {
     return direct || countryCodeToFlagEmoji(peerCountryRaw);
   }, [peerInfo, peerCountryRaw]);
   const peerLangLabel = useMemo(() => {
-    return normalizeLanguageLabel(peerLangRaw, String(currentLang || ""));
-  }, [peerLangRaw, currentLang]);
+    return getLanguageName(t, peerLangRaw);
+  }, [peerLangRaw, t]);
   const peerGenderRaw = useMemo(() => String((peerInfo as any)?.gender ?? ""), [peerInfo]);
   const peerGenderLabel = useMemo(() => {
     const g = String(peerGenderRaw || "").trim().toLowerCase();
@@ -402,7 +381,7 @@ export default function CallScreen({ navigation }: Props) {
   const myCountryRaw = useMemo(() => String((prefs as any)?.country ?? ""), [prefs]);
   const myLangRaw = useMemo(() => String((prefs as any)?.language ?? (prefs as any)?.lang ?? ""), [prefs]);
   const myFlag = useMemo(() => countryCodeToFlagEmoji(myCountryRaw), [myCountryRaw]);
-  const myLangLabel = useMemo(() => normalizeLanguageLabel(myLangRaw, String(currentLang || "")), [myLangRaw, currentLang]);
+  const myLangLabel = useMemo(() => getLanguageName(t, myLangRaw), [myLangRaw, t]);
   const myGenderRaw = useMemo(() => String((prefs as any)?.gender ?? ""), [prefs]);
   const myGenderLabel = useMemo(() => {
     const g = String(myGenderRaw || "").trim().toLowerCase();
@@ -450,6 +429,37 @@ export default function CallScreen({ navigation }: Props) {
     remoteMutedRef.current = remoteMuted;
   }, [remoteMuted]);
 
+  useEffect(() => {
+    beautyOpenRef.current = beautyOpen;
+  }, [beautyOpen]);
+
+  useEffect(() => {
+    if (beautyOpen) {
+      clearMatchingActionsTimer();
+      setMatchingActionsVisible(false);
+      return;
+    }
+
+    if (phase === "connecting" || phase === "queued") {
+      startMatchingActionsTimer();
+      return;
+    }
+
+    clearMatchingActionsTimer();
+  }, [beautyOpen, phase]);
+
+  useEffect(() => {
+    if (hideMatchingActionsModal) {
+      clearMatchingActionsTimer();
+      setMatchingActionsVisible(false);
+      return;
+    }
+
+    if (!beautyOpen && (phase === "connecting" || phase === "queued")) {
+      startMatchingActionsTimer();
+    }
+  }, [hideMatchingActionsModal, beautyOpen, phase]);
+
 
   useEffect(() => {
     adsAliveRef.current = true;
@@ -458,6 +468,36 @@ export default function CallScreen({ navigation }: Props) {
       adsAliveRef.current = false;
     };
   }, [waitAdsReady]);
+
+  const clearMatchingActionsTimer = () => {
+    if (matchingActionsTimerRef.current) clearTimeout(matchingActionsTimerRef.current);
+    matchingActionsTimerRef.current = null;
+  };
+
+  const startMatchingActionsTimer = () => {
+    clearMatchingActionsTimer();
+    setMatchingActionsVisible(false);
+    if (hideMatchingActionsModal) return;
+    matchingActionsTimerRef.current = setTimeout(() => {
+      if (hideMatchingActionsModal) return;
+      if (!queueRunningRef.current) return;
+      if (phaseRef.current !== "connecting" && phaseRef.current !== "queued") return;
+      if (roomIdRef.current) return;
+      if (beautyOpenRef.current) return;
+      setMatchingActionsVisible(true);
+    }, MATCHING_ACTIONS_DELAY_MS);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hideMatchingActionsModal) return;
+      if (beautyOpenRef.current) return;
+      if (phaseRef.current !== "connecting" && phaseRef.current !== "queued") return;
+      if (roomIdRef.current) return;
+      if (!queueRunningRef.current) return;
+      startMatchingActionsTimer();
+    }, [hideMatchingActionsModal])
+  );
 
   const startNoMatchTimer = () => {
     if (!queueRunningRef.current) return;
@@ -473,6 +513,7 @@ export default function CallScreen({ navigation }: Props) {
 
       if (isPremium) {
         setFastMatchHint(true);
+        setMatchingActionsVisible(false);
         setNoMatchModal(true);
 
         if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
@@ -495,6 +536,7 @@ export default function CallScreen({ navigation }: Props) {
       } catch {}
       wsRef.current = null;
 
+      setMatchingActionsVisible(false);
       setNoMatchModal(true);
     }, MATCH_TIMEOUT_MS);
   };
@@ -507,13 +549,79 @@ export default function CallScreen({ navigation }: Props) {
     premiumNoMatchAutoCloseRef.current = null;
   };
 
-  const tf = useCallback(
-    (key: string, fallback: string, params?: Record<string, any>) => {
-      const text = String(t(key, params) ?? "");
-      return text && text !== key ? text : fallback;
-    },
-    [t]
-  );
+  const clearLocalPreviewStream = useCallback(() => {
+    const s: any = previewStreamRef.current;
+    if (!s) return;
+
+    try {
+      (s as any)?.getTracks?.()?.forEach((t: any) => t?.stop?.());
+    } catch {}
+
+    previewStreamRef.current = null;
+    if (localStreamRef.current === s) localStreamRef.current = null;
+
+    if (phaseRef.current !== "calling") {
+      setLocalStreamURL(null);
+    }
+  }, []);
+
+  const ensureLocalPreviewStream = useCallback(async () => {
+    if (phaseRef.current === "calling") return true;
+
+    const existing = previewStreamRef.current;
+    if (existing) {
+      localStreamRef.current = existing;
+      try {
+        setLocalStreamURL(existing.toURL());
+      } catch {}
+      return true;
+    }
+
+    if (previewOpeningRef.current) return false;
+    previewOpeningRef.current = true;
+
+    try {
+      let stream: any = null;
+      try {
+        stream = await mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: "user",
+            frameRate: { ideal: 24, max: 24 },
+            width: { ideal: 720, max: 720 },
+            height: { ideal: 540, max: 540 },
+          },
+        } as any);
+      } catch {
+        stream = await mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: "user",
+            frameRate: { ideal: 20, max: 20 },
+            width: { ideal: 640, max: 640 },
+            height: { ideal: 480, max: 480 },
+          },
+        } as any);
+      }
+
+      previewStreamRef.current = stream;
+      localStreamRef.current = stream;
+      setLocalStreamURL(stream.toURL());
+      return true;
+    } catch {
+      showGlobalModal(t("common.error_occurred"), t("call.camera_preview_failed"));
+      return false;
+    } finally {
+      previewOpeningRef.current = false;
+    }
+  }, [showGlobalModal, t]);
+
+  const closeBeauty = useCallback(() => {
+    setBeautyOpen(false);
+    if (phaseRef.current !== "calling") {
+      clearLocalPreviewStream();
+    }
+  }, [clearLocalPreviewStream]);
 
   const clearReconnectTimer = () => {
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -550,6 +658,10 @@ export default function CallScreen({ navigation }: Props) {
     requeueTimerRef.current = null;
 
     clearNoMatchTimer();
+    clearMatchingActionsTimer();
+    setMatchingActionsVisible(false);
+    clearLocalPreviewStream();
+    setBeautyOpen(false);
 
     clearReconnectTimer();
     clearWebrtcDownTimer();
@@ -765,6 +877,8 @@ export default function CallScreen({ navigation }: Props) {
     callStartTokenRef.current = tokenNow;
 
     try {
+      clearLocalPreviewStream();
+
       const rtc = new WebRTCSession({
         onLocalStream: (s) => {
           if (queueTokenRef.current !== qTok) return;
@@ -1005,8 +1119,10 @@ const startQueue = () => {
 
   setAuthBooting(false);
 
+  setMatchingActionsVisible(false);
   setNoMatchModal(false);
   setPhase("connecting");
+  startMatchingActionsTimer();
 
   const ws = new SignalClient({
     onOpen: () => {
@@ -1067,6 +1183,7 @@ const startQueue = () => {
   if (msg.type === "queued") {
     if (phaseRef.current === "matched" || phaseRef.current === "calling") return;
     setPhase("queued");
+    startMatchingActionsTimer();
     startNoMatchTimer();
     return;
   }
@@ -1083,10 +1200,17 @@ const startQueue = () => {
     }
 
     clearNoMatchTimer();
+    clearMatchingActionsTimer();
+    setMatchingActionsVisible(false);
+    clearLocalPreviewStream();
+    setBeautyOpen(false);
     setNoMatchModal(false);
     setFastMatchHint(false);
     setReMatchText("");
     setPhase("matched");
+    try {
+      useAppStore.getState().setCallMatchedSignal(Date.now());
+    } catch {}
     queueRunningRef.current = false;
     enqueuedRef.current = false;
     setRoomId(rid);
@@ -1263,6 +1387,7 @@ const startQueue = () => {
   };
 
   const retry = () => {
+    setMatchingActionsVisible(false);
     setNoMatchModal(false);
     endCallAndRequeue("disconnect");
   };
@@ -1272,6 +1397,40 @@ const startQueue = () => {
     premiumNoMatchAutoCloseRef.current = null;
     setNoMatchModal(false);
   };
+
+  const dismissMatchingActions = useCallback(() => {
+    setMatchingActionsVisible(false);
+    if (hideMatchingActionsModal) {
+      clearMatchingActionsTimer();
+      return;
+    }
+    if (!beautyOpenRef.current && (phaseRef.current === "connecting" || phaseRef.current === "queued")) {
+      startMatchingActionsTimer();
+    }
+  }, [hideMatchingActionsModal]);
+
+  const toggleHideMatchingActions = useCallback(() => {
+    setHideMatchingActionsModal(!hideMatchingActionsModal);
+  }, [hideMatchingActionsModal, setHideMatchingActionsModal]);
+
+  const onPressMatchingBeauty = useCallback(async () => {
+    clearMatchingActionsTimer();
+    setMatchingActionsVisible(false);
+    setMyCamOn(true);
+    const ok = await ensureLocalPreviewStream();
+    if (!ok) return;
+    openBeauty();
+  }, [clearMatchingActionsTimer, ensureLocalPreviewStream, openBeauty]);
+
+  const onPressMatchingFortune = useCallback(() => {
+    setMatchingActionsVisible(false);
+    navigation.navigate("Fortune");
+  }, [navigation]);
+
+  const onPressMatchingGame = useCallback(() => {
+    setMatchingActionsVisible(false);
+    navigation.navigate("Dino");
+  }, [navigation]);
 
   const onPressFindOther = () => {
     adAllowedRef.current = true;
@@ -1299,47 +1458,18 @@ const startQueue = () => {
     } else if (typeof setPrefsField === "function") {
       setPrefsField(field, value);
     } else {
-      showGlobalModal(t("common.settings"), `${field} 저장 함수가 스토어에 없습니다. (setPrefs/setPref/setPrefsField)`);
+      showGlobalModal(t("common.settings"), t("setting.save_handler_missing", { field }));
     }
   }, [showGlobalModal, t]);
 
   const languageOptions = useMemo(
-    () => [
-      { key: "ko", label: "한국어" },
-      { key: "en", label: "English" },
-      { key: "ja", label: "日本語" },
-      { key: "zh", label: "中文" },
-      { key: "es", label: "Español" },
-    ],
-    []
+    () => LANGUAGE_CODES.map((code) => ({ key: code, label: getLanguageName(t, code) })),
+    [t]
   );
 
   const countryOptions = useMemo(
-    () => [
-      { key: "KR", name: "Korea" },
-      { key: "US", name: "United States" },
-      { key: "JP", name: "Japan" },
-      { key: "CN", name: "China" },
-      { key: "TW", name: "Taiwan" },
-      { key: "HK", name: "Hong Kong" },
-      { key: "SG", name: "Singapore" },
-      { key: "TH", name: "Thailand" },
-      { key: "VN", name: "Vietnam" },
-      { key: "PH", name: "Philippines" },
-      { key: "ID", name: "Indonesia" },
-      { key: "MY", name: "Malaysia" },
-      { key: "IN", name: "India" },
-      { key: "AU", name: "Australia" },
-      { key: "CA", name: "Canada" },
-      { key: "GB", name: "United Kingdom" },
-      { key: "DE", name: "Germany" },
-      { key: "FR", name: "France" },
-      { key: "ES", name: "Spain" },
-      { key: "IT", name: "Italy" },
-      { key: "BR", name: "Brazil" },
-      { key: "MX", name: "Mexico" },
-    ],
-    []
+    () => COUNTRY_CODES.map((code) => ({ key: code, name: getCountryName(t, code) })),
+    [t]
   );
 
   const genderOptions = useMemo(
@@ -1351,7 +1481,7 @@ const startQueue = () => {
   );
 
   const currentLanguageLabel = useMemo(() => {
-    const cur = String((prefs as any)?.language || "");
+    const cur = normalizeLanguageCode(String((prefs as any)?.language || ""));
     const found = languageOptions.find((x) => x.key === cur);
     return found ? found.label : cur || t("common.not_set");
   }, [languageOptions, prefs, t]);
@@ -1390,7 +1520,7 @@ const startQueue = () => {
                 ]}
               >
                 <View style={styles.localArea}>
-                  {localStreamURL && phase === "calling" ? (
+                  {localStreamURL && (phase === "calling" || beautyOpen) ? (
                     myCamOn ? (
                       <View style={styles.localViewport} collapsable={false}>
                         <View style={styles.localVideoMover} collapsable={false}>
@@ -1572,32 +1702,49 @@ const startQueue = () => {
 
       <AppModal
         visible={noMatchModal}
-        title={isPremium ? tf("call.fast_matching", "빠른 매칭 중...") : tf("call.delay_matching", "매칭이 지연되고 있어요")}
+        title={isPremium ? t("call.fast_matching") : t("call.delay_matching")}
         dismissible={true}
         onClose={dismissNoMatch}
         footer={
           isPremium ? (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title={tf("common.exit", "나가기")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+              <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title={tf("common.retry", "다시 시도")} onPress={retry} />
-              <PrimaryButton title={tf("common.exit", "나가기")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+              <PrimaryButton title={t("common.retry")} onPress={retry} />
+              <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
             </View>
           )
         }
       >
         {isPremium ? (
           <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-            {tf("call.fast_matching_desc", "매칭 인원이 적어 시간이 더 걸리고 있어요. 잠시만 기다려 주세요.")}
+            {t("call.fast_matching_desc")}
           </AppText>
         ) : (
           <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-            {tf("call.delay_matching_desc", "매칭이 지연되고 있어요. 다시 시도하거나 잠시 후 다시 이용해 주세요.")}
+            {t("call.delay_matching_desc")}
           </AppText>
         )}
       </AppModal>
+
+      <MatchingWaitActionsModal
+        visible={matchingActionsVisible}
+        title={t("call.waiting_actions_title")}
+        description={t("call.waiting_actions_desc")}
+        beautyLabel={t("call.waiting_actions_beauty")}
+        fortuneLabel={t("call.waiting_actions_fortune")}
+        gameLabel={t("call.waiting_actions_game")}
+        doNotShowLabel={t("call.waiting_actions_do_not_show")}
+        doNotShowChecked={hideMatchingActionsModal}
+        onToggleDoNotShow={toggleHideMatchingActions}
+        closeLabel={t("common.close")}
+        onPressBeauty={onPressMatchingBeauty}
+        onPressFortune={onPressMatchingFortune}
+        onPressGame={onPressMatchingGame}
+        onClose={dismissMatchingActions}
+      />
 
       <AppModal
         visible={prefsModal}
@@ -1688,7 +1835,7 @@ const startQueue = () => {
         {langOpen ? (
           <View style={styles.dropdownList}>
             {languageOptions.map((opt) => {
-              const active = String((prefs as any)?.language || "") === opt.key;
+              const active = normalizeLanguageCode(String((prefs as any)?.language || "")) === opt.key;
               return (
                 <Pressable
                   key={opt.key}
