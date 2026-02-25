@@ -110,13 +110,20 @@ export function createInterstitial() {
   return ad;
 }
 
-export function BannerBar() {
+type BannerBarProps = {
+  onAdLoaded?: () => void;
+  onAdFailedToLoad?: (error: any) => void;
+};
+
+export function BannerBar({ onAdLoaded, onAdFailedToLoad }: BannerBarProps = {}) {
   const unitId = getBannerUnitId();
   return (
     <BannerAd
       unitId={unitId}
       size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
       requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+      onAdLoaded={onAdLoaded}
+      onAdFailedToLoad={onAdFailedToLoad}
     />
   );
 }

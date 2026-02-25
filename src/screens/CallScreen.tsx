@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View, Pressable, Dimensions, ScrollView,
 import { RTCView } from "react-native-webrtc";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { theme } from "../config/theme";
@@ -331,6 +332,7 @@ export default function CallScreen({ navigation }: Props) {
   const localBottom = 0;
   const localCallingHeight = OVERLAY_LOCAL_HEIGHT_CALLING;
   const remoteBottom = OVERLAY_LOCAL_HEIGHT_CALLING;
+  const showLocalOverlay = beautyOpen || phase === "calling";
 
   const waitAdsReady = useCallback(async (maxWaitMs = 1000) => {
     if (adsReadyRef.current) return true;
@@ -769,6 +771,10 @@ export default function CallScreen({ navigation }: Props) {
           } catch {}
 
           setRemoteStreamURL(s.toURL());
+          if (phaseRef.current === "matched") {
+            setReMatchText("");
+            setPhase("calling");
+          }
         },
         onIceCandidate: (c) => ws.sendIce(rid, c),
 
@@ -836,7 +842,6 @@ export default function CallScreen({ navigation }: Props) {
       } catch {}
 
       setReMatchText("");
-      setPhase("calling");
 
       if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
       webrtcConnectTimerRef.current = setTimeout(() => {
@@ -879,7 +884,7 @@ export default function CallScreen({ navigation }: Props) {
 
     if (why === "remote_left") {
       setReMatchText(String(t("call.peer_left") || ""));
-    } else if (why === "find_other") {
+    } else if (why === "find_other" || why === "disconnect") {
       setReMatchText(String(t("call.connecting") || ""));
     } else {
       setReMatchText("");
@@ -1049,23 +1054,34 @@ const startQueue = () => {
   }
 
   if (msg.type === "queued") {
+    if (phaseRef.current === "matched" || phaseRef.current === "calling") return;
     setPhase("queued");
     startNoMatchTimer();
     return;
   }
   if (msg.type === "match") {
-    if (phaseRef.current === "calling") {
+    const rid = String(msg.roomId || "").trim();
+    if (!rid) return;
+
+    if (!queueRunningRef.current) {
       return;
     }
+
+    if (phaseRef.current !== "connecting" && phaseRef.current !== "queued") {
+      return;
+    }
+
     clearNoMatchTimer();
     setNoMatchModal(false);
     setFastMatchHint(false);
+    setReMatchText("");
+    setPhase("matched");
     queueRunningRef.current = false;
     enqueuedRef.current = false;
-    setRoomId(msg.roomId);
+    setRoomId(rid);
     setIsCaller(Boolean(msg.isCaller));
     try {
-      ws.relay(msg.roomId, {
+      ws.relay(rid, {
         type: "peer_info",
         nonce: myPeerInfoNonceRef.current,
         country: myCountryRaw,
@@ -1075,14 +1091,14 @@ const startQueue = () => {
       });
     } catch {}
 
-    beginCallReqRef.current = { ws, rid: msg.roomId, caller: Boolean(msg.isCaller), qTok };
+    beginCallReqRef.current = { ws, rid, caller: Boolean(msg.isCaller), qTok };
 
     if (peerReadyTimerRef.current) clearTimeout(peerReadyTimerRef.current);
     peerReadyTimerRef.current = setTimeout(() => {
       if (wsRef.current !== ws) return;
       if (queueTokenRef.current !== qTok) return;
       const req = beginCallReqRef.current;
-      if (!req || req.rid !== msg.roomId) return;
+      if (!req || req.rid !== rid) return;
 
       suppressEndRelayRef.current = true;
       endCallAndRequeue("disconnect");
@@ -1093,7 +1109,11 @@ const startQueue = () => {
   if (msg.type === "end") {
     queueRunningRef.current = false;
     manualCloseRef.current = true;
-    endCallAndRequeue("remote_left");
+    if (phaseRef.current === "calling") {
+      endCallAndRequeue("remote_left");
+    } else {
+      endCallAndRequeue("disconnect");
+    }
     clearWebrtcDownTimer();
     webrtcDownTokenRef.current += 1;
     rtcRef.current?.stop();
@@ -1344,61 +1364,66 @@ const startQueue = () => {
   return (
     <View style={styles.root}>
       <CallBeautySheet visible={beautyOpen} onClose={closeBeauty} config={beautyConfig} onConfigChange={setBeautyConfig} />
-      <Pressable
-        onPress={onPressBack}
-        style={({ pressed }) => [
-          styles.backBtn,
-          { top: insets.top + 8, left: 12 },
-          pressed ? { opacity: 0.7 } : null,
-        ]}
-      >
-        <Ionicons name="chevron-back" size={30} color="#fff" />
-      </Pressable>
 
 
       <View style={styles.stage} onLayout={(e) => setStageH(Math.round(e.nativeEvent.layout.height))}>
         <View style={styles.overlayStage}>
-          <View style={styles.localLayer}>
-            <View
-              style={[
-                styles.localArea,
-                stageH > 0 ? { bottom: localBottom, height: localCallingHeight } : { bottom: localBottom },
-                stageH > 0 ? null : styles.localAreaCalling,
-                beautyOpen ? { top: 0, bottom: 0, height: "100%" } : null,
-              ]}
-            >
-              {localStreamURL && phase === "calling" ? (
-                myCamOn ? (
-                  <View style={styles.localViewport} collapsable={false}>
-                    <View style={styles.localVideoMover} collapsable={false}>
-                      <RTCView
-                        streamURL={localStreamURL}
-                        style={styles.localVideoFull}
-                        objectFit="cover"
-                        zOrder={0}
-                      />
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.localCamOffBgFull} />
-                )
-              ) : (
-                <View style={styles.localEmptyFull} />
-              )}
+          {showLocalOverlay ? (
+            <View style={styles.localLayer} pointerEvents="none">
+              <View
+                style={[
+                  styles.localAreaShadow,
+                  stageH > 0 ? { bottom: localBottom, height: localCallingHeight } : { bottom: localBottom },
+                  stageH > 0 ? null : styles.localAreaCalling,
+                  beautyOpen ? { top: 0, bottom: 0, height: "100%" } : null,
+                ]}
+              >
+                <View style={styles.localArea}>
+                  {localStreamURL && phase === "calling" ? (
+                    myCamOn ? (
+                      <View style={styles.localViewport} collapsable={false}>
+                        <View style={styles.localVideoMover} collapsable={false}>
+                          <RTCView
+                            streamURL={localStreamURL}
+                            style={styles.localVideoFull}
+                            objectFit="cover"
+                            zOrder={LOCAL_VIDEO_Z_ORDER}
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.localCamOffBgFull} />
+                    )
+                  ) : (
+                    <View style={styles.localEmptyFull} />
+                  )}
 
-              {!myCamOn ? (
-                <View style={styles.camOffOverlayFull}>
-                  <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
+                  {!myCamOn ? (
+                    <View style={styles.camOffOverlayFull}>
+                      <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
+                    </View>
+                  ) : null}
                 </View>
+              </View>
+              {!beautyOpen ? (
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0.14)", "rgba(0, 0, 0, 0.28)", "rgba(0, 0, 0, 0.58)", "rgb(0, 0, 0)"]}
+                  locations={[0, 0.2, 0.45, 0.72, 1]}
+                  style={[
+                    styles.localTopShadowGradient,
+                    stageH > 0 ? { bottom: localCallingHeight } : { bottom: OVERLAY_LOCAL_HEIGHT_CALLING },
+                  ]}
+                />
               ) : null}
             </View>
-          </View>
+          ) : null}
 
           {!beautyOpen ? (
-            <View style={styles.remoteLayer}>
-  <View style={[styles.remoteArea, stageH > 0 ? { bottom: remoteBottom } : { bottom: OVERLAY_LOCAL_HEIGHT_CALLING }]}>
+            <View style={styles.remoteLayer} pointerEvents="none">
+  <View style={[styles.remoteArea, showLocalOverlay ? (stageH > 0 ? { bottom: remoteBottom } : { bottom: OVERLAY_LOCAL_HEIGHT_CALLING }) : { bottom: 0 }]}>
     {remoteStreamURL && remoteVideoAllowed && remoteCamOn ? (
-      <RTCView streamURL={remoteStreamURL} style={styles.remoteVideo} objectFit="cover" zOrder={0} />
+      <RTCView streamURL={remoteStreamURL} style={styles.remoteVideo} objectFit="cover" zOrder={REMOTE_VIDEO_Z_ORDER} />
     ) : (
       <View style={styles.placeholder}>
         {phase === "calling" && !remoteVideoAllowed ? (
@@ -1446,10 +1471,12 @@ const startQueue = () => {
                 <AppText style={styles.centerText}>{t("call.fast_matching")}</AppText>
               ) : phase === "connecting" ? (
                 <AppText style={styles.centerText}>{t("call.connecting")}</AppText>
-              ) : phase === "matched" ? (
+              ) : phase === "matched" && roomId && peerInfo ? (
                 <AppText style={styles.centerText}>{t("call.matched")}</AppText>
               ) : phase === "queued" ? (
                 <AppText style={styles.centerText}>{String(t("call.connecting") || "")}</AppText>
+              ) : phase === "matched" ? (
+                <AppText style={styles.centerText}>{t("call.connecting")}</AppText>
               ) : null}
             </View>
 
@@ -1483,6 +1510,20 @@ const startQueue = () => {
             </View>
           </View>
         ) : null}
+      </View>
+
+      <View pointerEvents="box-none" style={styles.topUiLayer}>
+        <Pressable
+          onPress={onPressBack}
+          hitSlop={14}
+          style={({ pressed }) => [
+            styles.backBtn,
+            { top: insets.top + 8, left: 12 },
+            pressed ? { opacity: 0.7 } : null,
+          ]}
+        >
+          <Ionicons name="chevron-back" size={30} color="#fff" />
+        </Pressable>
       </View>
 
       <AppModal
@@ -1709,8 +1750,12 @@ const W = Dimensions.get("window").width;
 
 const REMOTE_VIDEO_SCALE = 1.22;
 const REMOTE_SHIFT_Y = 0;
+const REMOTE_VIDEO_Z_ORDER = 0;
+const LOCAL_VIDEO_Z_ORDER = 1;
 
-const LOCAL_CROP_Y = 16;
+const LOCAL_CROP_Y = 0;
+const LOCAL_OVERLAY_RADIUS = 25;
+const LOCAL_OUTER_SHADOW_HEIGHT = 60;
 
 const OVERLAY_LOCAL_HEIGHT_CALLING = "45%";
 
@@ -1718,33 +1763,58 @@ const OVERLAY_LOCAL_HEIGHT_CALLING = "45%";
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
 
-  stage: { flex: 1, position: "relative", backgroundColor: "#c0b2b2" },
+  stage: { flex: 1, position: "relative", backgroundColor: "#000" },
 
   overlayStage: { flex: 1 },
 
   localLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1,
-    elevation: 1,
-  },
+  ...StyleSheet.absoluteFillObject,
+  zIndex: 30,
+  elevation: 30,
+},
 
-  localArea: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: "50%",
-    backgroundColor: "#000",
-    overflow: "hidden",
-  },
+localAreaShadow: {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  height: "50%",
+  backgroundColor: "transparent",
+  overflow: "hidden",
+  zIndex: 3,
+  borderTopLeftRadius: LOCAL_OVERLAY_RADIUS,
+  borderTopRightRadius: LOCAL_OVERLAY_RADIUS,
+},
 
-  localAreaCalling: {
-    height: OVERLAY_LOCAL_HEIGHT_CALLING,
-  },
+localTopShadowGradient: {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  height: LOCAL_OUTER_SHADOW_HEIGHT,
+  overflow: "hidden",
+  zIndex: 4,
+  transform: [{ translateY: 0 }],
+},
+
+localArea: {
+  ...StyleSheet.absoluteFillObject,
+  backgroundColor: "#000000",
+  overflow: "hidden",
+  borderTopLeftRadius: LOCAL_OVERLAY_RADIUS,
+  borderTopRightRadius: LOCAL_OVERLAY_RADIUS,
+  borderTopWidth: StyleSheet.hairlineWidth,
+  borderLeftWidth: StyleSheet.hairlineWidth,
+  borderRightWidth: StyleSheet.hairlineWidth,
+  borderColor: "rgba(255,255,255,0.16)",
+},
+
+localAreaCalling: {
+  height: OVERLAY_LOCAL_HEIGHT_CALLING,
+},
 
   remoteLayer: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 2,
-    elevation: 2,
+    zIndex: 10,
+    elevation: 10,
   },
 
   remoteArea: {
@@ -1752,6 +1822,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
+    borderRadius: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     backgroundColor: "#000",
     overflow: "hidden",
   },
@@ -1767,12 +1842,20 @@ const styles = StyleSheet.create({
 
   backBtn: {
     position: "absolute",
-    zIndex: 20,
-    elevation: 20,
-    width: 44,
-    height: 44,
-    alignItems: "flex-start",
+    zIndex: 120,
+    elevation: 120,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.16)",
+  },
+
+  topUiLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 140,
+    elevation: 140,
   },
 
   remoteInfoDock: {
@@ -1789,19 +1872,13 @@ const styles = StyleSheet.create({
   remoteInfoText: {
     color: "rgba(255,255,255,0.92)",
     fontSize: 13,
-    fontWeight: "800",
-    textShadowColor: "rgba(0,0,0,0.65)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    fontWeight: "700",
   },
 
   remoteInfoSubText: {
     color: "rgba(255, 170, 170, 0.92)",
     fontSize: 11,
-    fontWeight: "900",
-    textShadowColor: "rgba(0,0,0,0.65)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    fontWeight: "700",
   },
 
   localViewport: {
@@ -1818,12 +1895,12 @@ const styles = StyleSheet.create({
   localVideoFull: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",
-    transform: [{ scale: 1.08 }],
+    transform: [{ scale: 1 }],
   },
 
   localEmptyFull: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0)",
+    backgroundColor: "#000",
   },
 
   localCamOffBgFull: {
@@ -1930,7 +2007,8 @@ const styles = StyleSheet.create({
 
   controlsOverlay: {
     position: "absolute",
-    zIndex: 12,
+    zIndex: 160,
+    elevation: 160,
     left: 0,
     right: 0,
     alignItems: "center",

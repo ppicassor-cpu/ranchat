@@ -26,12 +26,22 @@ export default function HomeScreen({ navigation }: any) {
   const [prefsModal, setPrefsModal] = useState(false);
   const [activeUsers, setActiveUsers] = useState(0);
   const [bannerH, setBannerH] = useState(0);
+  const [bannerReady, setBannerReady] = useState(false);
 
   const [langOpen, setLangOpen] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
   const [genderOpen, setGenderOpen] = useState(false);
 
   const interstitialRef = useRef<any>(null);
+
+  const onBannerLoaded = useCallback(() => {
+    setBannerReady(true);
+  }, []);
+
+  const onBannerFailed = useCallback(() => {
+    setBannerReady(false);
+    setBannerH(0);
+  }, []);
 
   const canMatch = useMemo(() => {
     const countryOk = String(prefs.country || "").length > 0;
@@ -293,7 +303,10 @@ useEffect(() => {
       <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
         <ImageBackground
           source={require("../../assets/back.png")}
-          style={[StyleSheet.absoluteFillObject, !isPremium ? { transform: [{ translateY: -bannerH }] } : null]}
+          style={[
+            StyleSheet.absoluteFillObject,
+            !isPremium && bannerReady && bannerH > 0 ? { transform: [{ translateY: -bannerH }] } : null,
+          ]}
           resizeMode="cover"
         />
       </View>
@@ -315,10 +328,16 @@ useEffect(() => {
 
       {!isPremium ? (
         <View
-          onLayout={(e) => setBannerH(e.nativeEvent.layout.height)}
-          style={[styles.banner, { paddingBottom: Math.max(insets.bottom, 8) }]}
+          onLayout={(e) => {
+            if (!bannerReady) return;
+            setBannerH(e.nativeEvent.layout.height);
+          }}
+          style={[
+            styles.banner,
+            bannerReady ? { paddingBottom: Math.max(insets.bottom, 8) } : styles.bannerHidden,
+          ]}
         >
-          <BannerBar />
+          <BannerBar onAdLoaded={onBannerLoaded} onAdFailedToLoad={onBannerFailed} />
         </View>
       ) : null}
 
@@ -451,6 +470,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: "transparent",
     alignItems: "center",
+  },
+  bannerHidden: {
+    height: 0,
+    paddingBottom: 0,
+    overflow: "hidden",
+    opacity: 0,
   },
   headerBtn: { paddingHorizontal: 12, paddingVertical: 8 },
   headerBtnText: { fontSize: 22, color: theme.colors.text, fontWeight: "700" },
