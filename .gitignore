@@ -48,3 +48,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Android/Gradle build outputs
+**/android/build/
+**/android/.gradle/
+**/android/.cxx/
