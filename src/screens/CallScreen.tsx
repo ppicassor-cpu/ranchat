@@ -460,10 +460,14 @@ export default function CallScreen({ navigation }: Props) {
   }, [waitAdsReady]);
 
   const startNoMatchTimer = () => {
+    if (!queueRunningRef.current) return;
     if (noMatchShownThisCycleRef.current) return;
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
 
     noMatchTimerRef.current = setTimeout(() => {
+      if (!queueRunningRef.current) return;
+      if (!enqueuedRef.current) return;
+      if (phaseRef.current !== "connecting" && phaseRef.current !== "queued") return;
       if (noMatchShownThisCycleRef.current) return;
       noMatchShownThisCycleRef.current = true;
 
@@ -502,6 +506,14 @@ export default function CallScreen({ navigation }: Props) {
     if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
     premiumNoMatchAutoCloseRef.current = null;
   };
+
+  const tf = useCallback(
+    (key: string, fallback: string, params?: Record<string, any>) => {
+      const text = String(t(key, params) ?? "");
+      return text && text !== key ? text : fallback;
+    },
+    [t]
+  );
 
   const clearReconnectTimer = () => {
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -995,7 +1007,6 @@ const startQueue = () => {
 
   setNoMatchModal(false);
   setPhase("connecting");
-  startNoMatchTimer();
 
   const ws = new SignalClient({
     onOpen: () => {
@@ -1561,29 +1572,29 @@ const startQueue = () => {
 
       <AppModal
         visible={noMatchModal}
-        title={isPremium ? t("call.fast_matching") : t("call.delay_matching")}
+        title={isPremium ? tf("call.fast_matching", "빠른 매칭 중...") : tf("call.delay_matching", "매칭이 지연되고 있어요")}
         dismissible={true}
         onClose={dismissNoMatch}
         footer={
           isPremium ? (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+              <PrimaryButton title={tf("common.exit", "나가기")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title={t("common.retry")} onPress={retry} />
-              <PrimaryButton title={t("common.exit")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
+              <PrimaryButton title={tf("common.retry", "다시 시도")} onPress={retry} />
+              <PrimaryButton title={tf("common.exit", "나가기")} onPress={() => { stopAll(); goHome(); }} variant="ghost" />
             </View>
           )
         }
       >
         {isPremium ? (
           <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-            {t("call.fast_matching_desc")}
+            {tf("call.fast_matching_desc", "매칭 인원이 적어 시간이 더 걸리고 있어요. 잠시만 기다려 주세요.")}
           </AppText>
         ) : (
           <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
-            {t("call.delay_matching_desc")}
+            {tf("call.delay_matching_desc", "매칭이 지연되고 있어요. 다시 시도하거나 잠시 후 다시 이용해 주세요.")}
           </AppText>
         )}
       </AppModal>
