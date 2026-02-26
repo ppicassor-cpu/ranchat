@@ -188,6 +188,10 @@ export default function ProfileScreen() {
     await logoutAndWipe();
   };
 
+  const onPressLogout = useCallback(async () => {
+    await logoutAndWipe();
+  }, [logoutAndWipe]);
+
   const onPressManageSubscriptions = useCallback(async () => {
     try {
       const url =
@@ -220,8 +224,9 @@ export default function ProfileScreen() {
       <View style={styles.card}>
         <View style={styles.subHeaderRow}>
           <View style={styles.subHeaderLeft}>
-            <AppText style={styles.h1}>{t("profile.subscription_status")}</AppText>
-            <AppText style={styles.p}>{sub.isPremium ? t("profile.premium_active") : t("profile.free_active")}</AppText>
+            <AppText style={styles.sectionStatusLine} numberOfLines={1} ellipsizeMode="tail">
+              {`${t("profile.subscription_status")} - ${sub.isPremium ? t("profile.premium_active") : t("profile.free_active")}`}
+            </AppText>
           </View>
 
           {sub.isPremium && currentPlanLabel ? (
@@ -246,8 +251,9 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <AppText style={styles.h1}>{t("profile.language_section")}</AppText>
-        <AppText style={styles.p}>{t("profile.current_language", { language: languageLabel })}</AppText>
+        <AppText style={styles.sectionStatusLine} numberOfLines={1} ellipsizeMode="tail">
+          {`${t("profile.language_section")} - ${t("profile.current_language", { language: languageLabel })}`}
+        </AppText>
 
         <View style={{ height: 14 }} />
 
@@ -256,6 +262,8 @@ export default function ProfileScreen() {
 
       <View style={styles.card}>
         <PrimaryButton title={t("profile.terms_and_policies")} onPress={() => setPolicyModal(true)} variant="ghost" />
+        <View style={{ height: 10 }} />
+        <PrimaryButton title={t("profile.logout")} onPress={onPressLogout} variant="ghost" />
         <View style={{ height: 10 }} />
         <OutlineDangerButton title={t("profile.withdraw")} onPress={() => setWithdrawModal(true)} />
       </View>
@@ -689,6 +697,9 @@ const styles = StyleSheet.create({
   },
   h1: { fontSize: 17, fontWeight: "700", color: theme.colors.text, marginBottom: 6 },
   p: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
+  sectionStatusLine: { fontSize: 15, color: theme.colors.text, fontWeight: "700", lineHeight: 20 },
+  subStatusText: { fontSize: 13, color: theme.colors.sub, lineHeight: 18 },
+  singleLineInfoText: { fontSize: 13, color: theme.colors.sub, lineHeight: 18 },
 
   subHeaderRow: {
     flexDirection: "row",

@@ -2,7 +2,8 @@
   "expo": {
     "name": "ranchat",
     "slug": "ranchat",
-    "version": "9.0.0",
+    "scheme": "ranchat",
+    "version": "11.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -29,7 +30,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 10,
+      "versionCode": 12,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -55,6 +56,13 @@
       "./plugins/withAndroidReleaseSigning",
       "./plugins/withWebRTCMlKitDeps",
       "./plugins/withAdIdPermission",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.not_configured"
+        }
+      ],
       [
         "react-native-google-mobile-ads",
         {

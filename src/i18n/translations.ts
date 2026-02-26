@@ -37,6 +37,7 @@
     "profile.current_language": "현재 언어: {language}",
     "profile.change_language": "언어 변경",
     "profile.terms_and_policies": "이용약관 및 정책",
+    "profile.logout": "로그아웃",
     "profile.withdraw": "회원탈퇴",
     "modal.prefs.title": "설정",
     "modal.prefs.body": "나라/언어/성별을 설정하세요.",
@@ -161,6 +162,7 @@
     "profile.current_language": "Current language: {language}",
     "profile.change_language": "Change Language",
     "profile.terms_and_policies": "Terms & Policies",
+    "profile.logout": "Logout",
     "profile.withdraw": "Withdraw",
     "modal.prefs.title": "Settings",
     "modal.prefs.body": "Set country / language / gender.",
@@ -286,6 +288,7 @@
     "profile.current_language": "現在の言語: {language}",
     "profile.change_language": "言語を変更",
     "profile.terms_and_policies": "利用規約・ポリシー",
+    "profile.logout": "ログアウト",
     "profile.withdraw": "退会",
     "modal.prefs.title": "設定",
     "modal.prefs.body": "国/言語/性別を設定してください。",
@@ -411,6 +414,7 @@
     "profile.current_language": "当前语言: {language}",
     "profile.change_language": "更改语言",
     "profile.terms_and_policies": "条款与政策",
+    "profile.logout": "退出登录",
     "profile.withdraw": "注销账号",
     "modal.prefs.title": "设置",
     "modal.prefs.body": "请设置国家/语言/性别。",
@@ -536,6 +540,7 @@
     "profile.current_language": "Idioma actual: {language}",
     "profile.change_language": "Cambiar idioma",
     "profile.terms_and_policies": "Términos y políticas",
+    "profile.logout": "Cerrar sesión",
     "profile.withdraw": "Eliminar cuenta",
     "modal.prefs.title": "Ajustes",
     "modal.prefs.body": "Configura país/idioma/género.",
@@ -661,6 +666,7 @@
     "profile.current_language": "Aktuelle Sprache: {language}",
     "profile.change_language": "Sprache ändern",
     "profile.terms_and_policies": "Nutzungsbedingungen & Richtlinien",
+    "profile.logout": "Abmelden",
     "profile.withdraw": "Konto löschen",
     "modal.prefs.title": "Einstellungen",
     "modal.prefs.body": "Land/Sprache/Geschlecht einstellen.",
@@ -785,6 +791,7 @@
     "profile.current_language": "Langue actuelle : {language}",
     "profile.change_language": "Changer de langue",
     "profile.terms_and_policies": "Conditions & politiques",
+    "profile.logout": "Déconnexion",
     "profile.withdraw": "Supprimer le compte",
     "modal.prefs.title": "Paramètres",
     "modal.prefs.body": "Définir pays/langue/sexe.",
@@ -910,6 +917,7 @@
     "profile.current_language": "Lingua attuale: {language}",
     "profile.change_language": "Cambia lingua",
     "profile.terms_and_policies": "Termini e politiche",
+    "profile.logout": "Disconnetti",
     "profile.withdraw": "Elimina account",
     "modal.prefs.title": "Impostazioni",
     "modal.prefs.body": "Imposta paese/lingua/genere.",
@@ -1035,6 +1043,7 @@
     "profile.current_language": "Текущий язык: {language}",
     "profile.change_language": "Сменить язык",
     "profile.terms_and_policies": "Условия и политика",
+    "profile.logout": "Выйти",
     "profile.withdraw": "Удалить аккаунт",
     "modal.prefs.title": "Настройки",
     "modal.prefs.body": "Установите страну/язык/пол.",
@@ -1208,6 +1217,22 @@ const missingEn: Record<string, string> = {
   "currency.krw_suffix": " KRW",
   "common.on": "ON",
   "common.off": "OFF",
+  "login.title": "RanChat Login",
+  "login.subtitle": "Sign in with Google or Apple to continue.",
+  "login.subtitle_native": "Start quickly with Google / Apple login.",
+  "login.google": "Continue with Google",
+  "login.apple": "Continue with Apple",
+  "login.wait_google": "Completing Google login in browser...",
+  "login.wait_apple": "Completing Apple login in browser...",
+  "login.wait_google_native": "Opening Google native sign-in...",
+  "login.wait_apple_native": "Opening Apple native sign-in...",
+  "login.hint": "After sign-in in browser, this screen will continue automatically.",
+  "login.hint_native": "Start easily with your official account.",
+  "login.cancel": "Cancel Login",
+  "login.timeout": "Login timed out. Please try again.",
+  "login.apple_ios_only": "Apple login is available on iOS devices only.",
+  "login.error_state_mismatch": "Login session mismatch. Please try again.",
+  "login.error_callback_invalid": "Could not read login callback data.",
 };
 
 const missingKo: Record<string, string> = {
@@ -1284,6 +1309,22 @@ const missingKo: Record<string, string> = {
   "currency.krw_suffix": "원",
   "common.on": "켜짐",
   "common.off": "꺼짐",
+  "login.title": "랜쳇로그인",
+  "login.subtitle": "Google 또는 Apple로 로그인해 계속 진행하세요.",
+  "login.subtitle_native": "Google / Apple 로그인으로 빠르게 시작하세요.",
+  "login.google": "Google로 계속하기",
+  "login.apple": "Apple로 계속하기",
+  "login.wait_google": "브라우저에서 Google 로그인 완료를 기다리는 중...",
+  "login.wait_apple": "브라우저에서 Apple 로그인 완료를 기다리는 중...",
+  "login.wait_google_native": "Google 네이티브 로그인 화면을 여는 중...",
+  "login.wait_apple_native": "Apple 네이티브 로그인 화면을 여는 중...",
+  "login.hint": "브라우저 로그인 완료 후 자동으로 이 화면으로 돌아옵니다.",
+  "login.hint_native": "공식 계정으로 간편하게 시작하기",
+  "login.cancel": "로그인 취소",
+  "login.timeout": "로그인 시간이 초과되었습니다. 다시 시도해 주세요.",
+  "login.apple_ios_only": "Apple 로그인은 iOS 기기에서만 사용할 수 있습니다.",
+  "login.error_state_mismatch": "로그인 세션이 일치하지 않습니다. 다시 시도해 주세요.",
+  "login.error_callback_invalid": "로그인 콜백 데이터를 확인할 수 없습니다.",
 };
 
 const fortuneOverallEn = [
@@ -1558,6 +1599,58 @@ const missingByLang: Record<string, Record<string, string>> = {
 
 const translationMap = translations as unknown as Record<string, Record<string, string>>;
 Object.entries(missingByLang).forEach(([lang, dict]) => {
+  translationMap[lang] = { ...(translationMap[lang] || {}), ...dict };
+});
+
+const loginOverridesByLang: Record<string, Record<string, string>> = {
+  ko: {
+    "login.title": "랜쳇로그인",
+    "login.subtitle_native": "Google / Apple 로그인으로 빠르게 시작하세요.",
+    "login.hint_native": "공식 계정으로 간편하게 시작하기",
+  },
+  en: {
+    "login.title": "RanChat Login",
+    "login.subtitle_native": "Start quickly with Google / Apple login.",
+    "login.hint_native": "Start easily with your official account.",
+  },
+  ja: {
+    "login.title": "ランチャットログイン",
+    "login.subtitle_native": "Google / Appleログインですばやく始めましょう。",
+    "login.hint_native": "公式アカウントで簡単に始める",
+  },
+  zh: {
+    "login.title": "RanChat登录",
+    "login.subtitle_native": "使用 Google / Apple 登录快速开始。",
+    "login.hint_native": "使用官方账号轻松开始",
+  },
+  es: {
+    "login.title": "Inicio de sesión de RanChat",
+    "login.subtitle_native": "Comienza rápido con inicio de sesión de Google / Apple.",
+    "login.hint_native": "Empieza fácilmente con tu cuenta oficial",
+  },
+  de: {
+    "login.title": "RanChat-Anmeldung",
+    "login.subtitle_native": "Starte schnell mit Google-/Apple-Login.",
+    "login.hint_native": "Starte einfach mit deinem offiziellen Konto",
+  },
+  fr: {
+    "login.title": "Connexion RanChat",
+    "login.subtitle_native": "Commencez rapidement avec la connexion Google / Apple.",
+    "login.hint_native": "Commencez facilement avec votre compte officiel",
+  },
+  it: {
+    "login.title": "Accesso RanChat",
+    "login.subtitle_native": "Inizia rapidamente con l'accesso Google / Apple.",
+    "login.hint_native": "Inizia facilmente con il tuo account ufficiale",
+  },
+  ru: {
+    "login.title": "Вход в RanChat",
+    "login.subtitle_native": "Быстро начните через вход Google / Apple.",
+    "login.hint_native": "Легко начните с официального аккаунта",
+  },
+};
+
+Object.entries(loginOverridesByLang).forEach(([lang, dict]) => {
   translationMap[lang] = { ...(translationMap[lang] || {}), ...dict };
 });
 

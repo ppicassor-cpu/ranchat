@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "../i18n/LanguageProvider";
 import { COUNTRY_CODES, LANGUAGE_CODES, getCountryName, getLanguageName, normalizeLanguageCode } from "../i18n/displayNames";
 import * as Updates from "expo-updates";
+import { APP_CONFIG } from "../config/app";
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
@@ -93,7 +94,10 @@ useLayoutEffect(() => {
 useEffect(() => {
   const fetchActiveUsers = async () => {
     try {
-      const res = await fetch("http://152.67.213.225:3001/api/active-users");
+      const base = String(APP_CONFIG.AUTH_HTTP_BASE_URL || "").replace(/\/+$/, "");
+      const path = String((APP_CONFIG as any)?.ACTIVE_USERS_PATH || "/api/active-users");
+      const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+      const res = await fetch(`${base}${normalizedPath}`);
       const data = await res.json();
       const activeCount = Number(data.activeUsers) || 0;
       setActiveUsers(activeCount);

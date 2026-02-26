@@ -110,37 +110,41 @@ function ensureReleaseSigningConfig(gradle) {
       androidBody.slice(signingConfigs.braceEnd);
   }
 
-  // 4) buildTypes.release에 signingConfig signingConfigs.release 강제 + debug 제거
+  // 4) buildTypes.release/debug에 signingConfig signingConfigs.release 강제
   buildTypes = findBlockRange(androidBody, "buildTypes");
   if (!buildTypes) return gradle;
 
   let btBody = androidBody.slice(buildTypes.braceStart + 1, buildTypes.braceEnd);
 
-  let releaseBt = findBlockRange(btBody, "release");
-  if (!releaseBt) {
-    const addRelease =
-      "\n\n        release {\n" +
-      "            signingConfig signingConfigs.release\n" +
-      "        }\n";
-    btBody = btBody.replace(/\s*$/, "") + addRelease + "\n";
-  } else {
-    let releaseBody = btBody.slice(releaseBt.braceStart + 1, releaseBt.braceEnd);
-
-    // signingConfig 라인 전부 제거 후 release로 1개만 삽입
-    releaseBody = releaseBody.replace(/^\s*signingConfig\s+signingConfigs\.\w+\s*$/gm, "");
-    releaseBody = releaseBody.replace(/\n{3,}/g, "\n\n");
-    releaseBody = releaseBody.replace(/^\s*\n/, "\n");
-
-    const hasReleaseSigning = /^\s*signingConfig\s+signingConfigs\.release\s*$/m.test(releaseBody);
-    if (!hasReleaseSigning) {
-      releaseBody = "\n            signingConfig signingConfigs.release\n" + releaseBody;
+  function enforceSigningForBuildType(bodyText, buildTypeName) {
+    let typeRange = findBlockRange(bodyText, buildTypeName);
+    if (!typeRange) {
+      const addBlock =
+        `\n\n        ${buildTypeName} {\n` +
+        "            signingConfig signingConfigs.release\n" +
+        "        }\n";
+      return bodyText.replace(/\s*$/, "") + addBlock + "\n";
     }
 
-    btBody =
-      btBody.slice(0, releaseBt.braceStart + 1) +
-      releaseBody +
-      btBody.slice(releaseBt.braceEnd);
+    let typeBody = bodyText.slice(typeRange.braceStart + 1, typeRange.braceEnd);
+    typeBody = typeBody.replace(/^\s*signingConfig\s+signingConfigs\.\w+\s*$/gm, "");
+    typeBody = typeBody.replace(/\n{3,}/g, "\n\n");
+    typeBody = typeBody.replace(/^\s*\n/, "\n");
+
+    const hasReleaseSigning = /^\s*signingConfig\s+signingConfigs\.release\s*$/m.test(typeBody);
+    if (!hasReleaseSigning) {
+      typeBody = "\n            signingConfig signingConfigs.release\n" + typeBody;
+    }
+
+    return (
+      bodyText.slice(0, typeRange.braceStart + 1) +
+      typeBody +
+      bodyText.slice(typeRange.braceEnd)
+    );
   }
+
+  btBody = enforceSigningForBuildType(btBody, "release");
+  btBody = enforceSigningForBuildType(btBody, "debug");
 
   androidBody =
     androidBody.slice(0, buildTypes.braceStart + 1) +

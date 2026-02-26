@@ -66,6 +66,24 @@ function normalizeIceUrl(v: string, defaultScheme: "stun" | "turn" = "stun"): st
   return `${defaultScheme}:${s.replace(/^\/+/, "")}`;
 }
 
+function normalizePath(v: string, fallback: string): string {
+  const raw = String(v || "").trim();
+  const use = raw || fallback;
+  if (!use) return "/";
+  return `/${use.replace(/^\/+/, "")}`;
+}
+
+function normalizeCallbackScheme(v: string, fallback: string): string {
+  const raw = String(v || "").trim() || fallback;
+  const clean = raw.replace(/:.*$/, "").replace(/[^a-zA-Z0-9+.-]/g, "");
+  return clean || fallback;
+}
+
+function normalizeCallbackPath(v: string, fallback: string): string {
+  const raw = String(v || "").trim() || fallback;
+  return raw.replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
 const freeRemoteVideoSeconds = readNumber("EXPO_PUBLIC_FREE_REMOTE_VIDEO_SECONDS", 3000);
 
 const stunUrlsRaw = readList("EXPO_PUBLIC_STUN_URLS")
@@ -85,7 +103,7 @@ export const APP_CONFIG = {
   },
 
   TURN: {
-    host: read("EXPO_PUBLIC_TURN_HOST", "152.67.213.225"),
+    host: read("EXPO_PUBLIC_TURN_HOST", "comspc.duckdns.org"),
     port: readPort("EXPO_PUBLIC_TURN_PORT", 3478),
     username: read("EXPO_PUBLIC_TURN_USERNAME", "testuser"),
     password: read("EXPO_PUBLIC_TURN_PASSWORD", "testpass"),
@@ -93,6 +111,31 @@ export const APP_CONFIG = {
   },
 
   AUTH_HTTP_BASE_URL: normalizeHttpsBase(read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "https://comspc.duckdns.org")),
+
+  AUTH: {
+    callbackScheme: normalizeCallbackScheme(read("EXPO_PUBLIC_AUTH_CALLBACK_SCHEME", "ranchat"), "ranchat"),
+    callbackPath: normalizeCallbackPath(read("EXPO_PUBLIC_AUTH_CALLBACK_PATH", "auth/callback"), "auth/callback"),
+    GOOGLE: {
+      webClientId: read("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID", ""),
+      iosClientId: read("EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID", ""),
+      nativePath: normalizePath(read("EXPO_PUBLIC_GOOGLE_AUTH_NATIVE_PATH", "/api/auth/google/native"), "/api/auth/google/native"),
+      startPath: normalizePath(read("EXPO_PUBLIC_GOOGLE_AUTH_START_PATH", "/api/auth/google/start"), "/api/auth/google/start"),
+      exchangePath: normalizePath(
+        read("EXPO_PUBLIC_GOOGLE_AUTH_EXCHANGE_PATH", "/api/auth/google/callback"),
+        "/api/auth/google/callback"
+      ),
+    },
+    APPLE: {
+      nativePath: normalizePath(read("EXPO_PUBLIC_APPLE_AUTH_NATIVE_PATH", "/api/auth/apple/native"), "/api/auth/apple/native"),
+      startPath: normalizePath(read("EXPO_PUBLIC_APPLE_AUTH_START_PATH", "/api/auth/apple/start"), "/api/auth/apple/start"),
+      exchangePath: normalizePath(
+        read("EXPO_PUBLIC_APPLE_AUTH_EXCHANGE_PATH", "/api/auth/apple/callback"),
+        "/api/auth/apple/callback"
+      ),
+    },
+  },
+
+  ACTIVE_USERS_PATH: normalizePath(read("EXPO_PUBLIC_ACTIVE_USERS_PATH", "/api/active-users"), "/api/active-users"),
 
   ADS: {
     bannerAndroid: read("EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID", ""),

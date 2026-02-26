@@ -75,6 +75,7 @@ export default function App() {
 
   const hasHydrated = useAppStore((s: any) => s.hasHydrated);
   const prefs = useAppStore((s: any) => s.prefs);
+  const auth = useAppStore((s: any) => s.auth);
   const setPrefs = useAppStore((s: any) => s.setPrefs);
 
   const [permChecked, setPermChecked] = useState(false);
@@ -85,6 +86,11 @@ export default function App() {
   const [setupDone, setSetupDone] = useState(false);
 
   const permOk = useMemo(() => Boolean(permState.cam && permState.mic && permState.loc), [permState]);
+  const isAuthed = useMemo(() => {
+    const verified = Boolean(auth?.verified);
+    const token = String(auth?.token || "").trim();
+    return Boolean(verified && token);
+  }, [auth?.token, auth?.verified]);
 
   useEffect(() => {
     if (didInitRef.current) return;
@@ -126,8 +132,10 @@ export default function App() {
   }, [hasAndroidPermission]);
 
   useEffect(() => {
+    if (!hasHydrated) return;
+    if (!isAuthed) return;
     checkPermissions();
-  }, [checkPermissions]);
+  }, [checkPermissions, hasHydrated, isAuthed]);
 
   const requestPermissions = useCallback(async () => {
     if (permBusy) return;
@@ -182,6 +190,7 @@ export default function App() {
   }, [hasAndroidPermission, permBusy]);
 
   useEffect(() => {
+    if (!isAuthed) return;
     if (!permChecked) return;
     if (!permOk) return;
     if (!hasHydrated) return;
@@ -227,7 +236,25 @@ export default function App() {
         setSetupDone(true);
       }
     })();
-  }, [hasHydrated, permChecked, permOk, prefs, setPrefs, setupBusy, setupDone]);
+  }, [hasHydrated, isAuthed, permChecked, permOk, prefs, setPrefs, setupBusy, setupDone]);
+
+  if (!hasHydrated) {
+    return (
+      <SafeAreaProvider>
+        <View style={styles.bootRoot}>
+          <ActivityIndicator />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  if (!isAuthed) {
+    return (
+      <SafeAreaProvider>
+        <RootNavigator />
+      </SafeAreaProvider>
+    );
+  }
 
   if (permChecked && permOk && hasHydrated && setupDone) {
     return (
@@ -298,6 +325,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  bootRoot: { flex: 1, backgroundColor: theme.colors.bg, alignItems: "center", justifyContent: "center" },
   gateRoot: { flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center" },
 
   modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
