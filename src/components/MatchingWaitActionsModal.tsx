@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import AppModal from "./AppModal";
 import PrimaryButton from "./PrimaryButton";
 import AppText from "./AppText";
@@ -13,9 +13,6 @@ type Props = {
   beautyLabel: string;
   fortuneLabel: string;
   gameLabel: string;
-  doNotShowLabel: string;
-  doNotShowChecked: boolean;
-  onToggleDoNotShow: () => void;
   closeLabel: string;
   onPressBeauty: () => void;
   onPressFortune: () => void;
@@ -30,9 +27,6 @@ export default function MatchingWaitActionsModal({
   beautyLabel,
   fortuneLabel,
   gameLabel,
-  doNotShowLabel,
-  doNotShowChecked,
-  onToggleDoNotShow,
   closeLabel,
   onPressBeauty,
   onPressFortune,
@@ -46,34 +40,80 @@ export default function MatchingWaitActionsModal({
       dismissible={true}
       onClose={onClose}
       footer={
-        <View style={{ gap: 10 }}>
-          <PrimaryButton title={beautyLabel} onPress={onPressBeauty} />
-          <PrimaryButton title={fortuneLabel} onPress={onPressFortune} variant="ghost" />
-          <PrimaryButton title={gameLabel} onPress={onPressGame} variant="ghost" />
-          <PrimaryButton title={closeLabel} onPress={onClose} variant="ghost" />
-        </View>
+        <PrimaryButton title={closeLabel} onPress={onClose} variant="ghost" />
       }
     >
-      <AppText style={{ fontSize: 15, color: theme.colors.sub, lineHeight: 20, textAlign: "center" }}>
+      <AppText style={styles.descText}>
         {description}
       </AppText>
-      <Pressable
-        onPress={onToggleDoNotShow}
-        style={({ pressed }) => [
-          {
-            width: "100%",
-            marginTop: 6,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "flex-start",
-            gap: 8,
-            opacity: pressed ? 0.75 : 1,
-          },
-        ]}
-      >
-        <Ionicons name={doNotShowChecked ? "checkbox" : "square-outline"} size={20} color={theme.colors.sub} />
-        <AppText style={{ fontSize: 13, color: theme.colors.sub }}>{doNotShowLabel}</AppText>
-      </Pressable>
+      <View style={styles.actionRow}>
+        <Pressable onPress={onPressBeauty} style={({ pressed }) => [styles.actionBtn, pressed ? styles.actionBtnPressed : null]}>
+          <View style={styles.iconWrap}>
+            <Ionicons name="sparkles" size={22} color={theme.colors.pinkDeep} />
+          </View>
+          <AppText style={styles.actionLabel}>{beautyLabel}</AppText>
+        </Pressable>
+
+        <Pressable onPress={onPressFortune} style={({ pressed }) => [styles.actionBtn, pressed ? styles.actionBtnPressed : null]}>
+          <View style={styles.iconWrap}>
+            <Ionicons name="planet" size={22} color={theme.colors.pinkDeep} />
+          </View>
+          <AppText style={styles.actionLabel}>{fortuneLabel}</AppText>
+        </Pressable>
+
+        <Pressable onPress={onPressGame} style={({ pressed }) => [styles.actionBtn, pressed ? styles.actionBtnPressed : null]}>
+          <View style={styles.iconWrap}>
+            <Ionicons name="game-controller" size={22} color={theme.colors.pinkDeep} />
+          </View>
+          <AppText style={styles.actionLabel}>{gameLabel}</AppText>
+        </Pressable>
+      </View>
     </AppModal>
   );
 }
+
+const styles = StyleSheet.create({
+  descText: {
+    fontSize: 15,
+    color: theme.colors.sub,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  actionRow: {
+    width: "100%",
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  actionBtn: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.card,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionBtnPressed: {
+    opacity: 0.72,
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(241, 200, 222, 0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionLabel: {
+    marginTop: 7,
+    fontSize: 12,
+    color: theme.colors.text,
+    fontWeight: "700",
+    ...(Platform.OS === "android" ? { fontFamily: "sans-serif-bold" } : null),
+    textAlign: "center",
+  },
+});

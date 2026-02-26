@@ -1,4 +1,4 @@
-export const translations = {
+﻿export const translations = {
   ko: {
     "home.title": "랜덤 영상채팅",
     "home.subtitle": "지역/언어/성별을 설정한 뒤 매칭을 시작하세요.",
@@ -1151,6 +1151,9 @@ const missingEn: Record<string, string> = {
   "setting.country_save_error": "Failed to save country.",
   "setting.gender_save_error": "Failed to save gender.",
   "setting.language_save_error": "Failed to save language.",
+  "setting.comment_save_error": "Failed to save your one-line comment.",
+  "setting.one_line_comment": "One-line comment",
+  "setting.one_line_comment_placeholder": "Say one short line about yourself",
   "subscription.manage": "Manage Subscription",
   "subscription.manage_failed": "Could not open subscription management.",
   "subscription.no_offering": "No purchasable products are available right now.",
@@ -1162,6 +1165,20 @@ const missingEn: Record<string, string> = {
   "dino.title": "DINO RUN",
   "dino.tap_restart": "Tap to restart",
   "dino.tap_start_jump": "Tap to start / jump",
+  "dino.new_best_title": "New Best!",
+  "dino.new_best_desc": "Leave a short one-line comment for your new record.",
+  "dino.rank_comment_title": "Top 10!",
+  "dino.rank_comment_desc": "You made the Top 10. Leave a short one-line comment.",
+  "dino.rank_top3_title": "Congratulations. You are #{rank}.",
+  "dino.rank_top3_desc": "Leave a short one-line comment.",
+  "dino.matched_title": "Matched",
+  "dino.matched_desc": "Moving to the matching screen in {seconds} seconds.",
+  "dino.best_comment_input_hint": "Leave a one-line comment here.",
+  "dino.best_comment_placeholder": "Example: JS / Keep running",
+  "dino.best_comment_save": "Save Comment",
+  "dino.best_comment_skip": "Skip",
+  "dino.rank_empty": "No ranking data yet.",
+  "dino.rank_more_title": "Ranks 4-10",
   "fortune.title": "Today's Fortune",
   "fortune.subtitle": "Choose your birth date and birth hour, then check your fortune. Your input is not saved.",
   "fortune.name_label": "Name",
@@ -1231,6 +1248,13 @@ const missingKo: Record<string, string> = {
   "dino.title": "디노 런",
   "dino.tap_restart": "탭해서 다시 시작",
   "dino.tap_start_jump": "탭해서 시작 / 점프",
+  "dino.rank_comment_title": "TOP 10 진입!",
+  "dino.rank_comment_desc": "10위 안에 들었어요. 한줄 코멘트를 남겨보세요.",
+  "dino.rank_top3_title": "축하합니다. {rank}위입니다.",
+  "dino.rank_top3_desc": "한줄 코멘트를 남겨보세요.",
+  "dino.matched_title": "매칭되었습니다",
+  "dino.matched_desc": "{seconds}초 후 매칭 화면으로 자동 이동합니다.",
+  "dino.best_comment_input_hint": "여기에 한줄 코멘트를 남기세요.",
   "fortune.title": "오늘의 운세",
   "fortune.subtitle": "생년월일과 태어난 시를 선택한 뒤 운세를 확인해 보세요. 입력한 정보는 저장되지 않습니다.",
   "fortune.name_label": "이름",
@@ -1513,6 +1537,13 @@ Object.entries(countryNameKo).forEach(([code, label]) => {
   missingKo[`country.name.${code}`] = label;
 });
 
+missingKo["dino.new_best_title"] = "\uC0C8 \uCD5C\uACE0\uC810!";
+missingKo["dino.new_best_desc"] = "\uCD5C\uACE0 \uAE30\uB85D\uC744 \uAC31\uC2E0\uD588\uC2B5\uB2C8\uB2E4. \uD55C\uC904 \uCF54\uBA58\uD2B8\uB97C \uB0A8\uAE38 \uC218 \uC788\uC5B4\uC694.";
+missingKo["dino.best_comment_placeholder"] = "\uC608: JS / \uACC4\uC18D \uB2EC\uB9B0\uB2E4";
+missingKo["dino.best_comment_save"] = "\uCF54\uBA58\uD2B8 \uC800\uC7A5";
+missingKo["dino.best_comment_skip"] = "\uAC74\uB108\uB6F0\uAE30";
+missingKo["dino.rank_empty"] = "\uC544\uC9C1 \uB7AD\uD0B9 \uB370\uC774\uD130\uAC00 \uC5C6\uC5B4\uC694.";
+missingKo["dino.rank_more_title"] = "4~10\uC704";
 const missingByLang: Record<string, Record<string, string>> = {
   ko: missingKo,
   en: missingEn,
@@ -1529,3 +1560,5 @@ const translationMap = translations as unknown as Record<string, Record<string, 
 Object.entries(missingByLang).forEach(([lang, dict]) => {
   translationMap[lang] = { ...(translationMap[lang] || {}), ...dict };
 });
+
+

@@ -1,9 +1,9 @@
 ﻿// FILE: C:\ranchat\src\screens\CallScreen.tsx
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ActivityIndicator, StyleSheet, View, Pressable, Dimensions, ScrollView, Text, BackHandler, NativeModules } from "react-native";
+import { Animated, Easing, StyleSheet, View, Pressable, Dimensions, ScrollView, Text, BackHandler, NativeModules } from "react-native";
 import { RTCView, mediaDevices } from "react-native-webrtc";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AppModal from "../components/AppModal";
@@ -25,6 +25,7 @@ import { useTranslation } from "../i18n/LanguageProvider";
 import { COUNTRY_CODES, LANGUAGE_CODES, getCountryName, getLanguageName, normalizeLanguageCode } from "../i18n/displayNames";
 import CallBeautySheet, { BeautyConfig } from "./CallBeautySheet";
 import MatchingWaitActionsModal from "../components/MatchingWaitActionsModal";
+import HeartbeatSpinner from "../components/HeartbeatSpinner";
 
 type Props = NativeStackScreenProps<MainStackParamList, "Call">;
 
@@ -113,6 +114,7 @@ export default function CallScreen({ navigation }: Props) {
 
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const isScreenFocused = useIsFocused();
 
   const prefs = useAppStore((s) => s.prefs);
   const token = useAppStore((s) => s.auth.token);
@@ -121,8 +123,6 @@ export default function CallScreen({ navigation }: Props) {
 
   const fontScale = useAppStore((s: any) => s.ui.fontScale);
   const setFontScale = useAppStore((s: any) => s.setFontScale);
-  const hideMatchingActionsModal = useAppStore((s: any) => Boolean(s.ui?.hideMatchingActionsModal));
-  const setHideMatchingActionsModal = useAppStore((s: any) => s.setHideMatchingActionsModal);
 
   const [phase, setPhase] = useState<Phase>("connecting");
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -151,7 +151,10 @@ export default function CallScreen({ navigation }: Props) {
   const [prefsModal, setPrefsModal] = useState(false);
 
   const [beautyOpen, setBeautyOpen] = useState(false);
-  const openBeauty = useCallback(() => setBeautyOpen(true), []);
+  const openBeauty = useCallback(() => {
+    beautyOpeningIntentRef.current = true;
+    setBeautyOpen(true);
+  }, []);
 
   const [beautyConfig, setBeautyConfig] = useState<BeautyConfig>({
     enabled: false,
@@ -258,6 +261,7 @@ export default function CallScreen({ navigation }: Props) {
 
   const noMatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchingActionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const matchingActionsDeadlineRef = useRef(0);
   const requeueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const premiumNoMatchAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -278,13 +282,16 @@ export default function CallScreen({ navigation }: Props) {
   const [peerInfo, setPeerInfo] = useState<any>(null);
 
   const beautyOpenRef = useRef(false);
+  const beautyOpeningIntentRef = useRef(false);
   const phaseRef = useRef<Phase>("connecting");
   const roomIdRef = useRef<string | null>(null);
   const myCamOnRef = useRef<boolean>(true);
   const mySoundOnRef = useRef<boolean>(true);
   const remoteMutedRef = useRef<boolean>(false);
+  const isScreenFocusedRef = useRef<boolean>(true);
 
   const queueTokenRef = useRef(0);
+  const matchedSignalTokenRef = useRef(0);
   const myPeerInfoNonceRef = useRef("");
   const beginCallReqRef = useRef<{ ws: SignalClient; rid: string; caller: boolean; qTok: number } | null>(null);
   const peerReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -301,9 +308,12 @@ export default function CallScreen({ navigation }: Props) {
 
   const webrtcDownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const webrtcDownTokenRef = useRef(0);
+  const matchRevealAnimRef = useRef(new Animated.Value(0));
+  const matchRevealRunningRef = useRef(false);
 
   const [signalUnstable, setSignalUnstable] = useState(false);
   const [authBooting, setAuthBooting] = useState(true);
+  const [matchRevealActive, setMatchRevealActive] = useState(false);
   const authBootInFlightRef = useRef(false);
 
   const [stageH, setStageH] = useState(0);
@@ -312,6 +322,30 @@ export default function CallScreen({ navigation }: Props) {
   const localCallingHeight = OVERLAY_LOCAL_HEIGHT_CALLING;
   const remoteBottom = OVERLAY_LOCAL_HEIGHT_CALLING;
   const showLocalOverlay = beautyOpen || phase === "calling";
+  const matchRevealHeartScale = useMemo(
+    () =>
+      matchRevealAnimRef.current.interpolate({
+        inputRange: [0, 0.28, 1],
+        outputRange: [1, 1.28, 30],
+      }),
+    []
+  );
+  const matchRevealBackdropOpacity = useMemo(
+    () =>
+      matchRevealAnimRef.current.interpolate({
+        inputRange: [0, 0.75, 1],
+        outputRange: [0.92, 0.76, 0],
+      }),
+    []
+  );
+  const matchRevealHeartOpacity = useMemo(
+    () =>
+      matchRevealAnimRef.current.interpolate({
+        inputRange: [0, 0.9, 1],
+        outputRange: [1, 1, 0.72],
+      }),
+    []
+  );
 
   const waitAdsReady = useCallback(async (maxWaitMs = 1000) => {
     if (adsReadyRef.current) return true;
@@ -431,35 +465,47 @@ export default function CallScreen({ navigation }: Props) {
 
   useEffect(() => {
     beautyOpenRef.current = beautyOpen;
+    if (beautyOpen) {
+      beautyOpeningIntentRef.current = true;
+    }
   }, [beautyOpen]);
 
   useEffect(() => {
+    isScreenFocusedRef.current = isScreenFocused;
+  }, [isScreenFocused]);
+
+  useEffect(() => {
+    if (!isScreenFocused) {
+      clearMatchingActionsTimer(false);
+      setMatchingActionsVisible(false);
+      return;
+    }
+
     if (beautyOpen) {
       clearMatchingActionsTimer();
       setMatchingActionsVisible(false);
       return;
     }
 
-    if (phase === "connecting" || phase === "queued") {
+    if (phase === "connecting" || phase === "queued" || phase === "ended") {
       startMatchingActionsTimer();
       return;
     }
 
-    clearMatchingActionsTimer();
-  }, [beautyOpen, phase]);
+    if (phase === "matched") {
+      // Preserve the waiting deadline across transient match/fail/requeue loops.
+      clearMatchingActionsTimer(false);
+      return;
+    }
 
-  useEffect(() => {
-    if (hideMatchingActionsModal) {
-      clearMatchingActionsTimer();
+    if (phase === "calling") {
+      clearMatchingActionsTimer(true);
       setMatchingActionsVisible(false);
       return;
     }
 
-    if (!beautyOpen && (phase === "connecting" || phase === "queued")) {
-      startMatchingActionsTimer();
-    }
-  }, [hideMatchingActionsModal, beautyOpen, phase]);
-
+    clearMatchingActionsTimer(true);
+  }, [beautyOpen, isScreenFocused, phase]);
 
   useEffect(() => {
     adsAliveRef.current = true;
@@ -469,34 +515,51 @@ export default function CallScreen({ navigation }: Props) {
     };
   }, [waitAdsReady]);
 
-  const clearMatchingActionsTimer = () => {
+  const clearMatchingActionsTimer = (resetDeadline = true) => {
     if (matchingActionsTimerRef.current) clearTimeout(matchingActionsTimerRef.current);
     matchingActionsTimerRef.current = null;
+    if (resetDeadline) {
+      matchingActionsDeadlineRef.current = 0;
+    }
   };
 
-  const startMatchingActionsTimer = () => {
-    clearMatchingActionsTimer();
-    setMatchingActionsVisible(false);
-    if (hideMatchingActionsModal) return;
+  const startMatchingActionsTimer = (forceReset = false) => {
+    if (forceReset) {
+      clearMatchingActionsTimer();
+      setMatchingActionsVisible(false);
+    } else if (matchingActionsTimerRef.current) {
+      return;
+    }
+    if (!matchingActionsDeadlineRef.current) {
+      matchingActionsDeadlineRef.current = Date.now() + MATCHING_ACTIONS_DELAY_MS;
+    }
+    const waitMs = Math.max(0, matchingActionsDeadlineRef.current - Date.now());
     matchingActionsTimerRef.current = setTimeout(() => {
-      if (hideMatchingActionsModal) return;
-      if (!queueRunningRef.current) return;
-      if (phaseRef.current !== "connecting" && phaseRef.current !== "queued") return;
-      if (roomIdRef.current) return;
-      if (beautyOpenRef.current) return;
+      matchingActionsTimerRef.current = null;
+      if (!isScreenFocusedRef.current) return;
+      if (phaseRef.current === "calling") {
+        matchingActionsDeadlineRef.current = 0;
+        return;
+      }
+      if (phaseRef.current === "matched") {
+        // Keep deadline so failed handshake/requeue can show immediately when overdue.
+        return;
+      }
+      if (beautyOpenRef.current) {
+        return;
+      }
+      matchingActionsDeadlineRef.current = 0;
       setMatchingActionsVisible(true);
-    }, MATCHING_ACTIONS_DELAY_MS);
+    }, waitMs);
   };
 
   useFocusEffect(
     useCallback(() => {
-      if (hideMatchingActionsModal) return;
+      if (!isScreenFocusedRef.current) return;
       if (beautyOpenRef.current) return;
-      if (phaseRef.current !== "connecting" && phaseRef.current !== "queued") return;
-      if (roomIdRef.current) return;
-      if (!queueRunningRef.current) return;
+      if (phaseRef.current === "calling" || phaseRef.current === "matched") return;
       startMatchingActionsTimer();
-    }, [hideMatchingActionsModal])
+    }, [])
   );
 
   const startNoMatchTimer = () => {
@@ -565,43 +628,71 @@ export default function CallScreen({ navigation }: Props) {
     }
   }, []);
 
+  const hasLiveVideoTrack = useCallback((stream: any) => {
+    try {
+      const tracks = (stream?.getVideoTracks?.() ?? []) as any[];
+      if (!tracks.length) return false;
+      return tracks.some((t: any) => String(t?.readyState ?? "live").toLowerCase() !== "ended");
+    } catch {
+      return false;
+    }
+  }, []);
+
   const ensureLocalPreviewStream = useCallback(async () => {
     if (phaseRef.current === "calling") return true;
 
     const existing = previewStreamRef.current;
-    if (existing) {
+    if (existing && hasLiveVideoTrack(existing)) {
       localStreamRef.current = existing;
       try {
         setLocalStreamURL(existing.toURL());
       } catch {}
       return true;
     }
+    if (existing) {
+      try {
+        (existing as any)?.getTracks?.()?.forEach((t: any) => t?.stop?.());
+      } catch {}
+      previewStreamRef.current = null;
+      if (localStreamRef.current === existing) localStreamRef.current = null;
+      setLocalStreamURL(null);
+    }
 
     if (previewOpeningRef.current) return false;
     previewOpeningRef.current = true;
 
     try {
+      const requestPreviewStream = async (fallback = false) =>
+        mediaDevices.getUserMedia({
+          audio: false,
+          video: fallback
+            ? {
+                facingMode: "user",
+                frameRate: { ideal: 20, max: 20 },
+                width: { ideal: 640, max: 640 },
+                height: { ideal: 480, max: 480 },
+              }
+            : {
+                facingMode: "user",
+                frameRate: { ideal: 24, max: 24 },
+                width: { ideal: 720, max: 720 },
+                height: { ideal: 540, max: 540 },
+              },
+        } as any);
+
       let stream: any = null;
       try {
-        stream = await mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: "user",
-            frameRate: { ideal: 24, max: 24 },
-            width: { ideal: 720, max: 720 },
-            height: { ideal: 540, max: 540 },
-          },
-        } as any);
+        stream = await requestPreviewStream(false);
+        if (!hasLiveVideoTrack(stream)) throw new Error("PREVIEW_STREAM_NO_LIVE_TRACK");
       } catch {
-        stream = await mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: "user",
-            frameRate: { ideal: 20, max: 20 },
-            width: { ideal: 640, max: 640 },
-            height: { ideal: 480, max: 480 },
-          },
-        } as any);
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        } catch {}
+        stream = await requestPreviewStream(true);
+      }
+
+      if (!stream || !hasLiveVideoTrack(stream)) {
+        throw new Error("PREVIEW_STREAM_INVALID");
       }
 
       previewStreamRef.current = stream;
@@ -614,9 +705,10 @@ export default function CallScreen({ navigation }: Props) {
     } finally {
       previewOpeningRef.current = false;
     }
-  }, [showGlobalModal, t]);
+  }, [hasLiveVideoTrack, showGlobalModal, t]);
 
   const closeBeauty = useCallback(() => {
+    beautyOpeningIntentRef.current = false;
     setBeautyOpen(false);
     if (phaseRef.current !== "calling") {
       clearLocalPreviewStream();
@@ -635,7 +727,39 @@ export default function CallScreen({ navigation }: Props) {
     webrtcDownTokenRef.current += 1;
   };
 
-  const stopAll = (isUserExit = false) => {
+  const runMatchRevealTransition = useCallback(
+    (onDone: () => void) => {
+      if (matchRevealRunningRef.current) return false;
+      matchRevealRunningRef.current = true;
+      setMatchRevealActive(true);
+      matchRevealAnimRef.current.stopAnimation();
+      matchRevealAnimRef.current.setValue(0);
+
+      Animated.sequence([
+        Animated.timing(matchRevealAnimRef.current, {
+          toValue: 0.12,
+          duration: 280,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.timing(matchRevealAnimRef.current, {
+          toValue: 1,
+          duration: 1050,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        matchRevealRunningRef.current = false;
+        setMatchRevealActive(false);
+        matchRevealAnimRef.current.setValue(0);
+        if (finished) onDone();
+      });
+      return true;
+    },
+    []
+  );
+
+  const stopAll = (isUserExit = false, resetMatchingActions = true) => {
     if (isUserExit) {
       manualCloseRef.current = true;
     }
@@ -658,10 +782,18 @@ export default function CallScreen({ navigation }: Props) {
     requeueTimerRef.current = null;
 
     clearNoMatchTimer();
-    clearMatchingActionsTimer();
-    setMatchingActionsVisible(false);
-    clearLocalPreviewStream();
-    setBeautyOpen(false);
+    if (resetMatchingActions) {
+      clearMatchingActionsTimer(true);
+      setMatchingActionsVisible(false);
+    } else if (matchingActionsTimerRef.current) {
+      clearTimeout(matchingActionsTimerRef.current);
+      matchingActionsTimerRef.current = null;
+    }
+    const keepBeautyOpen = !isUserExit && (beautyOpenRef.current || beautyOpeningIntentRef.current);
+    if (!keepBeautyOpen) {
+      clearLocalPreviewStream();
+      setBeautyOpen(false);
+    }
 
     clearReconnectTimer();
     clearWebrtcDownTimer();
@@ -717,13 +849,31 @@ export default function CallScreen({ navigation }: Props) {
     if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
     limitTimerRef.current = null;
 
-    setLocalStreamURL(null);
+    if (keepBeautyOpen) {
+      const preview = previewStreamRef.current;
+      if (preview && hasLiveVideoTrack(preview)) {
+        localStreamRef.current = preview;
+        try {
+          setLocalStreamURL(preview.toURL());
+        } catch {
+          setLocalStreamURL(null);
+        }
+      } else {
+        setLocalStreamURL(null);
+      }
+    } else {
+      setLocalStreamURL(null);
+    }
     setRemoteStreamURL(null);
     setRoomId(null);
     setPeerInfo(null);
     setRemoteVideoAllowed(true);
     setRemoteCamOn(true);
     setLimitModal(false);
+    matchRevealRunningRef.current = false;
+    setMatchRevealActive(false);
+    matchRevealAnimRef.current.stopAnimation();
+    matchRevealAnimRef.current.setValue(0);
     setPhase("ended");
   };
 
@@ -877,7 +1027,9 @@ export default function CallScreen({ navigation }: Props) {
     callStartTokenRef.current = tokenNow;
 
     try {
-      clearLocalPreviewStream();
+      if (!beautyOpenRef.current && !beautyOpeningIntentRef.current) {
+        clearLocalPreviewStream();
+      }
 
       const rtc = new WebRTCSession({
         onLocalStream: (s) => {
@@ -899,7 +1051,11 @@ export default function CallScreen({ navigation }: Props) {
           setRemoteStreamURL(s.toURL());
           if (phaseRef.current === "matched") {
             setReMatchText("");
-            setPhase("calling");
+            runMatchRevealTransition(() => {
+              if (queueTokenRef.current !== qTok) return;
+              if (phaseRef.current !== "matched") return;
+              setPhase("calling");
+            });
           }
         },
         onIceCandidate: (c) => ws.sendIce(rid, c),
@@ -915,6 +1071,12 @@ export default function CallScreen({ navigation }: Props) {
             if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
             webrtcConnectTimerRef.current = null;
             clearWebrtcDownTimer();
+            if ((phaseRef.current === "matched" || phaseRef.current === "calling") && matchedSignalTokenRef.current !== qTok) {
+              matchedSignalTokenRef.current = qTok;
+              try {
+                useAppStore.getState().setCallMatchedSignal(Date.now());
+              } catch {}
+            }
             return;
           }
 
@@ -980,7 +1142,9 @@ export default function CallScreen({ navigation }: Props) {
       }, 4000);
 
       try {
-        ws.relay(rid, { type: "cam", enabled: Boolean(myCamOnRef.current) });
+        const camEnabled = Boolean(myCamOnRef.current);
+        ws.sendCamState(rid, camEnabled);
+        ws.relay(rid, { type: "cam", enabled: camEnabled });
       } catch {}
 
       if (!isPremium) {
@@ -1016,7 +1180,8 @@ export default function CallScreen({ navigation }: Props) {
       setReMatchText("");
     }
 
-    stopAll(false);
+    const resetMatchingActions = why !== "disconnect";
+    stopAll(false, resetMatchingActions);
     setNoMatchModal(false);
 
     if (why === "remote_left") {
@@ -1024,18 +1189,21 @@ export default function CallScreen({ navigation }: Props) {
       if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
       requeueTimerRef.current = setTimeout(() => {
         setPhase("connecting");
-        startQueue();
+        startQueue(true);
+        if (!beautyOpenRef.current) {
+          startMatchingActionsTimer(true);
+        }
       }, 100);
     } else {
       setPhase("connecting");
       if (requeueTimerRef.current) clearTimeout(requeueTimerRef.current);
       requeueTimerRef.current = setTimeout(() => {
-        startQueue();
+        startQueue(why !== "disconnect");
       }, 100);
     }
   };
 
-const startQueue = () => {
+const startQueue = (resetMatchingActions = false) => {
   if (queueRunningRef.current) return;
   queueRunningRef.current = true;
   enqueuedRef.current = false;
@@ -1104,7 +1272,7 @@ const startQueue = () => {
 
         if (manualCloseRef.current) return;
         setAuthBooting(false);
-        startQueue();
+        startQueue(resetMatchingActions);
       } catch (e) {
         const m = typeof e === "object" && e && "message" in (e as any) ? String((e as any).message) : String(e);
         useAppStore.getState().showGlobalModal(t("auth.title"), m || "BIND_FAILED");
@@ -1119,10 +1287,12 @@ const startQueue = () => {
 
   setAuthBooting(false);
 
-  setMatchingActionsVisible(false);
+  if (resetMatchingActions) {
+    setMatchingActionsVisible(false);
+  }
   setNoMatchModal(false);
   setPhase("connecting");
-  startMatchingActionsTimer();
+  startMatchingActionsTimer(resetMatchingActions);
 
   const ws = new SignalClient({
     onOpen: () => {
@@ -1160,8 +1330,9 @@ const startQueue = () => {
 
   if (msg.type === "signal") {
     const d: any = (msg as any).data;
+    const sigType = String(d?.type ?? d?.kind ?? "").toLowerCase();
 
-    if (String(d?.type ?? "").toLowerCase() === "peer_info") {
+    if (sigType === "peer_info") {
       if (String(d?.nonce ?? "") === String(myPeerInfoNonceRef.current)) return;
 
       setPeerInfo(d);
@@ -1177,14 +1348,29 @@ const startQueue = () => {
       return;
     }
 
+    if (sigType === "cam_state" || sigType === "cam") {
+      setRemoteCamOn(Boolean(d?.enabled ?? d?.on ?? d?.camOn ?? d?.videoEnabled ?? d?.videoOn));
+      return;
+    }
+
+    return;
+  }
+
+  if (msg.type === "peer_cam") {
+    setRemoteCamOn(Boolean((msg as any).enabled));
     return;
   }
 
   if (msg.type === "queued") {
     if (phaseRef.current === "matched" || phaseRef.current === "calling") return;
+    const wasQueued = phaseRef.current === "queued";
     setPhase("queued");
-    startMatchingActionsTimer();
-    startNoMatchTimer();
+    // Keep existing timers running so repeated `queued` messages do not postpone modals forever.
+    if (!wasQueued) {
+      if (!noMatchTimerRef.current) {
+        startNoMatchTimer();
+      }
+    }
     return;
   }
   if (msg.type === "match") {
@@ -1200,17 +1386,15 @@ const startQueue = () => {
     }
 
     clearNoMatchTimer();
-    clearMatchingActionsTimer();
-    setMatchingActionsVisible(false);
-    clearLocalPreviewStream();
-    setBeautyOpen(false);
+    // Do not reset waiting deadline or hide modal on transient match state.
+    clearMatchingActionsTimer(false);
+    if (!beautyOpenRef.current && !beautyOpeningIntentRef.current) {
+      clearLocalPreviewStream();
+    }
     setNoMatchModal(false);
     setFastMatchHint(false);
     setReMatchText("");
     setPhase("matched");
-    try {
-      useAppStore.getState().setCallMatchedSignal(Date.now());
-    } catch {}
     queueRunningRef.current = false;
     enqueuedRef.current = false;
     setRoomId(rid);
@@ -1296,7 +1480,10 @@ const startQueue = () => {
     rtcRef.current?.setLocalVideoEnabled(next);
 
     try {
-      if (roomId) wsRef.current?.relay(roomId, { type: "cam", enabled: next });
+      if (roomId) {
+        wsRef.current?.sendCamState(roomId, next);
+        wsRef.current?.relay(roomId, { type: "cam", enabled: next });
+      }
     } catch {}
   };
 
@@ -1358,7 +1545,7 @@ const startQueue = () => {
 
         if (!alive) return;
         setAuthBooting(false);
-        startQueue();
+        startQueue(true);
       } catch (e) {
         if (!alive) return;
         const m = typeof e === "object" && e && "message" in (e as any) ? String((e as any).message) : String(e);
@@ -1400,26 +1587,24 @@ const startQueue = () => {
 
   const dismissMatchingActions = useCallback(() => {
     setMatchingActionsVisible(false);
-    if (hideMatchingActionsModal) {
-      clearMatchingActionsTimer();
-      return;
+    if (!isScreenFocusedRef.current) return;
+    if (!beautyOpenRef.current && (phaseRef.current === "connecting" || phaseRef.current === "queued" || phaseRef.current === "ended")) {
+      startMatchingActionsTimer(true);
     }
-    if (!beautyOpenRef.current && (phaseRef.current === "connecting" || phaseRef.current === "queued")) {
-      startMatchingActionsTimer();
-    }
-  }, [hideMatchingActionsModal]);
-
-  const toggleHideMatchingActions = useCallback(() => {
-    setHideMatchingActionsModal(!hideMatchingActionsModal);
-  }, [hideMatchingActionsModal, setHideMatchingActionsModal]);
+  }, []);
 
   const onPressMatchingBeauty = useCallback(async () => {
     clearMatchingActionsTimer();
     setMatchingActionsVisible(false);
     setMyCamOn(true);
-    const ok = await ensureLocalPreviewStream();
-    if (!ok) return;
+    beautyOpeningIntentRef.current = true;
     openBeauty();
+    const ok = await ensureLocalPreviewStream();
+    if (!ok) {
+      beautyOpeningIntentRef.current = false;
+      setBeautyOpen(false);
+      return;
+    }
   }, [clearMatchingActionsTimer, ensureLocalPreviewStream, openBeauty]);
 
   const onPressMatchingFortune = useCallback(() => {
@@ -1596,7 +1781,37 @@ const startQueue = () => {
 
         {phase !== "calling" ? (
           <View style={styles.centerOverlay}>
-            <ActivityIndicator />
+            {matchRevealActive && remoteStreamURL ? (
+              <>
+                <Animated.View pointerEvents="none" style={[styles.matchRevealBackdrop, { opacity: matchRevealBackdropOpacity }]} />
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.matchRevealHeartWrap,
+                    { opacity: matchRevealHeartOpacity, transform: [{ scale: matchRevealHeartScale }] },
+                  ]}
+                >
+                  <View style={[styles.matchRevealPiece, styles.matchRevealLobeLeft]}>
+                    <RTCView streamURL={remoteStreamURL} style={styles.matchRevealVideo} objectFit="cover" zOrder={REMOTE_VIDEO_Z_ORDER} />
+                  </View>
+                  <View style={[styles.matchRevealPiece, styles.matchRevealLobeRight]}>
+                    <RTCView streamURL={remoteStreamURL} style={styles.matchRevealVideo} objectFit="cover" zOrder={REMOTE_VIDEO_Z_ORDER} />
+                  </View>
+                  <View style={[styles.matchRevealPiece, styles.matchRevealBottomDiamond]}>
+                    <RTCView
+                      streamURL={remoteStreamURL}
+                      style={styles.matchRevealVideoDiamond}
+                      objectFit="cover"
+                      zOrder={REMOTE_VIDEO_Z_ORDER}
+                    />
+                  </View>
+                  <Ionicons name="heart" size={178} color="rgba(255, 196, 226, 0.54)" style={styles.matchRevealHeartGlow} />
+                  <Ionicons name="heart" size={138} color="rgba(255, 231, 244, 0.52)" style={styles.matchRevealHeartFill} />
+                </Animated.View>
+              </>
+            ) : (
+              <HeartbeatSpinner />
+            )}
 
             <View style={styles.centerTextDock}>
               {reMatchText ? (
@@ -1736,9 +1951,6 @@ const startQueue = () => {
         beautyLabel={t("call.waiting_actions_beauty")}
         fortuneLabel={t("call.waiting_actions_fortune")}
         gameLabel={t("call.waiting_actions_game")}
-        doNotShowLabel={t("call.waiting_actions_do_not_show")}
-        doNotShowChecked={hideMatchingActionsModal}
-        onToggleDoNotShow={toggleHideMatchingActions}
         closeLabel={t("common.close")}
         onPressBeauty={onPressMatchingBeauty}
         onPressFortune={onPressMatchingFortune}
@@ -2080,9 +2292,74 @@ localAreaCalling: {
     justifyContent: "center",
     paddingHorizontal: 18,
   },
+  matchRevealBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+  },
+  matchRevealHeartWrap: {
+    position: "absolute",
+    width: 164,
+    height: 150,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  matchRevealPiece: {
+    position: "absolute",
+    overflow: "hidden",
+    backgroundColor: "#000",
+  },
+  matchRevealLobeLeft: {
+    left: 22,
+    top: 0,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  matchRevealLobeRight: {
+    left: 78,
+    top: 0,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  matchRevealBottomDiamond: {
+    left: 36,
+    top: 30,
+    width: 92,
+    height: 92,
+    borderRadius: 16,
+    transform: [{ rotate: "45deg" }],
+  },
+  matchRevealVideo: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  matchRevealVideoDiamond: {
+    ...StyleSheet.absoluteFillObject,
+    transform: [{ rotate: "-45deg" }, { scale: 1.42 }],
+  },
+  matchRevealHeartGlow: {
+    position: "absolute",
+    top: -16,
+    textShadowColor: "rgba(255, 214, 236, 0.9)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  matchRevealHeartFill: {
+    position: "absolute",
+    top: 2,
+    textShadowColor: "rgba(255, 240, 248, 0.75)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 7,
+  },
 
   centerTextDock: {
-    marginTop: 28,
+    position: "absolute",
+    left: 18,
+    right: 18,
+    top: "50%",
+    marginTop: 52,
+    minHeight: 72,
+    paddingHorizontal: 8,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2092,10 +2369,11 @@ localAreaCalling: {
     fontSize: 20,
     fontWeight: "600",
     color: "rgba(139, 139, 139, 0.85)",
-    lineHeight: 20,
+    lineHeight: 24,
   },
 
   reMatchTextWrap: {
+    minHeight: 72,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2105,7 +2383,7 @@ localAreaCalling: {
     fontSize: 20,
     fontWeight: "600",
     color: "rgba(139, 139, 139, 0.85)",
-    lineHeight: 26,
+    lineHeight: 24,
   },
 
   reMatchTextBottom: {
@@ -2113,8 +2391,8 @@ localAreaCalling: {
     fontSize: 24,
     fontWeight: "800",
     color: "rgba(139, 139, 139, 0.85)",
-    lineHeight: 30,
-    marginTop: 5,
+    lineHeight: 28,
+    marginTop: 4,
   },
 
   queueAdDock: {

@@ -410,7 +410,10 @@ export default function FortuneScreen() {
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (matchedTimerRef.current) clearTimeout(matchedTimerRef.current);
+      if (matchedTimerRef.current) {
+        clearTimeout(matchedTimerRef.current);
+        matchedTimerRef.current = null;
+      }
       spinRef.current?.stop();
       pulseRef.current?.stop();
     };
@@ -420,15 +423,17 @@ export default function FortuneScreen() {
     if (!callMatchedSignal) return;
     if (callMatchedSignal === initialSignalRef.current) return;
     if (callMatchedSignal === handledSignalRef.current) return;
+    if (matchedModalVisible) return;
+    if (matchedTimerRef.current) return;
     handledSignalRef.current = callMatchedSignal;
 
     setMatchedModalVisible(true);
-    if (matchedTimerRef.current) clearTimeout(matchedTimerRef.current);
     matchedTimerRef.current = setTimeout(() => {
+      matchedTimerRef.current = null;
       setMatchedModalVisible(false);
       if (navigation.canGoBack()) navigation.goBack();
     }, 1400);
-  }, [callMatchedSignal, navigation]);
+  }, [callMatchedSignal, matchedModalVisible, navigation]);
 
   useEffect(() => {
     if (!isLoading) {

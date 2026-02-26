@@ -1,9 +1,10 @@
 ﻿// FILE: C:\ranchat\src\components\Spinner.tsx
 import React from "react";
-import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 import { useTranslation } from "../i18n/LanguageProvider";
+import HeartbeatSpinner from "./HeartbeatSpinner";
 
 export default function Spinner() {
   const { t } = useTranslation();
@@ -11,10 +12,7 @@ export default function Spinner() {
   return (
     <View style={styles.wrap}>
       <AppText style={styles.text}>{t("call.connecting")}</AppText>
-      <ActivityIndicator
-        size={Platform.OS === "android" ? "large" : 100}
-        style={Platform.OS === "android" ? { transform: [{ scale: 3.2 }] } : undefined}
-      />
+      <HeartbeatSpinner />
     </View>
   );
 }

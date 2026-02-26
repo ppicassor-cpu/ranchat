@@ -31,8 +31,9 @@ type GlobalModal = {
 
 type Ui = {
   fontScale: number; // 0.85~1.25 권장
-  hideMatchingActionsModal: boolean;
   callMatchedSignal: number;
+  dinoBestScore: number;
+  dinoBestComment: string | null;
 };
 
 type Store = {
@@ -59,8 +60,9 @@ type Store = {
   setAuth: (a: Partial<Auth>) => void;
 
   setFontScale: (v: number) => void;
-  setHideMatchingActionsModal: (v: boolean) => void;
   setCallMatchedSignal: (v: number) => void;
+  setDinoBestScore: (v: number) => void;
+  setDinoBestComment: (v: string | null) => void;
 
   logoutAndWipe: () => void;
 
@@ -78,7 +80,7 @@ export const useAppStore = create<Store>()(
       sub: { isPremium: false, entitlementId: null, lastCheckedAt: null },
       auth: { verified: false, token: null, userId: null, deviceKey: null },
 
-      ui: { fontScale: 1, hideMatchingActionsModal: false, callMatchedSignal: 0 },
+      ui: { fontScale: 1, callMatchedSignal: 0, dinoBestScore: 0, dinoBestComment: null },
 
       globalModal: { visible: false, title: "", message: "" },
 
@@ -100,14 +102,23 @@ export const useAppStore = create<Store>()(
         set({ ui: { ...get().ui, fontScale: Number(clamped.toFixed(2)) } });
       },
 
-      setHideMatchingActionsModal: (v) => {
-        set({ ui: { ...get().ui, hideMatchingActionsModal: Boolean(v) } });
-      },
-
       setCallMatchedSignal: (v) => {
         const n = Number(v);
         if (!Number.isFinite(n)) return;
         set({ ui: { ...get().ui, callMatchedSignal: n } });
+      },
+
+      setDinoBestScore: (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return;
+        const safe = Math.max(0, Math.trunc(n));
+        if (safe <= Number(get().ui.dinoBestScore || 0)) return;
+        set({ ui: { ...get().ui, dinoBestScore: safe } });
+      },
+
+      setDinoBestComment: (v) => {
+        const next = String(v ?? "").trim().slice(0, 60);
+        set({ ui: { ...get().ui, dinoBestComment: next || null } });
       },
 
       logoutAndWipe: () => {

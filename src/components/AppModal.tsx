@@ -1,5 +1,5 @@
 ﻿import React from "react";
-import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 
@@ -15,7 +15,11 @@ type Props = {
 export default function AppModal({ visible, title, children, onClose, footer, dismissible = true }: Props) {
   return (
     <Modal transparent visible={visible} animationType="fade" statusBarTranslucent>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
+      >
         <Pressable
           style={styles.backdropPress}
           onPress={() => {
@@ -27,7 +31,7 @@ export default function AppModal({ visible, title, children, onClose, footer, di
           <View style={styles.body}>{children}</View>
           {footer ? <View style={styles.footer}>{footer}</View> : null}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
