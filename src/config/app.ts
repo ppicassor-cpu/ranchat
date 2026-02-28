@@ -151,6 +151,10 @@ export const APP_CONFIG = {
     statePath: normalizePath(read("EXPO_PUBLIC_POPTALK_STATE_PATH", "/api/poptalk/state"), "/api/poptalk/state"),
     consumePath: normalizePath(read("EXPO_PUBLIC_POPTALK_CONSUME_PATH", "/api/poptalk/consume"), "/api/poptalk/consume"),
     rewardPath: normalizePath(read("EXPO_PUBLIC_POPTALK_REWARD_PATH", "/api/poptalk/reward"), "/api/poptalk/reward"),
+    kernelConvertPath: normalizePath(
+      read("EXPO_PUBLIC_POPTALK_KERNEL_CONVERT_PATH", "/api/poptalk/kernel-convert"),
+      "/api/poptalk/kernel-convert"
+    ),
   },
 
   PURCHASES: {

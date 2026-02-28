@@ -9,6 +9,8 @@ import PremiumScreen from "../screens/PremiumScreen";
 import FortuneScreen from "../screens/FortuneScreen";
 import DinoScreen from "../screens/DinoScreen";
 import ShopScreen from "../screens/ShopScreen";
+import GiftShopScreen from "../screens/GiftShopScreen";
+import GiftBoxScreen from "../screens/GiftBoxScreen";
 import { theme } from "../config/theme";
 import { useTranslation } from "../i18n/LanguageProvider";
 
@@ -20,6 +22,8 @@ export type MainStackParamList = {
   Profile: undefined;
   Premium: undefined;
   Shop: undefined;
+  GiftShop: undefined;
+  GiftBox: { mode?: "view" | "send" } | undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -54,7 +58,9 @@ export default function MainStack() {
       <Stack.Screen name="Dino" component={DinoScreen} options={{ title: t("screen.dino") }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: t("screen.profile") }} />
       <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: t("screen.premium") }} />
-      <Stack.Screen name="Shop" component={ShopScreen} options={{ title: "팝콘 상점" }} />
+      <Stack.Screen name="Shop" component={ShopScreen} options={{ title: "팝톡 상점" }} />
+      <Stack.Screen name="GiftShop" component={GiftShopScreen} options={{ title: "선물 상점" }} />
+      <Stack.Screen name="GiftBox" component={GiftBoxScreen} options={{ title: "내 선물함" }} />
     </Stack.Navigator>
   );
 }

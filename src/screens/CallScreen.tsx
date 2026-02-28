@@ -36,6 +36,7 @@ import { W, REMOTE_VIDEO_Z_ORDER, LOCAL_VIDEO_Z_ORDER, OVERLAY_LOCAL_HEIGHT_CALL
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import AppText from "../components/AppText";
+import { getGiftById } from "../constants/giftCatalog";
 
 type Props = NativeStackScreenProps<MainStackParamList, "Call">;
 
@@ -51,6 +52,10 @@ export default function CallScreen({ navigation }: Props) {
   const isPremium = useAppStore((s) => s.sub.isPremium);
   const popTalk = useAppStore((s: any) => s.popTalk);
   const showGlobalModal = useAppStore((s: any) => s.showGlobalModal);
+  const pendingGiftSend = useAppStore((s: any) => s.pendingGiftSend);
+  const clearPendingGiftSend = useAppStore((s: any) => s.clearPendingGiftSend);
+  const addOwnedGift = useAppStore((s: any) => s.addOwnedGift);
+  const addReceivedGift = useAppStore((s: any) => s.addReceivedGift);
   const { refreshPopTalk, consumePopTalk, watchRewardedAdAndReward } = usePopTalk();
 
   const fontScale = useAppStore((s: any) => s.ui.fontScale);
@@ -139,7 +144,9 @@ export default function CallScreen({ navigation }: Props) {
   const [signalUnstable, setSignalUnstable] = useState(false);
   const [authBooting, setAuthBooting] = useState(true);
   const [matchRevealActive, setMatchRevealActive] = useState(false);
+  const [giftFx, setGiftFx] = useState<{ token: number; giftName: string; emoji: string; message: string } | null>(null);
   const authBootInFlightRef = useRef(false);
+  const giftFxAnimRef = useRef(new Animated.Value(0));
 
   const {
     adsReady,
@@ -311,6 +318,14 @@ export default function CallScreen({ navigation }: Props) {
       }),
     []
   );
+  const giftFxScale = useMemo(
+    () =>
+      giftFxAnimRef.current.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.8, 1],
+      }),
+    []
+  );
 
   const { peerInfoText, myCountryRaw, myLangRaw, myGenderRaw, myFlag } = usePeerInfo({ peerInfo, prefs, t });
 
@@ -350,6 +365,12 @@ export default function CallScreen({ navigation }: Props) {
   useEffect(() => {
     remoteMutedRef.current = remoteMuted;
   }, [remoteMuted]);
+
+  useEffect(() => {
+    return () => {
+      giftFxAnimRef.current.stopAnimation();
+    };
+  }, []);
 
   useEffect(() => {
     refreshPopTalk().catch(() => undefined);
@@ -440,6 +461,48 @@ export default function CallScreen({ navigation }: Props) {
       return true;
     },
     []
+  );
+
+  const triggerGiftFx = useCallback((giftId: string, message: string) => {
+    const gift = getGiftById(giftId);
+    if (!gift) return;
+    const token = Date.now() + Math.floor(Math.random() * 1000);
+    giftFxAnimRef.current.stopAnimation();
+    giftFxAnimRef.current.setValue(0);
+    setGiftFx({
+      token,
+      giftName: gift.name,
+      emoji: gift.emoji,
+      message,
+    });
+    Animated.sequence([
+      Animated.timing(giftFxAnimRef.current, {
+        toValue: 1,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.delay(1250),
+      Animated.timing(giftFxAnimRef.current, {
+        toValue: 0,
+        duration: 260,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (!finished) return;
+      setGiftFx((prev) => (prev?.token === token ? null : prev));
+    });
+  }, []);
+
+  const onGiftSignal = useCallback(
+    (giftId: string) => {
+      const gift = getGiftById(giftId);
+      if (!gift) return;
+      addReceivedGift(gift.id, 1);
+      triggerGiftFx(gift.id, `${gift.name} 선물을 받았습니다.`);
+    },
+    [addReceivedGift, triggerGiftFx]
   );
 
   const { stopAll, beginCall } = useCallRuntime({
@@ -605,6 +668,7 @@ export default function CallScreen({ navigation }: Props) {
     setSignalUnstable,
     setPeerInfo,
     setRemoteCamOn,
+    onGiftSignal,
     setFastMatchHint,
     setReMatchText,
     setRoomId,
@@ -620,6 +684,37 @@ export default function CallScreen({ navigation }: Props) {
     endCallAndRequeue,
     beforeStartQueue: ensurePopTalkForMatching,
   });
+
+  useEffect(() => {
+    if (!pendingGiftSend) return;
+    const event = pendingGiftSend;
+    const gift = getGiftById(event.giftId);
+    const finalize = () => {
+      clearPendingGiftSend(event.token);
+    };
+
+    if (!gift) {
+      finalize();
+      return;
+    }
+
+    if (phaseRef.current !== "calling" || !roomIdRef.current) {
+      addOwnedGift(gift.id, 1);
+      showGlobalModal(t("call.error_title"), "통화 중에만 선물을 보낼 수 있어요.");
+      finalize();
+      return;
+    }
+
+    try {
+      wsRef.current?.relay(roomIdRef.current, { type: "gift", giftId: gift.id, name: gift.name });
+      triggerGiftFx(gift.id, `${gift.name} 선물을 보냈습니다.`);
+    } catch {
+      addOwnedGift(gift.id, 1);
+      showGlobalModal(t("call.error_title"), "선물 전송에 실패했습니다.");
+    } finally {
+      finalize();
+    }
+  }, [addOwnedGift, clearPendingGiftSend, pendingGiftSend, showGlobalModal, t, triggerGiftFx]);
 
   const { toggleCam, toggleSound, toggleRemoteMute } = useWebRTC({
     rtcRef,
@@ -873,6 +968,25 @@ export default function CallScreen({ navigation }: Props) {
         t={t}
       />
 
+      {giftFx ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.giftFxOverlay,
+            {
+              opacity: giftFxAnimRef.current,
+              transform: [{ scale: giftFxScale }],
+            },
+          ]}
+        >
+          <View style={styles.giftFxCard}>
+            <AppText style={styles.giftFxEmoji}>{giftFx.emoji}</AppText>
+            <AppText style={styles.giftFxName}>{giftFx.giftName}</AppText>
+            <AppText style={styles.giftFxText}>{giftFx.message}</AppText>
+          </View>
+        </Animated.View>
+      ) : null}
+
       {phase === "calling" ? (
         <View pointerEvents="box-none" style={styles.topUiLayer}>
           <Pressable
@@ -884,7 +998,18 @@ export default function CallScreen({ navigation }: Props) {
               pressed ? { opacity: 0.72 } : null,
             ]}
           >
-            <Ionicons name="storefront-outline" size={21} color="#fff" />
+            <Ionicons name="cart-outline" size={22} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("GiftBox", { mode: "send" })}
+            hitSlop={12}
+            style={({ pressed }) => [
+              styles.giftSendBtn,
+              { top: insets.top + 96, right: 12 },
+              pressed ? { opacity: 0.72 } : null,
+            ]}
+          >
+            <AppText style={{ fontSize: 19 }}>🎁</AppText>
           </Pressable>
         </View>
       ) : null}

@@ -1,4 +1,4 @@
-const base = require("./app.json");
+const base = require("./app.base.json");
 
 function toText(v) {
   return String(v ?? "").trim();
@@ -47,8 +47,14 @@ function withGooglePlugin(plugins, iosUrlScheme) {
   return next;
 }
 
-const expo = JSON.parse(JSON.stringify(base.expo || {}));
-const googleIosUrlScheme = deriveGoogleIosUrlScheme();
-expo.plugins = withGooglePlugin(expo.plugins, googleIosUrlScheme);
-
-module.exports = { expo };
+module.exports = ({ config }) => {
+  // Use values from app.json (base.expo) and merge with Expo's incoming config object.
+  const merged = {
+    ...(base.expo || {}),
+    ...((config && typeof config === "object" ? config : {}) || {}),
+  };
+  const expo = JSON.parse(JSON.stringify(merged));
+  const googleIosUrlScheme = deriveGoogleIosUrlScheme();
+  expo.plugins = withGooglePlugin(expo.plugins, googleIosUrlScheme);
+  return expo;
+};

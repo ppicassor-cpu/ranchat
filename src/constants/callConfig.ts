@@ -31,4 +31,4 @@ export const FREE_CALL_LIMIT_MS = (() => {
 })();
 
 export const INTERSTITIAL_COOLDOWN_MS = 4 * 60 * 1000;
-export const MATCHING_ACTIONS_DELAY_MS = 7500;
+export const MATCHING_ACTIONS_DELAY_MS = 10000;

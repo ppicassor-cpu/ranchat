@@ -3,7 +3,7 @@
     "name": "ranchat",
     "slug": "ranchat",
     "scheme": "ranchat",
-    "version": "11.0.1",
+    "version": "13.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -30,7 +30,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 12,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

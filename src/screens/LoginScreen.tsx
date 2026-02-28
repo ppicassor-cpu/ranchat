@@ -129,7 +129,7 @@ export default function LoginScreen() {
       isPremium,
       planId: String(sub?.planId || ""),
       storeProductId: String(sub?.storeProductId || ""),
-      popcornCount: Number(assets?.popcornCount ?? popTalk?.balance ?? 0),
+      popTalkCount: Number(popTalk?.balance ?? 0),
       kernelCount: Number(assets?.kernelCount ?? assets?.kernels ?? 0),
       totalPaymentKrw: Number(billing?.totalPaidKrw ?? billing?.totalPaymentKrw ?? 0),
     };

@@ -47,18 +47,25 @@ type PopTalk = {
 };
 
 type Assets = {
-  popcornCount: number;
   kernelCount: number;
   updatedAtMs: number | null;
 };
 
 type Shop = {
   firstPurchaseClaimed: Record<string, boolean>;
+  giftsOwned: Record<string, number>;
+  giftsReceived: Record<string, number>;
+};
+
+type GiftSendEvent = {
+  token: number;
+  giftId: string;
 };
 
 type Store = {
   hasHydrated: boolean;
   authNonce: number;
+  pendingGiftSend: GiftSendEvent | null;
 
   prefs: Prefs;
   sub: Sub;
@@ -90,6 +97,12 @@ type Store = {
   setAssets: (p: Partial<Assets>) => void;
   setShop: (p: Partial<Shop>) => void;
   markFirstPurchaseClaimed: (packId: string) => void;
+  purchaseGiftWithKernel: (giftId: string, costKernel: number, count?: number) => { ok: boolean; message?: string };
+  consumeOwnedGift: (giftId: string, count?: number) => boolean;
+  addOwnedGift: (giftId: string, count?: number) => void;
+  addReceivedGift: (giftId: string, count?: number) => void;
+  requestGiftSend: (giftId: string) => void;
+  clearPendingGiftSend: (token?: number) => void;
 
   logoutAndWipe: () => void;
 
@@ -102,6 +115,7 @@ export const useAppStore = create<Store>()(
     (set, get) => ({
       hasHydrated: false,
       authNonce: 0,
+      pendingGiftSend: null,
 
       prefs: { language: null, country: null, gender: null },
       sub: { isPremium: false, entitlementId: null, lastCheckedAt: null },
@@ -109,8 +123,8 @@ export const useAppStore = create<Store>()(
 
       ui: { fontScale: 1, callMatchedSignal: 0, dinoBestScore: 0, dinoBestComment: null },
       popTalk: { balance: 0, cap: 1000, plan: null, serverNowMs: null, syncedAtMs: null },
-      assets: { popcornCount: 0, kernelCount: 0, updatedAtMs: null },
-      shop: { firstPurchaseClaimed: {} },
+      assets: { kernelCount: 0, updatedAtMs: null },
+      shop: { firstPurchaseClaimed: {}, giftsOwned: {}, giftsReceived: {} },
 
       globalModal: { visible: false, title: "", message: "" },
 
@@ -170,15 +184,12 @@ export const useAppStore = create<Store>()(
 
       setAssets: (p) => {
         const prev = get().assets;
-        const nextPopRaw = p.popcornCount ?? prev.popcornCount;
         const nextKernelRaw = p.kernelCount ?? prev.kernelCount;
-        const nextPop = Number.isFinite(Number(nextPopRaw)) ? Math.max(0, Math.trunc(Number(nextPopRaw))) : prev.popcornCount;
         const nextKernel = Number.isFinite(Number(nextKernelRaw)) ? Math.max(0, Math.trunc(Number(nextKernelRaw))) : prev.kernelCount;
         set({
           assets: {
             ...prev,
             ...p,
-            popcornCount: nextPop,
             kernelCount: nextKernel,
           },
         });
@@ -192,6 +203,112 @@ export const useAppStore = create<Store>()(
         const prev = get().shop;
         const next = { ...(prev.firstPurchaseClaimed || {}), [key]: true };
         set({ shop: { ...prev, firstPurchaseClaimed: next } });
+      },
+
+      purchaseGiftWithKernel: (giftId, costKernel, count = 1) => {
+        const key = String(giftId || "").trim();
+        const cost = Math.max(0, Math.trunc(Number(costKernel) || 0));
+        const qty = Math.max(1, Math.trunc(Number(count) || 1));
+        const totalCost = cost * qty;
+
+        if (!key || !totalCost) {
+          return { ok: false, message: "INVALID_GIFT_INPUT" };
+        }
+
+        const st = get();
+        const kernelNow = Math.max(0, Math.trunc(Number(st.assets?.kernelCount ?? 0)));
+        if (kernelNow < totalCost) {
+          return { ok: false, message: "INSUFFICIENT_KERNEL" };
+        }
+
+        const ownedPrev = st.shop?.giftsOwned || {};
+        const ownedNow = Math.max(0, Math.trunc(Number(ownedPrev[key] ?? 0)));
+        const nextOwned = { ...ownedPrev, [key]: ownedNow + qty };
+
+        set({
+          assets: {
+            ...st.assets,
+            kernelCount: kernelNow - totalCost,
+            updatedAtMs: Date.now(),
+          },
+          shop: {
+            ...st.shop,
+            giftsOwned: nextOwned,
+          },
+        });
+
+        return { ok: true };
+      },
+
+      consumeOwnedGift: (giftId, count = 1) => {
+        const key = String(giftId || "").trim();
+        const qty = Math.max(1, Math.trunc(Number(count) || 1));
+        if (!key || !qty) return false;
+
+        const st = get();
+        const ownedPrev = st.shop?.giftsOwned || {};
+        const ownNow = Math.max(0, Math.trunc(Number(ownedPrev[key] ?? 0)));
+        if (ownNow < qty) return false;
+
+        const nextOwned = { ...ownedPrev, [key]: ownNow - qty };
+        if (nextOwned[key] <= 0) delete nextOwned[key];
+        set({
+          shop: {
+            ...st.shop,
+            giftsOwned: nextOwned,
+          },
+        });
+        return true;
+      },
+
+      addOwnedGift: (giftId, count = 1) => {
+        const key = String(giftId || "").trim();
+        const qty = Math.max(1, Math.trunc(Number(count) || 1));
+        if (!key || !qty) return;
+
+        const st = get();
+        const ownedPrev = st.shop?.giftsOwned || {};
+        const ownNow = Math.max(0, Math.trunc(Number(ownedPrev[key] ?? 0)));
+        set({
+          shop: {
+            ...st.shop,
+            giftsOwned: { ...ownedPrev, [key]: ownNow + qty },
+          },
+        });
+      },
+
+      addReceivedGift: (giftId, count = 1) => {
+        const key = String(giftId || "").trim();
+        const qty = Math.max(1, Math.trunc(Number(count) || 1));
+        if (!key || !qty) return;
+
+        const st = get();
+        const prev = st.shop?.giftsReceived || {};
+        const now = Math.max(0, Math.trunc(Number(prev[key] ?? 0)));
+        set({
+          shop: {
+            ...st.shop,
+            giftsReceived: { ...prev, [key]: now + qty },
+          },
+        });
+      },
+
+      requestGiftSend: (giftId) => {
+        const key = String(giftId || "").trim();
+        if (!key) return;
+        set({
+          pendingGiftSend: {
+            token: Date.now() + Math.floor(Math.random() * 1000),
+            giftId: key,
+          },
+        });
+      },
+
+      clearPendingGiftSend: (token) => {
+        const current = get().pendingGiftSend;
+        if (!current) return;
+        if (typeof token === "number" && current.token !== token) return;
+        set({ pendingGiftSend: null });
       },
 
       logoutAndWipe: () => {

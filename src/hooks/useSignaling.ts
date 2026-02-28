@@ -39,6 +39,7 @@ type UseSignalingArgs = {
   setSignalUnstable: (v: boolean) => void;
   setPeerInfo: (v: any) => void;
   setRemoteCamOn: (v: boolean) => void;
+  onGiftSignal?: (giftId: string, payload?: any) => void;
   setFastMatchHint: (v: boolean) => void;
   setReMatchText: (v: string) => void;
   setRoomId: (v: string | null) => void;
@@ -89,6 +90,7 @@ export default function useSignaling({
   setSignalUnstable,
   setPeerInfo,
   setRemoteCamOn,
+  onGiftSignal,
   setFastMatchHint,
   setReMatchText,
   setRoomId,
@@ -131,6 +133,12 @@ export default function useSignaling({
 
         if (sigType === "cam_state" || sigType === "cam") {
           setRemoteCamOn(Boolean(d?.enabled ?? d?.on ?? d?.camOn ?? d?.videoEnabled ?? d?.videoOn));
+          return;
+        }
+
+        if (sigType === "gift") {
+          const giftId = String(d?.giftId ?? d?.id ?? "").trim();
+          if (giftId) onGiftSignal?.(giftId, d);
           return;
         }
 
@@ -253,6 +261,7 @@ export default function useSignaling({
       peerReadyTimerRef,
       beginCall,
       setRemoteCamOn,
+      onGiftSignal,
       phaseRef,
       setPhase,
       noMatchTimerRef,

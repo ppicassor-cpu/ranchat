@@ -85,10 +85,8 @@ export default function HomeScreen({ navigation }: any) {
   }, [navigation]);
 
   const myPopTalkBalance = useMemo(() => {
-    const live = Number(popTalk?.balance ?? 0);
-    const charged = Number(assets?.popcornCount ?? 0);
-    return Math.max(0, Math.trunc(live + charged));
-  }, [assets?.popcornCount, popTalk?.balance]);
+    return Math.max(0, Math.trunc(Number(popTalk?.balance ?? 0)));
+  }, [popTalk?.balance]);
 
   const kernelBalance = useMemo(() => {
     return Math.max(0, Math.trunc(Number(assets?.kernelCount ?? 0)));
@@ -170,18 +168,22 @@ useEffect(() => {
       popTalkCap: number;
       popTalkPlan: string | null;
       popTalkServerNowMs: number | null;
-      walletPopcorn: number;
       walletKernel: number;
     }) => {
+      const currentPopTalk = (useAppStore.getState() as any)?.popTalk ?? {};
+      const currentBalance = Math.max(0, Math.trunc(Number(currentPopTalk?.balance ?? 0)));
+      const currentCap = Math.max(currentBalance, Math.max(0, Math.trunc(Number(currentPopTalk?.cap ?? 0))));
+      const incomingBalance = Math.max(0, Math.trunc(Number(out.popTalkBalance ?? 0)));
+      const nextBalance = Math.max(currentBalance, incomingBalance);
+      const nextCap = Math.max(nextBalance, currentCap, Math.max(0, Math.trunc(Number(out.popTalkCap ?? 0))));
       setPopTalk({
-        balance: Number(out.popTalkBalance ?? 0),
-        cap: Number(out.popTalkCap ?? 0),
+        balance: nextBalance,
+        cap: nextCap,
         plan: out.popTalkPlan || null,
         serverNowMs: out.popTalkServerNowMs ?? null,
         syncedAtMs: Date.now(),
       });
       setAssets({
-        popcornCount: Number(out.walletPopcorn ?? 0),
         kernelCount: Number(out.walletKernel ?? 0),
         updatedAtMs: Date.now(),
       });
@@ -279,7 +281,6 @@ useEffect(() => {
               popTalkCap: Number(data?.popTalk?.cap ?? 0),
               popTalkPlan: String(data?.popTalk?.plan || "") || null,
               popTalkServerNowMs: Number.isFinite(Number(data?.popTalk?.serverNowMs)) ? Number(data?.popTalk?.serverNowMs) : null,
-              walletPopcorn: Number(data?.wallet?.popcornBalance ?? 0),
               walletKernel: Number(data?.wallet?.kernelBalance ?? 0),
             });
           } catch {}

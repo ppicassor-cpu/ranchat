@@ -1,4 +1,4 @@
-﻿// FILE: C:\ranchat\src\services\auth\AuthBootstrap.ts
+// FILE: C:\ranchat\src\services\auth\AuthBootstrap.ts
 import { getOrCreateDeviceKey } from "../device/DeviceKey";
 import { bindDeviceHttp } from "./DeviceBind";
 import { useAppStore } from "../../store/useAppStore";
@@ -26,7 +26,7 @@ export async function bootstrapDeviceBinding(): Promise<void> {
     isPremium,
     planId: String(sub?.planId || ""),
     storeProductId: String(sub?.storeProductId || ""),
-    popcornCount: Number(assets?.popcornCount ?? popTalk?.balance ?? 0),
+    popTalkCount: Number(popTalk?.balance ?? 0),
     kernelCount: Number(assets?.kernelCount ?? assets?.kernels ?? 0),
     totalPaymentKrw: Number(billing?.totalPaidKrw ?? billing?.totalPaymentKrw ?? 0),
   }).catch(() => undefined);

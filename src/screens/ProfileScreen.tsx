@@ -13,6 +13,7 @@ import { useNavigation } from "@react-navigation/native";
 import * as Updates from "expo-updates";
 import { useTranslation } from "../i18n/LanguageProvider";
 import { COUNTRY_CODES, LANGUAGE_CODES, getCountryName, getLanguageName, normalizeLanguageCode } from "../i18n/displayNames";
+import { Ionicons } from "@expo/vector-icons";
 
 
 function toErrMsg(e: unknown) {
@@ -108,12 +109,17 @@ export default function ProfileScreen() {
         </Pressable>
       ),
       headerRight: () => (
-        <Pressable
-          onPress={() => setPrefsModal(true)}
-          style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
-        >
-          <AppText style={styles.headerBtnText}>⚙</AppText>
-        </Pressable>
+        <View style={styles.headerRightRow}>
+          <Pressable onPress={() => navigation.navigate("GiftBox", { mode: "view" })} style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}>
+            <Ionicons name="gift-outline" size={22} color={theme.colors.text} />
+          </Pressable>
+          <Pressable
+            onPress={() => setPrefsModal(true)}
+            style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
+          >
+            <AppText style={styles.headerBtnText}>⚙</AppText>
+          </Pressable>
+        </View>
       ),
     });
   }, [navigation, t]);
@@ -737,6 +743,7 @@ const styles = StyleSheet.create({
 
   headerBtn: { paddingHorizontal: 12, paddingVertical: 8 },
   headerBtnText: { fontSize: 22, color: theme.colors.text, fontWeight: "700" },
+  headerRightRow: { flexDirection: "row", alignItems: "center", gap: 2 },
 
   headerGearBtn: {
     width: 36,

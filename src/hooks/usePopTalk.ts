@@ -45,9 +45,19 @@ export default function usePopTalk() {
       storeProductId: sub?.storeProductId,
       isPremium: sub?.isPremium,
     });
-    if (snap) applySnapshot(snap);
+    if (snap) {
+      const incoming = safeSnapshot(snap);
+      const currentPopTalk = (useAppStore.getState() as any)?.popTalk ?? {};
+      const currentBalance = Math.max(0, Math.trunc(Number(currentPopTalk?.balance ?? 0)));
+      const currentCap = Math.max(currentBalance, Math.max(0, Math.trunc(Number(currentPopTalk?.cap ?? 0))));
+      setPopTalk({
+        ...incoming,
+        balance: Math.max(currentBalance, incoming.balance),
+        cap: Math.max(currentCap, incoming.cap, incoming.balance, currentBalance),
+      });
+    }
     return snap;
-  }, [applySnapshot, auth?.deviceKey, auth?.token, auth?.userId, sub?.isPremium, sub?.planId, sub?.storeProductId]);
+  }, [auth?.deviceKey, auth?.token, auth?.userId, setPopTalk, sub?.isPremium, sub?.planId, sub?.storeProductId]);
 
   const consume = useCallback(
     async (amount: number, reason: string, idempotencyKey?: string | null): Promise<PopTalkMutationResult> => {

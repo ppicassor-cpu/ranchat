@@ -12,7 +12,7 @@ type LoginEventInput = {
   isPremium?: boolean | null;
   planId?: string | null;
   storeProductId?: string | null;
-  popcornCount?: number | null;
+  popTalkCount?: number | null;
   kernelCount?: number | null;
   totalPaymentKrw?: number | null;
 };
@@ -85,7 +85,9 @@ export async function reportLoginEvent(input: LoginEventInput): Promise<void> {
     isPremium: input.isPremium === true ? true : input.isPremium === false ? false : null,
     planId: sanitize(input.planId, 64),
     storeProductId: sanitize(input.storeProductId, 120),
-    popcornCount: asSafeInt(input.popcornCount),
+    popTalkCount: asSafeInt(input.popTalkCount),
+    // Legacy field kept for compatibility with older admin monitors.
+    popcornCount: asSafeInt(input.popTalkCount),
     kernelCount: asSafeInt(input.kernelCount),
     totalPaymentKrw: asSafeInt(input.totalPaymentKrw),
     platform: sanitize(Platform.OS, 32),

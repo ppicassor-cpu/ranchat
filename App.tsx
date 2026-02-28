@@ -140,9 +140,7 @@ export default function App() {
       }
 
       const premium = Boolean(sub?.isPremium);
-      const livePopTalk = Number(popTalk?.balance ?? 0);
-      const chargedPopcorn = Number(assets?.popcornCount ?? 0);
-      const totalPopcorn = Math.max(0, Math.trunc(livePopTalk + chargedPopcorn));
+      const totalPopTalk = Math.max(0, Math.trunc(Number(popTalk?.balance ?? 0)));
       const kernelCount = Math.max(0, Math.trunc(Number(assets?.kernelCount ?? 0)));
       const totalPaymentKrw = Math.max(
         0,
@@ -158,7 +156,7 @@ export default function App() {
         isPremium: premium,
         planId: String(sub?.planId || ""),
         storeProductId: String(sub?.storeProductId || ""),
-        popcornCount: totalPopcorn,
+        popTalkCount: totalPopTalk,
         kernelCount,
         totalPaymentKrw,
       });
@@ -188,7 +186,6 @@ export default function App() {
     };
   }, [
     assets?.kernelCount,
-    assets?.popcornCount,
     auth?.deviceKey,
     auth?.token,
     auth?.userId,

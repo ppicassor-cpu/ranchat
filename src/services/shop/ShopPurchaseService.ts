@@ -22,6 +22,10 @@ export type ConfirmShopPurchaseResult = {
   firstPurchaseBonusApplied: boolean;
   grantedAmount: number;
   duplicate: boolean;
+  popTalkBalance?: number;
+  popTalkCap?: number;
+  popTalkPlan?: string | null;
+  popTalkServerNowMs?: number | null;
   walletPopcorn: number;
   walletKernel: number;
   errorCode: string;
@@ -63,6 +67,28 @@ export type UnifiedWalletStateInput = {
   isPremium?: boolean | null;
 };
 
+export type ConvertKernelToPopTalkInput = {
+  token: string | null | undefined;
+  userId: string | null | undefined;
+  deviceKey?: string | null;
+  kernelAmount: number;
+  idempotencyKey?: string | null;
+};
+
+export type ConvertKernelToPopTalkResult = {
+  ok: boolean;
+  kernelSpent: number;
+  multiplier: number;
+  convertedPopTalk: number;
+  popTalkBalance: number;
+  popTalkCap: number;
+  popTalkPlan: string | null;
+  popTalkServerNowMs: number | null;
+  walletKernel: number;
+  errorCode: string;
+  errorMessage: string;
+};
+
 function asText(v: unknown, maxLen = 256): string {
   return String(v ?? "").trim().slice(0, maxLen);
 }
@@ -94,6 +120,7 @@ function httpsBaseFromWs(wsUrl: string): string {
 
 function resolveBases(): string[] {
   const out = [
+    String((APP_CONFIG as any)?.POPTALK?.httpBaseUrl || ""),
     String(APP_CONFIG.AUTH_HTTP_BASE_URL || ""),
     httpsBaseFromWs(String(APP_CONFIG.SIGNALING_URL || "")),
   ]
@@ -109,11 +136,21 @@ function normalizePath(v: string): string {
 }
 
 function parseConfirmResult(raw: any): ConfirmShopPurchaseResult {
+  const pop = raw?.popTalk ?? raw?.poptalk ?? raw?.data?.popTalk ?? raw?.data?.poptalk ?? {};
+  const popBalance = asInt(pop?.balance);
+  const popCapRaw = asInt(pop?.cap);
+  const popCap = Math.max(popBalance, popCapRaw);
+  const popPlan = asText(pop?.plan, 32) || null;
+  const popServerNowMs = asInt(pop?.serverNowMs);
   return {
     ok: Boolean(raw?.ok),
     firstPurchaseBonusApplied: Boolean(raw?.firstPurchaseBonusApplied),
     grantedAmount: asInt(raw?.grantedAmount),
     duplicate: Boolean(raw?.duplicate),
+    popTalkBalance: popBalance,
+    popTalkCap: popCap,
+    popTalkPlan: popPlan,
+    popTalkServerNowMs: popServerNowMs > 0 ? popServerNowMs : null,
     walletPopcorn: asInt(raw?.wallet?.popcornBalance),
     walletKernel: asInt(raw?.wallet?.kernelBalance),
     errorCode: asText(raw?.error || raw?.code || "", 80).toUpperCase(),
@@ -132,20 +169,45 @@ function parseWalletFetchResult(raw: any): ShopWalletFetchResult {
 }
 
 function parseUnifiedWalletState(raw: any): UnifiedWalletStateResult {
-  const pop = raw?.popTalk ?? raw?.poptalk ?? raw?.data?.popTalk ?? raw?.data?.poptalk ?? {};
-  const popBalance = asInt(pop?.balance ?? raw?.balance);
-  const popCapRaw = asInt(pop?.cap ?? raw?.cap);
+  const root = raw?.data ?? raw ?? {};
+  const pop = root?.popTalk ?? root?.poptalk ?? raw?.popTalk ?? raw?.poptalk ?? {};
+  const wallet = root?.wallet ?? raw?.wallet ?? {};
+  const popBalance = asInt(pop?.balance ?? root?.balance ?? raw?.balance);
+  const popCapRaw = asInt(pop?.cap ?? root?.cap ?? raw?.cap);
   const popCap = Math.max(popBalance, popCapRaw);
-  const popPlanRaw = asText(pop?.plan ?? raw?.plan, 32);
-  const popServerNow = asInt(pop?.serverNowMs ?? raw?.serverNowMs);
+  const popPlanRaw = asText(pop?.plan ?? root?.plan ?? raw?.plan, 32);
+  const popServerNow = asInt(pop?.serverNowMs ?? root?.serverNowMs ?? raw?.serverNowMs);
   return {
-    ok: Boolean(raw?.ok),
+    ok: Boolean(root?.ok ?? raw?.ok),
     popTalkBalance: popBalance,
     popTalkCap: popCap,
     popTalkPlan: popPlanRaw || null,
     popTalkServerNowMs: popServerNow > 0 ? popServerNow : null,
-    walletPopcorn: asInt(raw?.wallet?.popcornBalance),
-    walletKernel: asInt(raw?.wallet?.kernelBalance),
+    walletPopcorn: asInt(wallet?.popcornBalance),
+    walletKernel: asInt(wallet?.kernelBalance),
+    errorCode: asText(root?.error || root?.code || raw?.error || raw?.code || "", 80).toUpperCase(),
+    errorMessage: asText(root?.message || root?.detail || root?.error || raw?.message || raw?.detail || raw?.error || "", 200),
+  };
+}
+
+function parseConvertKernelResult(raw: any): ConvertKernelToPopTalkResult {
+  const state = parseUnifiedWalletState(raw);
+  const kernelSpent = asInt(raw?.kernelSpent ?? raw?.spentKernel ?? raw?.spent ?? raw?.request?.kernelAmount);
+  const converted = asInt(raw?.convertedPopTalk ?? raw?.grantedPopTalk ?? raw?.rewardedPopTalk ?? raw?.resultAmount);
+  const multRaw = Number(raw?.multiplier ?? raw?.rate ?? raw?.ratio ?? 0);
+  const multiplier = Number.isFinite(multRaw) && multRaw > 0 ? Number(multRaw) : 1;
+  const walletKernel = asInt(raw?.wallet?.kernelBalance ?? raw?.walletKernel ?? state.walletKernel);
+
+  return {
+    ok: Boolean(raw?.ok),
+    kernelSpent,
+    multiplier,
+    convertedPopTalk: converted,
+    popTalkBalance: asInt(raw?.popTalk?.balance ?? raw?.poptalk?.balance ?? state.popTalkBalance),
+    popTalkCap: asInt(raw?.popTalk?.cap ?? raw?.poptalk?.cap ?? state.popTalkCap),
+    popTalkPlan: asText(raw?.popTalk?.plan ?? raw?.poptalk?.plan ?? state.popTalkPlan, 32) || null,
+    popTalkServerNowMs: asInt(raw?.popTalk?.serverNowMs ?? raw?.poptalk?.serverNowMs ?? state.popTalkServerNowMs) || null,
+    walletKernel,
     errorCode: asText(raw?.error || raw?.code || "", 80).toUpperCase(),
     errorMessage: asText(raw?.message || raw?.detail || raw?.error || "", 200),
   };
@@ -423,6 +485,180 @@ export async function fetchUnifiedWalletState(input: UnifiedWalletStateInput): P
       walletKernel: 0,
       errorCode: "STATE_FETCH_FAILED",
       errorMessage: "STATE_FETCH_FAILED",
+    }
+  );
+}
+
+export async function convertKernelToPopTalk(input: ConvertKernelToPopTalkInput): Promise<ConvertKernelToPopTalkResult> {
+  const token = asText(input.token, 4096);
+  const userId = asText(input.userId, 128);
+  const deviceKey = asText(input.deviceKey, 256);
+  const kernelAmount = asInt(input.kernelAmount);
+  const idempotencyKey = asText(input.idempotencyKey, 200);
+
+  if (!token || !userId || kernelAmount <= 0) {
+    return {
+      ok: false,
+      kernelSpent: 0,
+      multiplier: 1,
+      convertedPopTalk: 0,
+      popTalkBalance: 0,
+      popTalkCap: 0,
+      popTalkPlan: null,
+      popTalkServerNowMs: null,
+      walletKernel: 0,
+      errorCode: "INVALID_INPUT",
+      errorMessage: "INVALID_INPUT",
+    };
+  }
+
+  const bases = resolveBases();
+  if (!bases.length) {
+    return {
+      ok: false,
+      kernelSpent: 0,
+      multiplier: 1,
+      convertedPopTalk: 0,
+      popTalkBalance: 0,
+      popTalkCap: 0,
+      popTalkPlan: null,
+      popTalkServerNowMs: null,
+      walletKernel: 0,
+      errorCode: "BASE_URL_MISSING",
+      errorMessage: "BASE_URL_MISSING",
+    };
+  }
+
+  const customPath = normalizePath(String((APP_CONFIG as any)?.POPTALK?.kernelConvertPath || ""));
+  const paths = Array.from(new Set([
+    customPath,
+    normalizePath("/api/poptalk/kernel-convert"),
+    normalizePath("/api/poptalk/convert-kernel"),
+    normalizePath("/api/poptalk/kernel/convert"),
+    normalizePath("/api/poptalk/convert/kernel"),
+    normalizePath("/api/poptalk/convert"),
+    normalizePath("/poptalk/kernel-convert"),
+    normalizePath("/poptalk/convert-kernel"),
+    normalizePath("/poptalk/convert"),
+    normalizePath("/api/wallet/convert-kernel"),
+    normalizePath("/wallet/convert-kernel"),
+    normalizePath("/api/wallet/kernel-convert"),
+    normalizePath("/wallet/kernel-convert"),
+    normalizePath("/api/wallet/kernel-to-poptalk"),
+    normalizePath("/wallet/kernel-to-poptalk"),
+    normalizePath("/api/popm/convert"),
+    normalizePath("/popm/convert"),
+  ].filter((v) => v.length > 0)));
+
+  const body = {
+    kernelAmount,
+    amount: kernelAmount,
+    kernels: kernelAmount,
+    spendKernel: kernelAmount,
+    reason: "kernel_to_poptalk",
+    source: "popm",
+    convertType: "kernel_to_poptalk",
+    idempotencyKey: idempotencyKey || null,
+  };
+
+  const bodyVariants = [
+    body,
+    {
+      amount: kernelAmount,
+      reason: "kernel_to_poptalk",
+      idempotencyKey: idempotencyKey || null,
+    },
+    {
+      kernelAmount,
+      source: "popm",
+      idempotencyKey: idempotencyKey || null,
+    },
+  ];
+
+  const headers = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+    "X-User-Id": userId,
+    "X-Device-Key": deviceKey,
+    "X-Idempotency-Key": idempotencyKey,
+  };
+
+  let last: ConvertKernelToPopTalkResult | null = null;
+  let onlyNotFound = true;
+  for (const base of bases) {
+    for (const path of paths) {
+      for (const candidateBody of bodyVariants) {
+        try {
+          const res = await fetch(`${base}${path}`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(candidateBody),
+          });
+
+          if (res.status === 404 || res.status === 405) {
+            continue;
+          }
+          onlyNotFound = false;
+
+          const json = await res.json().catch(() => null);
+          const parsed = parseConvertKernelResult(json);
+          if (res.ok && parsed.ok) return parsed;
+          last = {
+            ...parsed,
+            ok: false,
+            errorCode: parsed.errorCode || `HTTP_${res.status}`,
+            errorMessage: parsed.errorMessage || `HTTP_${res.status}`,
+          };
+        } catch (e) {
+          onlyNotFound = false;
+          last = {
+            ok: false,
+            kernelSpent: 0,
+            multiplier: 1,
+            convertedPopTalk: 0,
+            popTalkBalance: 0,
+            popTalkCap: 0,
+            popTalkPlan: null,
+            popTalkServerNowMs: null,
+            walletKernel: 0,
+            errorCode: "REQUEST_FAILED",
+            errorMessage: e instanceof Error ? e.message : "REQUEST_FAILED",
+          };
+        }
+      }
+    }
+  }
+
+  if (onlyNotFound) {
+    return {
+      ok: false,
+      kernelSpent: 0,
+      multiplier: 1,
+      convertedPopTalk: 0,
+      popTalkBalance: 0,
+      popTalkCap: 0,
+      popTalkPlan: null,
+      popTalkServerNowMs: null,
+      walletKernel: 0,
+      errorCode: "CONVERT_ROUTE_NOT_FOUND",
+      errorMessage: "HTTP_404",
+    };
+  }
+
+  return (
+    last ?? {
+      ok: false,
+      kernelSpent: 0,
+      multiplier: 1,
+      convertedPopTalk: 0,
+      popTalkBalance: 0,
+      popTalkCap: 0,
+      popTalkPlan: null,
+      popTalkServerNowMs: null,
+      walletKernel: 0,
+      errorCode: "CONVERT_FAILED",
+      errorMessage: "CONVERT_FAILED",
     }
   );
 }
