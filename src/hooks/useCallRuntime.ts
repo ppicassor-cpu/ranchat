@@ -2,6 +2,7 @@ import type React from "react";
 import { SignalClient } from "../services/signal/SignalClient";
 import { WebRTCSession } from "../services/webrtc/WebRTCSession";
 import { useAppStore } from "../store/useAppStore";
+import { WEBRTC_CONNECT_TIMEOUT_MS, WEBRTC_DOWN_GRACE_MS } from "../constants/callConfig";
 
 type EndReason = "remote_left" | "disconnect" | "error" | "find_other";
 
@@ -305,6 +306,7 @@ export default function useCallRuntime({
             if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
             webrtcConnectTimerRef.current = null;
             clearWebrtcDownTimer();
+            setSignalUnstable(false);
             if ((phaseRef.current === "matched" || phaseRef.current === "calling") && matchedSignalTokenRef.current !== qTok) {
               matchedSignalTokenRef.current = qTok;
               try {
@@ -315,6 +317,7 @@ export default function useCallRuntime({
           }
 
           if (st === "failed" || st === "disconnected" || st === "closed") {
+            setSignalUnstable(true);
             const tokenNow = webrtcDownTokenRef.current + 1;
             webrtcDownTokenRef.current = tokenNow;
 
@@ -325,8 +328,8 @@ export default function useCallRuntime({
               if (queueTokenRef.current !== qTok) return;
 
               suppressEndRelayRef.current = true;
-              endCallAndRequeueRef.current("remote_left");
-            }, 500);
+              endCallAndRequeueRef.current("disconnect");
+            }, WEBRTC_DOWN_GRACE_MS);
 
             return;
           }
@@ -373,7 +376,7 @@ export default function useCallRuntime({
 
         suppressEndRelayRef.current = true;
         endCallAndRequeueRef.current("disconnect");
-      }, 4000);
+      }, WEBRTC_CONNECT_TIMEOUT_MS);
 
       try {
         const camEnabled = Boolean(myCamOnRef.current);

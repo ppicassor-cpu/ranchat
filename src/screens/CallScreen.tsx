@@ -517,7 +517,11 @@ export default function CallScreen({ navigation }: Props) {
     if (endCallOnceRef.current === tok) return;
     endCallOnceRef.current = tok;
 
-    suppressEndRelayRef.current = why === "remote_left";
+    if (why === "remote_left") {
+      suppressEndRelayRef.current = true;
+    } else if (why === "find_other") {
+      suppressEndRelayRef.current = false;
+    }
 
     if (why === "remote_left") {
       setReMatchText(String(t("call.peer_left") || ""));

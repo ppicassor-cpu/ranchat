@@ -3,6 +3,7 @@ import { APP_CONFIG } from "../config/app";
 import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
 import { SignalClient, SignalMessage } from "../services/signal/SignalClient";
 import { useAppStore } from "../store/useAppStore";
+import { PEER_INFO_WAIT_TIMEOUT_MS } from "../constants/callConfig";
 
 type UseSignalingArgs = {
   wsRef: React.MutableRefObject<SignalClient | null>;
@@ -196,10 +197,9 @@ export default function useSignaling({
           if (queueTokenRef.current !== qTok) return;
           const req = beginCallReqRef.current;
           if (!req || req.rid !== rid) return;
-
-          suppressEndRelayRef.current = true;
-          endCallAndRequeue("disconnect");
-        }, 1500);
+          beginCallReqRef.current = null;
+          beginCall(ws, req.rid, req.caller, req.qTok);
+        }, PEER_INFO_WAIT_TIMEOUT_MS);
 
         return;
       }
@@ -404,9 +404,8 @@ export default function useSignaling({
 
           if (manualCloseRef.current) return;
 
-          if (phaseRef.current === "calling") {
-            suppressEndRelayRef.current = true;
-            endCallAndRequeue("remote_left");
+          if (phaseRef.current === "matched" || phaseRef.current === "calling") {
+            setSignalUnstable(true);
             return;
           }
 
