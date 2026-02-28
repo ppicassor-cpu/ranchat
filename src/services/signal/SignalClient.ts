@@ -131,12 +131,8 @@ export class SignalClient {
       } catch {}
       this.ws = null;
 
-      // ✅ 수동 close가 아니면 자동 재연결(backoff)
-      if (!this.manualClose) {
-        return;
-      }
-
-      // ✅ 수동 close면 기존 동작 유지(필요 시 UI 정리)
+      // CallScreen 재큐잉/복구 루프가 onClose를 기준으로 동작하므로
+      // 비정상 종료에서도 반드시 콜백을 전달해야 매칭이 멈추지 않는다.
       this.cb.onClose();
     };
 

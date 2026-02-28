@@ -8,6 +8,7 @@ import ProfileScreen from "../screens/ProfileScreen";
 import PremiumScreen from "../screens/PremiumScreen";
 import FortuneScreen from "../screens/FortuneScreen";
 import DinoScreen from "../screens/DinoScreen";
+import ShopScreen from "../screens/ShopScreen";
 import { theme } from "../config/theme";
 import { useTranslation } from "../i18n/LanguageProvider";
 
@@ -18,6 +19,7 @@ export type MainStackParamList = {
   Dino: undefined;
   Profile: undefined;
   Premium: undefined;
+  Shop: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -52,6 +54,7 @@ export default function MainStack() {
       <Stack.Screen name="Dino" component={DinoScreen} options={{ title: t("screen.dino") }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: t("screen.profile") }} />
       <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: t("screen.premium") }} />
+      <Stack.Screen name="Shop" component={ShopScreen} options={{ title: "팝콘 상점" }} />
     </Stack.Navigator>
   );
 }

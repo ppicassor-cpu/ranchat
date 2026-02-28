@@ -4,6 +4,7 @@ import {
   Easing,
   FlatList,
   Image,
+  ImageBackground,
   Modal,
   Pressable,
   ScrollView,
@@ -48,7 +49,8 @@ const WHEEL_ITEM_HEIGHT = 52;
 const WHEEL_VISIBLE_COUNT = 5;
 const WHEEL_HEIGHT = WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_COUNT;
 const WHEEL_CENTER_TOP = (WHEEL_HEIGHT - WHEEL_ITEM_HEIGHT) / 2;
-const MAGIC_BALL_IMAGE = require("../../assets/magic-ball-realistic.png");
+const MAGIC_BALL_IMAGE = require("../../assets/o.png");
+const FORTUNE_BG_IMAGE = require("../../assets/f_back.png");
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
@@ -488,6 +490,14 @@ export default function FortuneScreen() {
     inputRange: [0, 1],
     outputRange: ["0deg", "-360deg"],
   });
+  const orbSpin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "-360deg"],
+  });
+  const orbTilt = pulseValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["-3deg", "3deg"],
+  });
   const pulse = pulseValue.interpolate({
     inputRange: [0, 1],
     outputRange: [0.95, 1.06],
@@ -526,7 +536,8 @@ export default function FortuneScreen() {
   };
 
   return (
-    <ScrollView
+    <ImageBackground source={FORTUNE_BG_IMAGE} style={styles.bg} resizeMode="cover">
+      <ScrollView
       style={styles.root}
       scrollEnabled={!openPicker}
       keyboardShouldPersistTaps="handled"
@@ -653,9 +664,11 @@ export default function FortuneScreen() {
                 />
               </Animated.View>
 
-              <Animated.View style={[styles.ballWrap, { transform: [{ scale: pulse }] }]}>
+              <Animated.View style={[styles.ballWrap, { transform: [{ scale: pulse }, { rotate: orbTilt }] }]}>
                 <View style={styles.magicBallPhotoFrame}>
-                  <Image source={MAGIC_BALL_IMAGE} style={styles.magicBallPhoto} resizeMode="cover" />
+                  <Animated.View style={[styles.magicBallSpinLayer, { transform: [{ rotate: orbSpin }] }]}>
+                    <Image source={MAGIC_BALL_IMAGE} style={styles.magicBallPhoto} resizeMode="cover" />
+                  </Animated.View>
                   <LinearGradient
                     pointerEvents="none"
                     colors={["rgba(255,255,255,0.42)", "rgba(255,255,255,0.06)", "rgba(255,255,255,0.01)"]}
@@ -762,21 +775,25 @@ export default function FortuneScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  bg: {
+    flex: 1,
+  },
   root: {
     flex: 1,
-    backgroundColor: theme.colors.bg,
+    backgroundColor: "transparent",
   },
   content: {
     paddingHorizontal: 16,
     gap: 12,
   },
   headerCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.76)",
     borderWidth: 1,
     borderColor: theme.colors.line,
     borderRadius: 18,
@@ -801,7 +818,7 @@ const styles = StyleSheet.create({
   formCard: {
     position: "relative",
     overflow: "visible",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255,255,255,0.76)",
     borderWidth: 1,
     borderColor: theme.colors.line,
     borderRadius: 18,
@@ -1051,6 +1068,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 10,
   },
+  magicBallSpinLayer: {
+    width: "100%",
+    height: "100%",
+  },
   magicBallPhoto: {
     width: "100%",
     height: "100%",
@@ -1144,7 +1165,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: "#e8d8e2",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255,255,255,0.9)",
     paddingHorizontal: 18,
     paddingVertical: 18,
     alignItems: "center",
@@ -1163,7 +1184,7 @@ const styles = StyleSheet.create({
   },
   resultSheet: {
     maxHeight: "88%",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255,255,255,0.92)",
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     paddingHorizontal: 16,
@@ -1211,7 +1232,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   scoreCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255,255,255,0.9)",
     borderWidth: 1,
     borderColor: theme.colors.line,
     borderRadius: 14,
@@ -1227,7 +1248,7 @@ const styles = StyleSheet.create({
   scoreTile: {
     width: "48%",
     minHeight: 132,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255,255,255,0.9)",
     borderWidth: 1,
     borderColor: theme.colors.line,
     borderRadius: 14,

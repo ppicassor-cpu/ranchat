@@ -1,18 +1,19 @@
 ﻿// FILE: C:\ranchat\App.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, PermissionsAndroid, Platform, StyleSheet, View } from "react-native";
+import { ActivityIndicator, AppState, PermissionsAndroid, Platform, StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import RootNavigator from "./src/navigation/RootNavigator";
 
 import { initAds } from "./src/services/ads/AdManager";
-import { initPurchases } from "./src/services/purchases/PurchaseManager";
+import { initPurchases, syncPurchasesAppUser } from "./src/services/purchases/PurchaseManager";
 
 import AppModal from "./src/components/AppModal";
 import PrimaryButton from "./src/components/PrimaryButton";
 import AppText from "./src/components/AppText";
 import { theme } from "./src/config/theme";
 import { useAppStore } from "./src/store/useAppStore";
+import { reportLoginEvent } from "./src/services/admin/LoginEventReporter";
 
 type SupportedLang = "ko" | "en" | "ja" | "zh" | "es" | "de" | "fr" | "it" | "ru";
 
@@ -72,10 +73,15 @@ async function resolveIsoCountryCode(): Promise<string | null> {
 
 export default function App() {
   const didInitRef = useRef(false);
+  const lastActiveReportRef = useRef(0);
 
   const hasHydrated = useAppStore((s: any) => s.hasHydrated);
   const prefs = useAppStore((s: any) => s.prefs);
   const auth = useAppStore((s: any) => s.auth);
+  const sub = useAppStore((s: any) => s.sub);
+  const popTalk = useAppStore((s: any) => s.popTalk);
+  const assets = useAppStore((s: any) => s.assets);
+  const billing = useAppStore((s: any) => (s as any).billing);
   const setPrefs = useAppStore((s: any) => s.setPrefs);
 
   const [permChecked, setPermChecked] = useState(false);
@@ -104,6 +110,96 @@ export default function App() {
       initPurchases();
     } catch {}
   }, []);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (!isAuthed) return;
+    const uid = String(auth?.userId || "").trim();
+    if (!uid) return;
+
+    syncPurchasesAppUser(uid).catch(() => undefined);
+  }, [auth?.userId, hasHydrated, isAuthed]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (!isAuthed) return;
+
+    let closed = false;
+    let appState = AppState.currentState;
+
+    const emitPresence = async (provider: "app_active" | "app_heartbeat") => {
+      if (closed) return;
+      const token = String(auth?.token || "").trim();
+      const userId = String(auth?.userId || "").trim();
+      if (!token || !userId) return;
+
+      const nowMs = Date.now();
+      if (provider === "app_active") {
+        if (nowMs - Number(lastActiveReportRef.current || 0) < 10000) return;
+        lastActiveReportRef.current = nowMs;
+      }
+
+      const premium = Boolean(sub?.isPremium);
+      const livePopTalk = Number(popTalk?.balance ?? 0);
+      const chargedPopcorn = Number(assets?.popcornCount ?? 0);
+      const totalPopcorn = Math.max(0, Math.trunc(livePopTalk + chargedPopcorn));
+      const kernelCount = Math.max(0, Math.trunc(Number(assets?.kernelCount ?? 0)));
+      const totalPaymentKrw = Math.max(
+        0,
+        Math.trunc(Number((billing as any)?.totalPaidKrw ?? (billing as any)?.totalPaymentKrw ?? 0))
+      );
+
+      await reportLoginEvent({
+        token,
+        userId,
+        deviceKey: auth?.deviceKey,
+        provider,
+        subscriptionStatus: premium ? "paid" : "free",
+        isPremium: premium,
+        planId: String(sub?.planId || ""),
+        storeProductId: String(sub?.storeProductId || ""),
+        popcornCount: totalPopcorn,
+        kernelCount,
+        totalPaymentKrw,
+      });
+    };
+
+    emitPresence("app_active").catch(() => undefined);
+    const hb = setInterval(() => {
+      emitPresence("app_heartbeat").catch(() => undefined);
+    }, 60000);
+
+    const subAppState = AppState.addEventListener("change", (nextState) => {
+      const prev = appState;
+      appState = nextState;
+      const enteredForeground =
+        (prev === "background" || prev === "inactive") && nextState === "active";
+      if (enteredForeground) {
+        emitPresence("app_active").catch(() => undefined);
+      }
+    });
+
+    return () => {
+      closed = true;
+      clearInterval(hb);
+      try {
+        subAppState.remove();
+      } catch {}
+    };
+  }, [
+    assets?.kernelCount,
+    assets?.popcornCount,
+    auth?.deviceKey,
+    auth?.token,
+    auth?.userId,
+    billing,
+    hasHydrated,
+    isAuthed,
+    popTalk?.balance,
+    sub?.isPremium,
+    sub?.planId,
+    sub?.storeProductId,
+  ]);
 
   const hasAndroidPermission = useCallback(async (perm: string) => {
     try {

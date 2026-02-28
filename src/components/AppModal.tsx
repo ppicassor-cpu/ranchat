@@ -14,7 +14,16 @@ type Props = {
 
 export default function AppModal({ visible, title, children, onClose, footer, dismissible = true }: Props) {
   return (
-    <Modal transparent visible={visible} animationType="fade" statusBarTranslucent>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={() => {
+        if (!dismissible && !onClose) return;
+        onClose?.();
+      }}
+    >
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

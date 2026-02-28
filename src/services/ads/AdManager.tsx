@@ -1,7 +1,7 @@
 ﻿// FILE: C:\ranchat\src\services\ads\AdManager.tsx
 import React from "react";
 import { Platform } from "react-native";
-import mobileAds, { AdEventType, BannerAd, BannerAdSize, InterstitialAd, TestIds } from "react-native-google-mobile-ads";
+import mobileAds, { AdEventType, BannerAd, BannerAdSize, InterstitialAd, RewardedAd, TestIds } from "react-native-google-mobile-ads";
 
 let _initPromise: Promise<boolean> | null = null;
 let _adsReady = false;
@@ -73,6 +73,13 @@ function getInterstitialUnitId() {
   return envId || (Platform.OS === "ios" ? TestIds.INTERSTITIAL : "ca-app-pub-5144004139813427/9729127571");
 }
 
+function getRewardedUnitId() {
+  const android = String(process.env.EXPO_PUBLIC_AD_UNIT_REWARDED_ANDROID ?? "").trim();
+  const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_REWARDED_IOS ?? "").trim();
+  const envId = Platform.OS === "ios" ? ios : android;
+  return envId || (Platform.OS === "ios" ? TestIds.REWARDED : "ca-app-pub-5144004139813427/6727758440");
+}
+
 export function createInterstitial() {
   const unitId = getInterstitialUnitId();
   const ad = InterstitialAd.createForAdRequest(unitId, { requestNonPersonalizedAdsOnly: false });
@@ -110,6 +117,11 @@ export function createInterstitial() {
   return ad;
 }
 
+export function createRewarded() {
+  const unitId = getRewardedUnitId();
+  return RewardedAd.createForAdRequest(unitId, { requestNonPersonalizedAdsOnly: false });
+}
+
 type BannerBarProps = {
   onAdLoaded?: () => void;
   onAdFailedToLoad?: (error: any) => void;
@@ -128,4 +140,4 @@ export function BannerBar({ onAdLoaded, onAdFailedToLoad }: BannerBarProps = {})
   );
 }
 
-export default { initAds, createInterstitial, BannerBar, isAdsReady, onAdsReady };
+export default { initAds, createInterstitial, createRewarded, BannerBar, isAdsReady, onAdsReady };

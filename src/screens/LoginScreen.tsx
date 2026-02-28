@@ -1,10 +1,13 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, View } from "react-native";
 import { AntDesign } from "@expo/vector-icons";
 import AppText from "../components/AppText";
 import { theme } from "../config/theme";
 import { useTranslation } from "../i18n/LanguageProvider";
 import { useAppStore } from "../store/useAppStore";
+import AppModal from "../components/AppModal";
+import PrimaryButton from "../components/PrimaryButton";
+import * as Updates from "expo-updates";
 import { getOrCreateDeviceKey } from "../services/device/DeviceKey";
 import {
   NativeProvider,
@@ -13,6 +16,7 @@ import {
   getAppleNativeIdentity,
   getGoogleNativeIdentity,
 } from "../services/auth/NativeSocialLogin";
+import { reportLoginEvent } from "../services/admin/LoginEventReporter";
 
 function toErrMsg(e: unknown): string {
   if (typeof e === "string") return e;
@@ -86,6 +90,23 @@ export default function LoginScreen() {
   const showGlobalModal = useAppStore((s) => s.showGlobalModal);
 
   const [busyProvider, setBusyProvider] = useState<NativeProvider | null>(null);
+  const [updateModal, setUpdateModal] = useState(false);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const updateCheckedRef = useRef(false);
+
+  useEffect(() => {
+    if (__DEV__) return;
+    if (!Updates.isEnabled) return;
+    if (updateCheckedRef.current) return;
+    updateCheckedRef.current = true;
+
+    (async () => {
+      try {
+        const r = await Updates.checkForUpdateAsync();
+        if (r.isAvailable) setUpdateModal(true);
+      } catch {}
+    })();
+  }, []);
 
   const commitAuth = useCallback(
     (token: string, userId: string, deviceKey: string) => {
@@ -95,6 +116,25 @@ export default function LoginScreen() {
     [setAuth, setDeviceKey]
   );
 
+  const readLoginMonitorMeta = useCallback(() => {
+    const st: any = useAppStore.getState?.() ?? {};
+    const sub = st?.sub ?? {};
+    const popTalk = st?.popTalk ?? {};
+    const assets = st?.assets ?? {};
+    const billing = st?.billing ?? {};
+    const isPremium = Boolean(sub?.isPremium);
+
+    return {
+      subscriptionStatus: isPremium ? "paid" : "free",
+      isPremium,
+      planId: String(sub?.planId || ""),
+      storeProductId: String(sub?.storeProductId || ""),
+      popcornCount: Number(assets?.popcornCount ?? popTalk?.balance ?? 0),
+      kernelCount: Number(assets?.kernelCount ?? assets?.kernels ?? 0),
+      totalPaymentKrw: Number(billing?.totalPaidKrw ?? billing?.totalPaymentKrw ?? 0),
+    };
+  }, []);
+
   const onPressGoogle = useCallback(async () => {
     if (busyProvider) return;
     setBusyProvider("google");
@@ -103,6 +143,14 @@ export default function LoginScreen() {
       const identity = await getGoogleNativeIdentity();
       const auth = await exchangeGoogleNativeIdentity({ ...identity, deviceKey });
       commitAuth(auth.token, auth.userId, deviceKey);
+      reportLoginEvent({
+        token: auth.token,
+        userId: auth.userId,
+        deviceKey,
+        provider: "google_native",
+        loginAccount: identity.email,
+        ...readLoginMonitorMeta(),
+      }).catch(() => undefined);
     } catch (e) {
       const msg = normalizeGoogleError(toErrMsg(e));
       if (!isCancelError(msg)) {
@@ -111,7 +159,7 @@ export default function LoginScreen() {
     } finally {
       setBusyProvider(null);
     }
-  }, [busyProvider, commitAuth, showGlobalModal, t]);
+  }, [busyProvider, commitAuth, readLoginMonitorMeta, showGlobalModal, t]);
 
   const onPressApple = useCallback(async () => {
     if (busyProvider) return;
@@ -126,6 +174,14 @@ export default function LoginScreen() {
       const identity = await getAppleNativeIdentity();
       const auth = await exchangeAppleNativeIdentity({ ...identity, deviceKey });
       commitAuth(auth.token, auth.userId, deviceKey);
+      reportLoginEvent({
+        token: auth.token,
+        userId: auth.userId,
+        deviceKey,
+        provider: "apple_native",
+        loginAccount: identity.email,
+        ...readLoginMonitorMeta(),
+      }).catch(() => undefined);
     } catch (e) {
       const msg = toErrMsg(e);
       if (!isCancelError(msg)) {
@@ -134,7 +190,7 @@ export default function LoginScreen() {
     } finally {
       setBusyProvider(null);
     }
-  }, [busyProvider, commitAuth, showGlobalModal, t]);
+  }, [busyProvider, commitAuth, readLoginMonitorMeta, showGlobalModal, t]);
 
   const isLocked = Boolean(busyProvider);
   const statusText = useMemo(() => {
@@ -142,6 +198,19 @@ export default function LoginScreen() {
     if (busyProvider === "apple") return t("login.wait_apple_native");
     return "";
   }, [busyProvider, t]);
+
+  const doApplyUpdate = useCallback(async () => {
+    if (updateBusy) return;
+    setUpdateBusy(true);
+
+    try {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    } catch (e) {
+      setUpdateBusy(false);
+      showGlobalModal(t("modal.update.title"), toErrMsg(e));
+    }
+  }, [showGlobalModal, t, updateBusy]);
 
   return (
     <View style={styles.root}>
@@ -168,6 +237,28 @@ export default function LoginScreen() {
           )}
         </View>
       </View>
+
+      <AppModal
+        visible={updateModal}
+        title={t("modal.update.title")}
+        onClose={() => {
+          if (updateBusy) return;
+          setUpdateModal(false);
+        }}
+        dismissible={!updateBusy}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton
+              title={updateBusy ? t("modal.update.applying") : t("modal.update.apply")}
+              onPress={doApplyUpdate}
+              disabled={updateBusy}
+            />
+            <PrimaryButton title={t("modal.update.later")} onPress={() => setUpdateModal(false)} variant="ghost" disabled={updateBusy} />
+          </View>
+        }
+      >
+        <AppText style={styles.updateBody}>{t("modal.update.body")}</AppText>
+      </AppModal>
     </View>
   );
 }
@@ -314,5 +405,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.sub,
     textAlign: "center",
+  },
+  updateBody: {
+    fontSize: 14,
+    color: theme.colors.sub,
+    lineHeight: 20,
   },
 });

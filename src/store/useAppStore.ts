@@ -14,6 +14,8 @@ type Sub = {
   isPremium: boolean;
   entitlementId: string | null;
   lastCheckedAt: number | null;
+  storeProductId?: string | null;
+  planId?: string | null;
 };
 
 type Auth = {
@@ -36,6 +38,24 @@ type Ui = {
   dinoBestComment: string | null;
 };
 
+type PopTalk = {
+  balance: number;
+  cap: number;
+  plan: string | null;
+  serverNowMs: number | null;
+  syncedAtMs: number | null;
+};
+
+type Assets = {
+  popcornCount: number;
+  kernelCount: number;
+  updatedAtMs: number | null;
+};
+
+type Shop = {
+  firstPurchaseClaimed: Record<string, boolean>;
+};
+
 type Store = {
   hasHydrated: boolean;
   authNonce: number;
@@ -45,6 +65,9 @@ type Store = {
   auth: Auth;
 
   ui: Ui;
+  popTalk: PopTalk;
+  assets: Assets;
+  shop: Shop;
 
   globalModal: GlobalModal;
 
@@ -63,6 +86,10 @@ type Store = {
   setCallMatchedSignal: (v: number) => void;
   setDinoBestScore: (v: number) => void;
   setDinoBestComment: (v: string | null) => void;
+  setPopTalk: (p: Partial<PopTalk>) => void;
+  setAssets: (p: Partial<Assets>) => void;
+  setShop: (p: Partial<Shop>) => void;
+  markFirstPurchaseClaimed: (packId: string) => void;
 
   logoutAndWipe: () => void;
 
@@ -81,6 +108,9 @@ export const useAppStore = create<Store>()(
       auth: { verified: false, token: null, userId: null, deviceKey: null },
 
       ui: { fontScale: 1, callMatchedSignal: 0, dinoBestScore: 0, dinoBestComment: null },
+      popTalk: { balance: 0, cap: 1000, plan: null, serverNowMs: null, syncedAtMs: null },
+      assets: { popcornCount: 0, kernelCount: 0, updatedAtMs: null },
+      shop: { firstPurchaseClaimed: {} },
 
       globalModal: { visible: false, title: "", message: "" },
 
@@ -121,6 +151,49 @@ export const useAppStore = create<Store>()(
         set({ ui: { ...get().ui, dinoBestComment: next || null } });
       },
 
+      setPopTalk: (p) => {
+        const prev = get().popTalk;
+        const nextBalanceRaw = p.balance ?? prev.balance;
+        const nextCapRaw = p.cap ?? prev.cap;
+        const nextBalance = Number.isFinite(Number(nextBalanceRaw)) ? Math.max(0, Math.trunc(Number(nextBalanceRaw))) : prev.balance;
+        const nextCap = Number.isFinite(Number(nextCapRaw)) ? Math.max(0, Math.trunc(Number(nextCapRaw))) : prev.cap;
+        const safeBalance = Math.min(nextBalance, nextCap || nextBalance);
+        set({
+          popTalk: {
+            ...prev,
+            ...p,
+            balance: safeBalance,
+            cap: nextCap,
+          },
+        });
+      },
+
+      setAssets: (p) => {
+        const prev = get().assets;
+        const nextPopRaw = p.popcornCount ?? prev.popcornCount;
+        const nextKernelRaw = p.kernelCount ?? prev.kernelCount;
+        const nextPop = Number.isFinite(Number(nextPopRaw)) ? Math.max(0, Math.trunc(Number(nextPopRaw))) : prev.popcornCount;
+        const nextKernel = Number.isFinite(Number(nextKernelRaw)) ? Math.max(0, Math.trunc(Number(nextKernelRaw))) : prev.kernelCount;
+        set({
+          assets: {
+            ...prev,
+            ...p,
+            popcornCount: nextPop,
+            kernelCount: nextKernel,
+          },
+        });
+      },
+
+      setShop: (p) => set({ shop: { ...get().shop, ...p } }),
+
+      markFirstPurchaseClaimed: (packId) => {
+        const key = String(packId || "").trim();
+        if (!key) return;
+        const prev = get().shop;
+        const next = { ...(prev.firstPurchaseClaimed || {}), [key]: true };
+        set({ shop: { ...prev, firstPurchaseClaimed: next } });
+      },
+
       logoutAndWipe: () => {
         set({
           auth: {
@@ -139,7 +212,7 @@ export const useAppStore = create<Store>()(
     {
       name: "ranchat_store_v1",
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ prefs: s.prefs, sub: s.sub, auth: s.auth, ui: s.ui }),
+      partialize: (s) => ({ prefs: s.prefs, sub: s.sub, auth: s.auth, ui: s.ui, popTalk: s.popTalk, assets: s.assets, shop: s.shop }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

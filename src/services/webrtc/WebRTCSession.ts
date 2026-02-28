@@ -9,6 +9,9 @@ type Callbacks = {
   onRemoteStream?: (s: MediaStream) => void;
   onIceCandidate?: (c: any) => void;
   onConnectionState?: (s: string) => void;
+  onDataChannelOpen?: () => void;
+  onDataChannelClose?: () => void;
+  onDataMessage?: (message: string) => void;
 
   onOffer?: (sdp: any) => void;
   onAnswer?: (sdp: any) => void;
@@ -88,6 +91,8 @@ export class WebRTCSession {
   private pc: RTCPeerConnection;
   private localStream: MediaStream | null = null;
   private remoteStream: MediaStream | null = null;
+  private dataChannel: any = null;
+  private pendingDataMessages: string[] = [];
   private cb: Callbacks;
   private inCallStarted: boolean = false;
   private audioDeviceSub: any = null;
@@ -147,6 +152,105 @@ export class WebRTCSession {
         this.cb.onRemoteStream?.(stream);
       }
     };
+
+    pcAny.ondatachannel = (e: any) => {
+      const channel = e?.channel;
+      if (!channel) return;
+      this.bindDataChannel(channel);
+    };
+  }
+
+  private normalizeDataMessage(data: any) {
+    if (typeof data === "string") return data;
+    try {
+      return JSON.stringify(data);
+    } catch {
+      return String(data ?? "");
+    }
+  }
+
+  private flushPendingDataMessages() {
+    const ch: any = this.dataChannel;
+    if (!ch || ch.readyState !== "open") return;
+
+    const pending = this.pendingDataMessages.splice(0);
+    for (const msg of pending) {
+      try {
+        ch.send(msg);
+      } catch {
+        this.pendingDataMessages.unshift(msg);
+        break;
+      }
+    }
+  }
+
+  private bindDataChannel(channel: any) {
+    if (!channel) return;
+
+    if (this.dataChannel && this.dataChannel !== channel) {
+      try {
+        this.dataChannel.close?.();
+      } catch {}
+    }
+
+    this.dataChannel = channel;
+
+    channel.onopen = () => {
+      this.cb.onDataChannelOpen?.();
+      this.flushPendingDataMessages();
+    };
+
+    channel.onmessage = (e: any) => {
+      const msg = this.normalizeDataMessage(e?.data);
+      this.cb.onDataMessage?.(msg);
+    };
+
+    channel.onclose = () => {
+      if (this.dataChannel === channel) this.dataChannel = null;
+      this.cb.onDataChannelClose?.();
+    };
+
+    channel.onerror = () => {};
+  }
+
+  private ensureCallerDataChannel() {
+    if (this.dataChannel) return;
+
+    const pcAny: any = this.pc;
+    if (typeof pcAny.createDataChannel !== "function") return;
+
+    try {
+      const channel = pcAny.createDataChannel("chat", { ordered: true });
+      this.bindDataChannel(channel);
+    } catch {}
+  }
+
+  sendChatMessage(message: string) {
+    const text = String(message ?? "");
+    if (!text) return false;
+
+    const ch: any = this.dataChannel;
+    if (!ch) return false;
+
+    if (ch.readyState === "open") {
+      try {
+        ch.send(text);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    if (ch.readyState === "connecting") {
+      this.pendingDataMessages.push(text);
+      return true;
+    }
+
+    return false;
+  }
+
+  getChatChannelState() {
+    return String((this.dataChannel as any)?.readyState ?? "closed");
   }
 
   async getIcePathInfo(): Promise<IcePathInfo> {
@@ -488,6 +592,7 @@ export class WebRTCSession {
     await this.startLocal();
 
     if (isCaller) {
+      this.ensureCallerDataChannel();
       const offer = await this.createOffer();
       this.cb.onOffer?.(offer);
     }
@@ -524,9 +629,14 @@ export class WebRTCSession {
       (this.localStream as any)?.getTracks?.()?.forEach((t: any) => t.stop?.());
     } catch {}
     try {
+      (this.dataChannel as any)?.close?.();
+    } catch {}
+    try {
       (this.pc as any).close?.();
     } catch {}
     this.localStream = null;
     this.remoteStream = null;
+    this.dataChannel = null;
+    this.pendingDataMessages = [];
   }
 }

@@ -139,7 +139,18 @@ export const APP_CONFIG = {
 
   ADS: {
     bannerAndroid: read("EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID", ""),
+    bannerIos: read("EXPO_PUBLIC_AD_UNIT_BANNER_IOS", ""),
     interstitialAndroid: read("EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_ANDROID", ""),
+    interstitialIos: read("EXPO_PUBLIC_AD_UNIT_INTERSTITIAL_IOS", ""),
+    rewardedAndroid: read("EXPO_PUBLIC_AD_UNIT_REWARDED_ANDROID", ""),
+    rewardedIos: read("EXPO_PUBLIC_AD_UNIT_REWARDED_IOS", ""),
+  },
+
+  POPTALK: {
+    httpBaseUrl: normalizeHttpsBase(read("EXPO_PUBLIC_POPTALK_HTTP_BASE_URL", "")),
+    statePath: normalizePath(read("EXPO_PUBLIC_POPTALK_STATE_PATH", "/api/poptalk/state"), "/api/poptalk/state"),
+    consumePath: normalizePath(read("EXPO_PUBLIC_POPTALK_CONSUME_PATH", "/api/poptalk/consume"), "/api/poptalk/consume"),
+    rewardPath: normalizePath(read("EXPO_PUBLIC_POPTALK_REWARD_PATH", "/api/poptalk/reward"), "/api/poptalk/reward"),
   },
 
   PURCHASES: {
