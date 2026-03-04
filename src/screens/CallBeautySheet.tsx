@@ -41,21 +41,33 @@ const DEFAULT_CONFIG: BeautyConfig = {
 
 type ControlKey = "brightness" | "saturation" | "contrast" | "focus";
 
+const FILTER_NAME_KEY_BY_KEY: Record<BeautyPreset | ControlKey, string> = {
+  none: "beauty.filter.none",
+  warm: "beauty.filter.warm",
+  cool: "beauty.filter.cool",
+  mono: "beauty.filter.mono",
+  brightness: "beauty.filter.brightness",
+  saturation: "beauty.filter.saturation",
+  contrast: "beauty.filter.contrast",
+  focus: "beauty.filter.focus",
+};
+
 export default function CallBeautySheet({ visible, onClose, config, defaultConfig, onConfigChange }: Props) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
 
   const sheetH = useMemo(() => {
     const h = Dimensions.get("window").height;
-    const prefer = Math.round(h * 0.18);
-    return Math.max(190, prefer);
+    const prefer = Math.round(h * 0.18) + 20;
+    return Math.max(210, prefer);
   }, []);
 
   const translateY = useRef(new Animated.Value(sheetH)).current;
-  const sliderAnim = useRef(new Animated.Value(0)).current;
+  const idleSliderValueRef = useRef(0);
 
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState<ControlKey | null>(null);
+  const [lastFilterName, setLastFilterName] = useState<string>(t("beauty.filter"));
 
   const [inner, setInner] = useState<BeautyConfig>(() => {
     const d = { ...DEFAULT_CONFIG, ...(defaultConfig ?? {}) } as BeautyConfig;
@@ -106,14 +118,12 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
 
   const showSlider = (k: ControlKey | null) => {
     setActive(k);
-    Animated.timing(sliderAnim, {
-      toValue: k ? 1 : 0,
-      duration: 140,
-      useNativeDriver: true,
-    }).start();
   };
 
+  const getFilterName = (k: BeautyPreset | ControlKey) => t(FILTER_NAME_KEY_BY_KEY[k]);
+
   const toggleFocus = () => {
+    setLastFilterName(getFilterName("focus"));
     const nextOn = !Boolean(current.bgFocus);
     if (nextOn) {
       const s = Number(current.bgFocusStrength ?? 0);
@@ -126,8 +136,15 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
   };
 
   const togglePreset = (p: BeautyPreset) => {
+    setLastFilterName(getFilterName(p));
     const now = (current.preset ?? "none") as BeautyPreset;
     update({ preset: now === p ? "none" : p });
+    showSlider(null);
+  };
+
+  const onPressControl = (k: ControlKey) => {
+    setLastFilterName(getFilterName(k));
+    showSlider(active === k ? null : k);
   };
 
   useEffect(() => {
@@ -140,7 +157,7 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
     }).start(({ finished }) => {
       if (!finished) return;
       if (!visible) {
-        showSlider(null);
+        setActive(null);
         setMounted(false);
       }
     });
@@ -153,7 +170,7 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
   const sContrastUi = clamp11((clamp01(Number(current.contrast ?? 0.5)) - 0.5) * 2);
   const sFocus = clamp01(Number(current.bgFocusStrength ?? 0));
 
-  const sliderValue =
+  const activeSliderValue =
     active === "brightness"
       ? sBrightnessUi
       : active === "saturation"
@@ -163,6 +180,8 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
       : active === "focus"
       ? sFocus
       : 0;
+  if (active) idleSliderValueRef.current = activeSliderValue;
+  const sliderValue = active ? activeSliderValue : idleSliderValueRef.current;
 
   const sliderMin = active === "focus" ? 0 : -1;
   const sliderMax = 1;
@@ -203,19 +222,15 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
     <View style={styles.root} pointerEvents={visible ? "auto" : "none"}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <Animated.View style={[styles.sheet, { height: sheetH, paddingBottom: padBottom, transform: [{ translateY }] }]}>
-        <View style={styles.handle} />
+        <View style={styles.filterNameWrap}>
+          <Text allowFontScaling={false} numberOfLines={1} style={styles.filterNameText}>
+            {lastFilterName}
+          </Text>
+        </View>
 
         <View style={styles.topRow}>
           <View style={styles.topSliderWrap} pointerEvents={active ? "auto" : "none"}>
-            <Animated.View
-              style={[
-                styles.topSliderAnim,
-                {
-                  opacity: sliderAnim,
-                  transform: [{ translateY: sliderAnim.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }],
-                },
-              ]}
-            >
+            <View style={styles.topSliderAnim}>
               <View style={styles.topSliderFrame}>
                 <View style={styles.sliderTrackWrap}>
                   <View style={styles.zeroBar} />
@@ -223,8 +238,8 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
                     value={sliderValue}
                     minimumValue={sliderMin}
                     maximumValue={sliderMax}
-                    step={0.01}
                     onValueChange={onSlider}
+                    disabled={!active}
                     style={styles.sliderInner}
                     minimumTrackTintColor={"rgba(255,255,255,0.85)"}
                     maximumTrackTintColor={"rgba(104, 103, 103, 0.53)"}
@@ -232,11 +247,13 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
                   />
                 </View>
               </View>
-            </Animated.View>
+            </View>
           </View>
 
           <View style={styles.toggleWrap}>
-            <Text style={styles.toggleLabel}>{current.enabled ? t("common.on") : t("common.off")}</Text>
+            <Text allowFontScaling={false} numberOfLines={1} ellipsizeMode="clip" style={styles.toggleLabel}>
+              {current.enabled ? t("beauty.filter_on") : t("beauty.filter_off")}
+            </Text>
             <Switch
               value={Boolean(current.enabled)}
               onValueChange={(v) => update({ enabled: v })}
@@ -251,9 +268,9 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
           {iconBtn(null, "snow-outline", () => togglePreset("cool"), preset === "cool")}
           {iconBtn(null, "contrast-outline", () => togglePreset("mono"), preset === "mono")}
 
-          {iconBtn("brightness", "flash-outline", () => showSlider(active === "brightness" ? null : "brightness"))}
-          {iconBtn("saturation", "color-palette-outline", () => showSlider(active === "saturation" ? null : "saturation"))}
-          {iconBtn("contrast", "options-outline", () => showSlider(active === "contrast" ? null : "contrast"))}
+          {iconBtn("brightness", "flash-outline", () => onPressControl("brightness"))}
+          {iconBtn("saturation", "color-palette-outline", () => onPressControl("saturation"))}
+          {iconBtn("contrast", "options-outline", () => onPressControl("contrast"))}
           {iconBtn("focus", "scan-outline", toggleFocus, Boolean(current.bgFocus))}
         </View>
       </Animated.View>
@@ -275,7 +292,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: 2,
     backgroundColor: "#ffd0e0",
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
@@ -283,13 +300,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     overflow: "hidden",
   },
-  handle: {
+  filterNameWrap: {
     alignSelf: "center",
-    width: 44,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.64)",
+    minWidth: 76,
+    maxWidth: "72%",
+    marginTop: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.48)",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 2,
     marginBottom: 8,
+  },
+  filterNameText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "rgba(25,25,25,0.78)",
+    includeFontPadding: false,
+    textAlign: "center",
   },
   topRow: {
     height: 44,
@@ -304,21 +333,21 @@ const styles = StyleSheet.create({
     marginRight: 6,
     height: 44,
     justifyContent: "center",
-    overflow: "hidden",
+    overflow: "visible",
   },
   topSliderAnim: {
-    width: 280,
+    width: "100%",
   },
   topSliderFrame: {
     borderRadius: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: "rgba(177, 163, 171, 0.32)",
-    overflow: "hidden",
+    overflow: "visible",
   },
   sliderTrackWrap: {
     position: "relative",
-    marginHorizontal: 6,
+    marginHorizontal: 2,
   },
   sliderInner: {
     marginHorizontal: 0,
@@ -340,9 +369,11 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 12,
-    fontWeight: "900",
+    fontWeight: "600",
     color: "rgba(25,25,25,0.78)",
-    width: 34,
+    includeFontPadding: false,
+    width: 82,
+    flexShrink: 0,
     textAlign: "right",
   },
   iconRow: {

@@ -1,7 +1,15 @@
 ﻿// FILE: C:\ranchat\src\services\ads\AdManager.tsx
 import React from "react";
 import { Platform } from "react-native";
-import mobileAds, { AdEventType, BannerAd, BannerAdSize, InterstitialAd, RewardedAd, TestIds } from "react-native-google-mobile-ads";
+import mobileAds, {
+  AdEventType,
+  BannerAd,
+  BannerAdSize,
+  InterstitialAd,
+  RewardedAd,
+  RewardedInterstitialAd,
+  TestIds,
+} from "react-native-google-mobile-ads";
 
 let _initPromise: Promise<boolean> | null = null;
 let _adsReady = false;
@@ -77,7 +85,14 @@ function getRewardedUnitId() {
   const android = String(process.env.EXPO_PUBLIC_AD_UNIT_REWARDED_ANDROID ?? "").trim();
   const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_REWARDED_IOS ?? "").trim();
   const envId = Platform.OS === "ios" ? ios : android;
-  return envId || (Platform.OS === "ios" ? TestIds.REWARDED : "ca-app-pub-5144004139813427/6727758440");
+  return envId || (Platform.OS === "ios" ? TestIds.REWARDED : "ca-app-pub-5144004139813427/1151974418");
+}
+
+function getRewardedInterstitialUnitId() {
+  const android = String(process.env.EXPO_PUBLIC_AD_UNIT_REWARDED_INTERSTITIAL_ANDROID ?? "").trim();
+  const ios = String(process.env.EXPO_PUBLIC_AD_UNIT_REWARDED_INTERSTITIAL_IOS ?? "").trim();
+  const envId = Platform.OS === "ios" ? ios : android;
+  return envId || (Platform.OS === "ios" ? TestIds.REWARDED_INTERSTITIAL : "ca-app-pub-5144004139813427/1151974418");
 }
 
 export function createInterstitial() {
@@ -122,6 +137,11 @@ export function createRewarded() {
   return RewardedAd.createForAdRequest(unitId, { requestNonPersonalizedAdsOnly: false });
 }
 
+export function createRewardedInterstitial() {
+  const unitId = getRewardedInterstitialUnitId();
+  return RewardedInterstitialAd.createForAdRequest(unitId, { requestNonPersonalizedAdsOnly: false });
+}
+
 type BannerBarProps = {
   onAdLoaded?: () => void;
   onAdFailedToLoad?: (error: any) => void;
@@ -140,4 +160,4 @@ export function BannerBar({ onAdLoaded, onAdFailedToLoad }: BannerBarProps = {})
   );
 }
 
-export default { initAds, createInterstitial, createRewarded, BannerBar, isAdsReady, onAdsReady };
+export default { initAds, createInterstitial, createRewarded, createRewardedInterstitial, BannerBar, isAdsReady, onAdsReady };

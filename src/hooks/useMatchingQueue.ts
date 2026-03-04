@@ -41,6 +41,8 @@ export default function useMatchingQueue({
   const noMatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchingActionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchingActionsDeadlineRef = useRef(0);
+  const matchingActionsStartedAtRef = useRef(0);
+  const matchingActionsPinnedRef = useRef(false);
   const premiumNoMatchAutoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noMatchShownThisCycleRef = useRef(false);
 
@@ -53,39 +55,64 @@ export default function useMatchingQueue({
     matchingActionsTimerRef.current = null;
     if (resetDeadline) {
       matchingActionsDeadlineRef.current = 0;
+      matchingActionsStartedAtRef.current = 0;
+      matchingActionsPinnedRef.current = false;
     }
   }, []);
 
   const startMatchingActionsTimer = useCallback(
     (forceReset = false) => {
       if (forceReset) {
-        clearMatchingActionsTimer();
+        clearMatchingActionsTimer(true);
         setMatchingActionsVisible(false);
+      } else if (matchingActionsPinnedRef.current) {
+        setMatchingActionsVisible(true);
+        return;
       } else if (matchingActionsTimerRef.current) {
         return;
       }
-      if (!matchingActionsDeadlineRef.current) {
-        matchingActionsDeadlineRef.current = Date.now() + matchingActionsDelayMs;
+      if (!isScreenFocusedRef.current) {
+        setMatchingActionsVisible(false);
+        return;
       }
-      const waitMs = Math.max(0, matchingActionsDeadlineRef.current - Date.now());
+      if (phaseRef.current === "calling") {
+        // Keep the waiting deadline/state across transient calling -> reconnect loops.
+        clearMatchingActionsTimer(false);
+        return;
+      }
+      if (phaseRef.current === "matched") {
+        // Preserve waiting deadline across transient matched -> reconnect loops.
+        clearMatchingActionsTimer(false);
+        return;
+      }
+      if (beautyOpenRef.current) {
+        setMatchingActionsVisible(false);
+        return;
+      }
+
+      if (!matchingActionsStartedAtRef.current) {
+        matchingActionsStartedAtRef.current = Date.now();
+      }
+      const deadlineMs = matchingActionsStartedAtRef.current + Math.max(0, Math.trunc(Number(matchingActionsDelayMs) || 0));
+      matchingActionsDeadlineRef.current = deadlineMs;
+      const waitMs = Math.max(0, deadlineMs - Date.now());
+      if (waitMs <= 0) {
+        matchingActionsDeadlineRef.current = 0;
+        matchingActionsPinnedRef.current = true;
+        setMatchingActionsVisible(true);
+        return;
+      }
       matchingActionsTimerRef.current = setTimeout(() => {
         matchingActionsTimerRef.current = null;
         if (!isScreenFocusedRef.current) return;
-        if (phaseRef.current === "calling") {
-          matchingActionsDeadlineRef.current = 0;
-          return;
-        }
-        if (phaseRef.current === "matched") {
-          return;
-        }
-        if (beautyOpenRef.current) {
-          return;
-        }
+        if (phaseRef.current === "calling" || phaseRef.current === "matched") return;
+        if (beautyOpenRef.current) return;
         matchingActionsDeadlineRef.current = 0;
+        matchingActionsPinnedRef.current = true;
         setMatchingActionsVisible(true);
       }, waitMs);
     },
-    [beautyOpenRef, clearMatchingActionsTimer, matchingActionsDelayMs, phaseRef, setMatchingActionsVisible]
+    [beautyOpenRef, clearMatchingActionsTimer, isScreenFocusedRef, matchingActionsDelayMs, phaseRef, setMatchingActionsVisible]
   );
 
   useEffect(() => {
@@ -96,7 +123,7 @@ export default function useMatchingQueue({
     }
 
     if (beautyOpen) {
-      clearMatchingActionsTimer();
+      clearMatchingActionsTimer(false);
       setMatchingActionsVisible(false);
       return;
     }
@@ -107,13 +134,14 @@ export default function useMatchingQueue({
     }
 
     if (phase === "matched") {
+      // Preserve waiting deadline across transient matched -> reconnect loops.
       clearMatchingActionsTimer(false);
       return;
     }
 
     if (phase === "calling") {
-      clearMatchingActionsTimer(true);
-      setMatchingActionsVisible(false);
+      // Keep the waiting deadline/state across transient calling -> reconnect loops.
+      clearMatchingActionsTimer(false);
       return;
     }
 
@@ -143,12 +171,16 @@ export default function useMatchingQueue({
 
       if (isPremium) {
         setFastMatchHint(true);
-        setMatchingActionsVisible(false);
         setNoMatchModal(true);
 
         if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
         premiumNoMatchAutoCloseRef.current = setTimeout(() => {
           setNoMatchModal(false);
+          if (!queueRunningRef.current) return;
+          if (!isScreenFocusedRef.current) return;
+          if (beautyOpenRef.current) return;
+          if (phaseRef.current !== "connecting" && phaseRef.current !== "queued" && phaseRef.current !== "ended") return;
+          startMatchingActionsTimer(false);
         }, 3000);
 
         return;
@@ -170,7 +202,9 @@ export default function useMatchingQueue({
       setNoMatchModal(true);
     }, matchTimeoutMs);
   }, [
+    beautyOpenRef,
     enqueuedRef,
+    isScreenFocusedRef,
     isPremium,
     manualCloseRef,
     matchTimeoutMs,
@@ -179,6 +213,7 @@ export default function useMatchingQueue({
     setFastMatchHint,
     setMatchingActionsVisible,
     setNoMatchModal,
+    startMatchingActionsTimer,
     wsRef,
   ]);
 
@@ -194,7 +229,12 @@ export default function useMatchingQueue({
     if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
     premiumNoMatchAutoCloseRef.current = null;
     setNoMatchModal(false);
-  }, [setNoMatchModal]);
+    if (!queueRunningRef.current) return;
+    if (!isScreenFocusedRef.current) return;
+    if (beautyOpenRef.current) return;
+    if (phaseRef.current !== "connecting" && phaseRef.current !== "queued" && phaseRef.current !== "ended") return;
+    startMatchingActionsTimer(false);
+  }, [beautyOpenRef, isScreenFocusedRef, phaseRef, queueRunningRef, setNoMatchModal, startMatchingActionsTimer]);
 
   return {
     isScreenFocusedRef,

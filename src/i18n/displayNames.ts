@@ -27,6 +27,18 @@ export const COUNTRY_CODES = [
   "MX",
 ] as const;
 
+const LANGUAGE_AUTONYMS: Record<string, string> = {
+  ko: "한국어",
+  en: "English",
+  ja: "日本語",
+  zh: "中文",
+  es: "Español",
+  de: "Deutsch",
+  fr: "Français",
+  it: "Italiano",
+  ru: "Русский",
+};
+
 export function normalizeLanguageCode(v: string) {
   const lower = String(v || "").trim().toLowerCase();
   if (!lower) return "";
@@ -43,6 +55,12 @@ export function getLanguageName(t: TranslateFn, raw: string) {
   const key = `lang.name.${code}`;
   const text = String(t(key) || "");
   return text && text !== key ? text : code;
+}
+
+export function getLanguageAutonym(raw: string) {
+  const code = normalizeLanguageCode(raw);
+  if (!code) return "";
+  return LANGUAGE_AUTONYMS[code] || code;
 }
 
 export function getCountryName(t: TranslateFn, raw: string) {

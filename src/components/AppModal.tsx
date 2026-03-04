@@ -1,5 +1,5 @@
 ﻿import React from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View, type ModalProps } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 
@@ -10,14 +10,25 @@ type Props = {
   onClose?: () => void;
   footer?: React.ReactNode;
   dismissible?: boolean;
+  size?: "default" | "compact";
+  animationType?: ModalProps["animationType"];
 };
 
-export default function AppModal({ visible, title, children, onClose, footer, dismissible = true }: Props) {
+export default function AppModal({
+  visible,
+  title,
+  children,
+  onClose,
+  footer,
+  dismissible = true,
+  size = "default",
+  animationType = "fade",
+}: Props) {
   return (
     <Modal
       transparent
       visible={visible}
-      animationType="fade"
+      animationType={animationType}
       statusBarTranslucent
       onRequestClose={() => {
         if (!dismissible && !onClose) return;
@@ -35,7 +46,7 @@ export default function AppModal({ visible, title, children, onClose, footer, di
             if (dismissible) onClose?.();
           }}
         />
-        <View style={styles.card}>
+        <View style={[styles.card, size === "compact" ? styles.cardCompact : null]}>
           {title ? <AppText style={styles.title}>{title}</AppText> : null}
           <View style={styles.body}>{children}</View>
           {footer ? <View style={styles.footer}>{footer}</View> : null}
@@ -65,6 +76,12 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.line,
     padding: theme.spacing.lg,
     ...theme.shadow.card,
+  },
+  cardCompact: {
+    maxWidth: 340,
+    borderRadius: theme.radius.lg,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
   },
   title: {
     width: "100%",

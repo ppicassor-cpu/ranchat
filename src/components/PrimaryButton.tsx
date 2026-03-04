@@ -1,6 +1,6 @@
 ﻿//C:\ranchat\src\components\PrimaryButton.tsx
 import React from "react";
-import { Pressable, StyleSheet, ViewStyle } from "react-native";
+import { Pressable, StyleProp, StyleSheet, TextStyle, View, ViewStyle } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 
@@ -9,10 +9,12 @@ type Props = {
   onPress: () => void;
   disabled?: boolean;
   variant?: "primary" | "ghost" | "danger";
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+  leftIcon?: React.ReactNode;
 };
 
-export default function PrimaryButton({ title, onPress, disabled, variant = "primary", style }: Props) {
+export default function PrimaryButton({ title, onPress, disabled, variant = "primary", style, textStyle, leftIcon }: Props) {
   const bg =
     variant === "primary" ? theme.colors.pinkDeep : variant === "danger" ? theme.colors.danger : "transparent";
   const border = variant === "ghost" ? theme.colors.line : "transparent";
@@ -28,7 +30,10 @@ export default function PrimaryButton({ title, onPress, disabled, variant = "pri
         style,
       ]}
     >
-      <AppText style={[styles.txt, { color: text }]}>{title}</AppText>
+      <View style={styles.content}>
+        {leftIcon ? <View style={styles.leftIconWrap}>{leftIcon}</View> : null}
+        <AppText style={[styles.txt, { color: text }, textStyle]}>{title}</AppText>
+      </View>
     </Pressable>
   );
 }
@@ -40,6 +45,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
+  },
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  leftIconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   txt: {
     fontSize: 16,

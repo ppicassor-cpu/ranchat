@@ -17,6 +17,12 @@ type LoginEventInput = {
   totalPaymentKrw?: number | null;
 };
 
+export type LoginEventResult = {
+  ok: boolean;
+  forceLogout: boolean;
+  reason: string;
+};
+
 function normalizeHttpsBase(v: string): string {
   const s = String(v || "").trim();
   if (!s) return "";
@@ -67,13 +73,30 @@ function asSafeInt(v: number | null | undefined): number {
   return Math.max(0, Math.trunc(n));
 }
 
-export async function reportLoginEvent(input: LoginEventInput): Promise<void> {
+const LOGIN_EVENT_RESULT_NONE: LoginEventResult = {
+  ok: false,
+  forceLogout: false,
+  reason: "",
+};
+
+function parseLoginEventResult(payload: any): LoginEventResult {
+  const p = payload && typeof payload === "object" ? payload : {};
+  const reason = sanitize(p.reason || p.errorCode || p.error || "", 80).toLowerCase();
+  const forceLogout = p.forceLogout === true || reason === "other_device_login";
+  return {
+    ok: true,
+    forceLogout,
+    reason,
+  };
+}
+
+export async function reportLoginEvent(input: LoginEventInput): Promise<LoginEventResult> {
   const token = sanitize(input.token, 4096);
   const userId = sanitize(input.userId, 128);
-  if (!token || !userId) return;
+  if (!token || !userId) return LOGIN_EVENT_RESULT_NONE;
 
   const bases = resolveBases();
-  if (!bases.length) return;
+  if (!bases.length) return LOGIN_EVENT_RESULT_NONE;
 
   const paths = [normalizePath("/api/admin/login-events"), normalizePath("/admin/login-events")];
   const payload = {
@@ -86,8 +109,6 @@ export async function reportLoginEvent(input: LoginEventInput): Promise<void> {
     planId: sanitize(input.planId, 64),
     storeProductId: sanitize(input.storeProductId, 120),
     popTalkCount: asSafeInt(input.popTalkCount),
-    // Legacy field kept for compatibility with older admin monitors.
-    popcornCount: asSafeInt(input.popTalkCount),
     kernelCount: asSafeInt(input.kernelCount),
     totalPaymentKrw: asSafeInt(input.totalPaymentKrw),
     platform: sanitize(Platform.OS, 32),
@@ -113,12 +134,22 @@ export async function reportLoginEvent(input: LoginEventInput): Promise<void> {
           body: JSON.stringify(payload),
         });
 
-        if (res.ok) return;
+        if (res.ok) {
+          let body: any = null;
+          try {
+            body = await res.json();
+          } catch {
+            body = null;
+          }
+          return parseLoginEventResult(body);
+        }
         if (res.status === 404 || res.status === 405) continue;
-        return;
+        return LOGIN_EVENT_RESULT_NONE;
       } catch {
         // Try next candidate.
       }
     }
   }
+
+  return LOGIN_EVENT_RESULT_NONE;
 }

@@ -7,6 +7,10 @@ const crypto = require("crypto");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+let nodemailer = null;
+try {
+  nodemailer = require("nodemailer");
+} catch {}
 const { mountSocialAuth } = require("./social_auth");
 const { mountShopPurchaseRoutes } = require("./shop_db");
 
@@ -40,8 +44,11 @@ const POPTALK_PLAN_CONFIGS = {
   monthly: { cap: 2000, regenPerTick: 200 },
   yearly: { cap: 5000, regenPerTick: 200 },
 };
+const POPTALK_UNLIMITED_CAP = Number(process.env.POPTALK_UNLIMITED_CAP || 1000000000);
+const CALL_REPORTS_LIMIT = Number(process.env.CALL_REPORTS_LIMIT || 50000);
+const CALL_REPORT_EMAIL_TO = String(process.env.CALL_REPORT_EMAIL_TO || "ppicassor@gmail.com").trim();
 
-let profileStore = { users: {}, dinoRankEntries: [], popTalkWallets: {} };
+let profileStore = { users: {}, dinoRankEntries: [], popTalkWallets: {}, callReports: [], callBlocks: {} };
 let persistTimer = null;
 
 function sanitizeText(v, maxLen = 60) {
@@ -59,6 +66,164 @@ function anonymizeKey(v) {
   const raw = String(v || "").trim();
   if (!raw) return "";
   return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+function normalizeCallSafetyStoreShape() {
+  if (!profileStore || typeof profileStore !== "object") profileStore = {};
+  if (!Array.isArray(profileStore.callReports)) profileStore.callReports = [];
+  if (!profileStore.callBlocks || typeof profileStore.callBlocks !== "object") profileStore.callBlocks = {};
+}
+
+function toSessionKey(sessionId) {
+  const sid = sanitizeText(sessionId || "", 256);
+  if (!sid) return "";
+  return sanitizeText(anonymizeKey(sid), 128);
+}
+
+function profileIdFromSignalSession(sessionId, token) {
+  const sid = sanitizeText(sessionId || "", 256);
+  if (sid) return "d:" + toSessionKey(sid);
+  const tok = sanitizeText(token || "", 400);
+  if (tok) return "t:" + sanitizeText(anonymizeKey(tok), 128);
+  return "";
+}
+
+function sanitizeReasonCode(v) {
+  const raw = String(v || "").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  return sanitizeText(raw, 80);
+}
+
+function sanitizeReasonLabel(v) {
+  return sanitizeText(v || "", 120);
+}
+
+function sanitizeReasonDetail(v) {
+  return sanitizeText(v || "", 1200);
+}
+
+function resolveBlockPair(sessionIdA, sessionIdB) {
+  const aKey = toSessionKey(sessionIdA);
+  const bKey = toSessionKey(sessionIdB);
+  if (!aKey || !bKey || aKey === bKey) return null;
+  return { aKey, bKey };
+}
+
+function hasBlockBetweenSessions(sessionIdA, sessionIdB) {
+  const pair = resolveBlockPair(sessionIdA, sessionIdB);
+  if (!pair) return false;
+  normalizeCallSafetyStoreShape();
+  const blocks = profileStore.callBlocks;
+  return Boolean((blocks[pair.aKey] && blocks[pair.aKey][pair.bKey]) || (blocks[pair.bKey] && blocks[pair.bKey][pair.aKey]));
+}
+
+function putCallBlock(sessionIdA, sessionIdB, payload) {
+  const pair = resolveBlockPair(sessionIdA, sessionIdB);
+  if (!pair) return null;
+  normalizeCallSafetyStoreShape();
+  const blocks = profileStore.callBlocks;
+  if (!blocks[pair.aKey] || typeof blocks[pair.aKey] !== "object") blocks[pair.aKey] = {};
+  blocks[pair.aKey][pair.bKey] = {
+    createdAt: Number.isFinite(Number(payload && payload.createdAt)) ? Math.max(0, Math.trunc(Number(payload.createdAt))) : now(),
+    reasonCode: sanitizeReasonCode(payload && payload.reasonCode),
+    reasonLabel: sanitizeReasonLabel(payload && payload.reasonLabel),
+    roomId: sanitizeText(payload && payload.roomId, 120),
+    reporterProfileId: sanitizeText(payload && payload.reporterProfileId, 180),
+  };
+  schedulePersistProfileStore();
+  return {
+    actorSessionKey: pair.aKey,
+    peerSessionKey: pair.bKey,
+  };
+}
+
+function appendCallReport(report) {
+  normalizeCallSafetyStoreShape();
+  const list = profileStore.callReports;
+  const row = {
+    reportId: sanitizeText(report && report.reportId, 128) || `r_${now()}_${Math.random().toString(16).slice(2, 10)}`,
+    createdAt: Number.isFinite(Number(report && report.createdAt)) ? Math.max(0, Math.trunc(Number(report.createdAt))) : now(),
+    roomId: sanitizeText(report && report.roomId, 120),
+    reasonCode: sanitizeReasonCode(report && report.reasonCode),
+    reasonLabel: sanitizeReasonLabel(report && report.reasonLabel),
+    reasonDetail: sanitizeReasonDetail(report && report.reasonDetail),
+    reporterProfileId: sanitizeText(report && report.reporterProfileId, 180),
+    reporterSessionKey: sanitizeText(report && report.reporterSessionKey, 128),
+    targetProfileId: sanitizeText(report && report.targetProfileId, 180),
+    targetSessionKey: sanitizeText(report && report.targetSessionKey, 128),
+    status: sanitizeText(report && report.status, 40) || "new",
+    emailStatus: sanitizeText(report && report.emailStatus, 40) || "pending",
+    emailError: sanitizeText(report && report.emailError, 220),
+    source: sanitizeText(report && report.source, 80),
+  };
+  list.push(row);
+  if (list.length > CALL_REPORTS_LIMIT) {
+    list.sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
+    list.splice(0, list.length - CALL_REPORTS_LIMIT);
+  }
+  schedulePersistProfileStore();
+  return row;
+}
+
+function updateCallReportMailResult(reportId, ok, code) {
+  if (!reportId) return;
+  normalizeCallSafetyStoreShape();
+  const list = profileStore.callReports;
+  const target = list.find((row) => String(row && row.reportId || "") === String(reportId));
+  if (!target) return;
+  target.emailStatus = ok ? "sent" : "failed";
+  target.emailError = ok ? "" : sanitizeText(code || "EMAIL_SEND_FAILED", 220);
+  schedulePersistProfileStore();
+}
+
+async function trySendCallReportMail(reportRow) {
+  const to = sanitizeText(CALL_REPORT_EMAIL_TO, 240);
+  if (!to) return { ok: false, code: "CALL_REPORT_EMAIL_TO_MISSING" };
+  if (!nodemailer) return { ok: false, code: "NODEMAILER_NOT_INSTALLED" };
+
+  const host = sanitizeText(process.env.CALL_REPORT_SMTP_HOST || "", 240);
+  const user = sanitizeText(process.env.CALL_REPORT_SMTP_USER || "", 240);
+  const pass = String(process.env.CALL_REPORT_SMTP_PASS || "").trim();
+  const from = sanitizeText(process.env.CALL_REPORT_SMTP_FROM || user, 240);
+  const portRaw = Number(process.env.CALL_REPORT_SMTP_PORT || 465);
+  const port = Number.isFinite(portRaw) ? Math.max(1, Math.trunc(portRaw)) : 465;
+  const secureRaw = String(process.env.CALL_REPORT_SMTP_SECURE || "").trim().toLowerCase();
+  const secure = secureRaw
+    ? secureRaw === "1" || secureRaw === "true" || secureRaw === "yes"
+    : port === 465;
+
+  if (!host || !user || !pass || !from) return { ok: false, code: "SMTP_NOT_CONFIGURED" };
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+
+  const ts = Number(reportRow && reportRow.createdAt) || now();
+  const dateIso = new Date(ts).toISOString();
+  const subject = `[RanChat] 신고 접수 ${sanitizeText(reportRow && reportRow.reasonCode, 80)} (${dateIso})`;
+  const text = [
+    `reportId: ${sanitizeText(reportRow && reportRow.reportId, 128)}`,
+    `createdAt: ${dateIso}`,
+    `roomId: ${sanitizeText(reportRow && reportRow.roomId, 120)}`,
+    `reasonCode: ${sanitizeText(reportRow && reportRow.reasonCode, 80)}`,
+    `reasonLabel: ${sanitizeText(reportRow && reportRow.reasonLabel, 120)}`,
+    `reasonDetail: ${sanitizeText(reportRow && reportRow.reasonDetail, 1200)}`,
+    `reporterProfileId: ${sanitizeText(reportRow && reportRow.reporterProfileId, 180)}`,
+    `reporterSessionKey: ${sanitizeText(reportRow && reportRow.reporterSessionKey, 128)}`,
+    `targetProfileId: ${sanitizeText(reportRow && reportRow.targetProfileId, 180)}`,
+    `targetSessionKey: ${sanitizeText(reportRow && reportRow.targetSessionKey, 128)}`,
+  ].join("\n");
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject,
+    text,
+  });
+
+  return { ok: true, code: "EMAIL_SENT" };
 }
 
 function computeProfileId(req, body) {
@@ -219,6 +384,7 @@ function ensurePopTalkWallet(req, body, options) {
       plan: initialPlan,
       cap: cfg.cap,
       balance: cfg.cap,
+      unlimitedUntilMs: 0,
       updatedAt: ts,
       lastDailyResetKst: todayKst,
       lastRegenTick: tickNow,
@@ -234,8 +400,26 @@ function ensurePopTalkWallet(req, body, options) {
     changed = true;
   }
 
-  const currentPlan = normalizePopTalkPlan(wallet.plan);
-  const nextPlan = hintedPlan || currentPlan;
+  const unlimitedUntilRaw = Number(wallet.unlimitedUntilMs);
+  const unlimitedUntilMs = Number.isFinite(unlimitedUntilRaw) ? Math.max(0, Math.trunc(unlimitedUntilRaw)) : 0;
+  if (wallet.unlimitedUntilMs !== unlimitedUntilMs) {
+    wallet.unlimitedUntilMs = unlimitedUntilMs;
+    changed = true;
+  }
+
+  if (unlimitedUntilMs > 0 && ts >= unlimitedUntilMs) {
+    const freeCfg = getPopTalkPlanConfig("free");
+    const bal = Number.isFinite(Number(wallet.balance)) ? Math.max(0, Math.trunc(Number(wallet.balance))) : 0;
+    wallet.unlimitedUntilMs = 0;
+    wallet.plan = "free";
+    wallet.cap = freeCfg.cap;
+    wallet.balance = Math.min(bal, freeCfg.cap);
+    changed = true;
+  }
+
+  const unlimitedActive = Number(wallet.unlimitedUntilMs) > ts;
+  const currentPlan = unlimitedActive ? "monthly" : normalizePopTalkPlan(wallet.plan);
+  const nextPlan = unlimitedActive ? "monthly" : hintedPlan || currentPlan;
   const cfg = getPopTalkPlanConfig(nextPlan);
   const regenCap = cfg.cap;
 
@@ -253,7 +437,14 @@ function ensurePopTalkWallet(req, body, options) {
     changed = true;
   }
 
-  const displayCap = Math.max(regenCap, prevCap, wallet.balance);
+  if (unlimitedActive && wallet.balance < POPTALK_UNLIMITED_CAP) {
+    wallet.balance = POPTALK_UNLIMITED_CAP;
+    changed = true;
+  }
+
+  const displayCap = unlimitedActive
+    ? Math.max(regenCap, prevCap, wallet.balance, POPTALK_UNLIMITED_CAP)
+    : Math.max(regenCap, prevCap, wallet.balance);
   if (wallet.cap !== displayCap) {
     wallet.cap = displayCap;
     changed = true;
@@ -272,7 +463,24 @@ function ensurePopTalkWallet(req, body, options) {
     changed = true;
   }
 
-  if (wallet.lastDailyResetKst !== todayKst) {
+  if (unlimitedActive) {
+    if (wallet.lastDailyResetKst !== todayKst) {
+      wallet.lastDailyResetKst = todayKst;
+      changed = true;
+    }
+    if (wallet.lastRegenTick !== tickNow) {
+      wallet.lastRegenTick = tickNow;
+      changed = true;
+    }
+    if (wallet.balance < POPTALK_UNLIMITED_CAP) {
+      wallet.balance = POPTALK_UNLIMITED_CAP;
+      changed = true;
+    }
+    if (wallet.cap < wallet.balance) {
+      wallet.cap = wallet.balance;
+      changed = true;
+    }
+  } else if (wallet.lastDailyResetKst !== todayKst) {
     const resetBalance = Math.max(wallet.balance, regenCap);
     if (resetBalance !== wallet.balance) {
       wallet.balance = resetBalance;
@@ -285,18 +493,25 @@ function ensurePopTalkWallet(req, body, options) {
     wallet.lastRegenTick = tickNow;
     changed = true;
   } else if (tickNow > wallet.lastRegenTick) {
-    const deltaTicks = tickNow - wallet.lastRegenTick;
-    const regenGain = deltaTicks * cfg.regenPerTick;
-    const nextBalance = wallet.balance >= regenCap ? wallet.balance : Math.min(regenCap, wallet.balance + regenGain);
-    if (nextBalance !== wallet.balance) {
-      wallet.balance = nextBalance;
+    // Free plan must not be auto-restored to 1000 during the day.
+    // Allow 1000 top-up only at initial wallet creation and daily KST reset.
+    if (nextPlan === "free") {
+      wallet.lastRegenTick = tickNow;
+      changed = true;
+    } else {
+      const deltaTicks = tickNow - wallet.lastRegenTick;
+      const regenGain = deltaTicks * cfg.regenPerTick;
+      const nextBalance = wallet.balance >= regenCap ? wallet.balance : Math.min(regenCap, wallet.balance + regenGain);
+      if (nextBalance !== wallet.balance) {
+        wallet.balance = nextBalance;
+      }
+      const nextCapAfterRegen = Math.max(regenCap, wallet.cap, wallet.balance);
+      if (nextCapAfterRegen !== wallet.cap) {
+        wallet.cap = nextCapAfterRegen;
+      }
+      wallet.lastRegenTick = tickNow;
+      changed = true;
     }
-    const nextCapAfterRegen = Math.max(regenCap, wallet.cap, wallet.balance);
-    if (nextCapAfterRegen !== wallet.cap) {
-      wallet.cap = nextCapAfterRegen;
-    }
-    wallet.lastRegenTick = tickNow;
-    changed = true;
   }
 
   trimPopTalkIdempotency(wallet);
@@ -321,7 +536,7 @@ function loadProfileStore() {
   ensureStoreDir();
   try {
     if (!fs.existsSync(PROFILE_STORE_PATH)) {
-      profileStore = { users: {}, dinoRankEntries: [], popTalkWallets: {} };
+      profileStore = { users: {}, dinoRankEntries: [], popTalkWallets: {}, callReports: [], callBlocks: {} };
       return;
     }
 
@@ -378,6 +593,8 @@ function loadProfileStore() {
 
       const updatedAtRaw = Number(walletRaw && walletRaw.updatedAt);
       const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.trunc(updatedAtRaw)) : now();
+      const unlimitedUntilRaw = Number(walletRaw && walletRaw.unlimitedUntilMs);
+      const unlimitedUntilMs = Number.isFinite(unlimitedUntilRaw) ? Math.max(0, Math.trunc(unlimitedUntilRaw)) : 0;
 
       const lastDailyResetKstRaw = sanitizeText(walletRaw && walletRaw.lastDailyResetKst, 16);
       const lastDailyResetKst = lastDailyResetKstRaw || getKstDateKey(updatedAt);
@@ -412,6 +629,7 @@ function loadProfileStore() {
         plan,
         cap: displayCap,
         balance: balance,
+        unlimitedUntilMs,
         updatedAt,
         lastDailyResetKst,
         lastRegenTick,
@@ -422,10 +640,55 @@ function loadProfileStore() {
       popTalkWallets[profileId] = wallet;
     });
 
-    profileStore = { users, dinoRankEntries, popTalkWallets };
+    const callReportsRaw = json && typeof json === "object" && Array.isArray(json.callReports) ? json.callReports : [];
+    const callReports = callReportsRaw
+      .map((it) => ({
+        reportId: sanitizeText(it && it.reportId, 128) || `r_${now()}_${Math.random().toString(16).slice(2, 10)}`,
+        createdAt: Number.isFinite(Number(it && it.createdAt)) ? Math.max(0, Math.trunc(Number(it && it.createdAt))) : now(),
+        roomId: sanitizeText(it && it.roomId, 120),
+        reasonCode: sanitizeReasonCode(it && it.reasonCode),
+        reasonLabel: sanitizeReasonLabel(it && it.reasonLabel),
+        reasonDetail: sanitizeReasonDetail(it && it.reasonDetail),
+        reporterProfileId: sanitizeText(it && it.reporterProfileId, 180),
+        reporterSessionKey: sanitizeText(it && it.reporterSessionKey, 128),
+        targetProfileId: sanitizeText(it && it.targetProfileId, 180),
+        targetSessionKey: sanitizeText(it && it.targetSessionKey, 128),
+        status: sanitizeText(it && it.status, 40) || "new",
+        emailStatus: sanitizeText(it && it.emailStatus, 40) || "pending",
+        emailError: sanitizeText(it && it.emailError, 220),
+        source: sanitizeText(it && it.source, 80),
+      }))
+      .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))
+      .slice(-CALL_REPORTS_LIMIT);
+
+    const callBlocksRaw = json && typeof json === "object" && json.callBlocks && typeof json.callBlocks === "object" ? json.callBlocks : {};
+    const callBlocks = {};
+    Object.entries(callBlocksRaw).forEach(([actorKeyRaw, targetsRaw]) => {
+      const actorKey = sanitizeText(actorKeyRaw, 128);
+      if (!actorKey || !targetsRaw || typeof targetsRaw !== "object") return;
+      const nextTargets = {};
+      Object.entries(targetsRaw).forEach(([targetKeyRaw, metaRaw]) => {
+        const targetKey = sanitizeText(targetKeyRaw, 128);
+        if (!targetKey || targetKey === actorKey) return;
+        nextTargets[targetKey] = {
+          createdAt: Number.isFinite(Number(metaRaw && metaRaw.createdAt))
+            ? Math.max(0, Math.trunc(Number(metaRaw.createdAt)))
+            : 0,
+          reasonCode: sanitizeReasonCode(metaRaw && metaRaw.reasonCode),
+          reasonLabel: sanitizeReasonLabel(metaRaw && metaRaw.reasonLabel),
+          roomId: sanitizeText(metaRaw && metaRaw.roomId, 120),
+          reporterProfileId: sanitizeText(metaRaw && metaRaw.reporterProfileId, 180),
+        };
+      });
+      if (Object.keys(nextTargets).length > 0) {
+        callBlocks[actorKey] = nextTargets;
+      }
+    });
+
+    profileStore = { users, dinoRankEntries, popTalkWallets, callReports, callBlocks };
   } catch (e) {
     console.error("[profile-sync] load failed:", e && e.message ? e.message : e);
-    profileStore = { users: {}, dinoRankEntries: [], popTalkWallets: {} };
+    profileStore = { users: {}, dinoRankEntries: [], popTalkWallets: {}, callReports: [], callBlocks: {} };
   }
 }
 
@@ -724,7 +987,11 @@ const __popTalkConsumeHandler = (req, res) => {
       return res.status(idemHit.status).json(idemHit.response);
     }
 
-    if (wallet.balance < amount) {
+    const ts = now();
+    const unlimitedUntilMs = Number.isFinite(Number(wallet.unlimitedUntilMs)) ? Math.max(0, Math.trunc(Number(wallet.unlimitedUntilMs))) : 0;
+    const unlimitedActive = unlimitedUntilMs > ts;
+
+    if (!unlimitedActive && wallet.balance < amount) {
       const response = {
         ok: false,
         code: "INSUFFICIENT_BALANCE",
@@ -735,13 +1002,16 @@ const __popTalkConsumeHandler = (req, res) => {
       return res.status(409).json(response);
     }
 
-    wallet.balance = Math.max(0, wallet.balance - amount);
-    wallet.updatedAt = now();
+    const consumed = unlimitedActive ? 0 : amount;
+    if (!unlimitedActive) {
+      wallet.balance = Math.max(0, wallet.balance - amount);
+    }
+    wallet.updatedAt = ts;
     schedulePersistProfileStore();
 
     const response = {
       ok: true,
-      consumed: amount,
+      consumed,
       reason: sanitizeText(body.reason || "consume", 64),
       data: buildPopTalkSnapshot(wallet),
     };
@@ -898,6 +1168,10 @@ function applyKernelToPopTalkFromConvert(input) {
   const convertedPopTalk = Number.isFinite(convertedRaw) ? Math.max(0, Math.trunc(convertedRaw)) : 0;
   const atMsRaw = Number(payload.atMs);
   const atMs = Number.isFinite(atMsRaw) && atMsRaw > 0 ? Math.trunc(atMsRaw) : now();
+  const planOverrideRaw = payload.popTalkPlanOverride || body.popTalkPlanOverride || body.planOverride || "";
+  const planOverride = parsePopTalkPlan(planOverrideRaw);
+  const unlimitedUntilRaw = Number(payload.unlimitedUntilMs ?? body.unlimitedUntilMs);
+  const unlimitedUntilMs = Number.isFinite(unlimitedUntilRaw) ? Math.max(0, Math.trunc(unlimitedUntilRaw)) : 0;
 
   const ensureInput = { ...body };
   if (profileIdHint && !ensureInput.profileId) ensureInput.profileId = profileIdHint;
@@ -915,8 +1189,21 @@ function applyKernelToPopTalkFromConvert(input) {
   const beforeCap = Number.isFinite(Number(wallet.cap)) ? Math.max(1, Math.trunc(Number(wallet.cap))) : 1000;
   const nextBalance = beforeBalance + convertedPopTalk;
 
+  if (planOverride) {
+    wallet.plan = planOverride;
+  }
+  if (unlimitedUntilMs > atMs) {
+    wallet.unlimitedUntilMs = unlimitedUntilMs;
+  }
+  const unlimitedActive = Number(wallet.unlimitedUntilMs) > atMs;
+
   wallet.cap = Math.max(beforeCap, nextBalance);
   wallet.balance = Math.max(0, nextBalance);
+  if (unlimitedActive) {
+    wallet.plan = "monthly";
+    wallet.cap = Math.max(wallet.cap, POPTALK_UNLIMITED_CAP);
+    wallet.balance = Math.max(wallet.balance, POPTALK_UNLIMITED_CAP);
+  }
   wallet.updatedAt = atMs;
   schedulePersistProfileStore();
 
@@ -1640,6 +1927,187 @@ const __adminLoginMonitorPageHandler = (_req, res) => {
 app.get("/api/admin/login-events/stream", __adminLoginEventStreamHandler);
 app.get("/admin/login-monitor", __adminLoginMonitorPageHandler);
 
+function resolveCallSafetyParticipants(req, body) {
+  const b = body || {};
+  const roomId = sanitizeText(b.roomId, 120);
+  const actorSessionId = sanitizeText(b.sessionId || b.deviceKey || "", 256);
+  const explicitPeerSessionId = sanitizeText(b.peerSessionId || "", 256);
+  if (!actorSessionId) {
+    return { ok: false, errorCode: "SESSION_ID_REQUIRED", errorMessage: "SESSION_ID_REQUIRED" };
+  }
+
+  if (roomId) {
+    const room = rooms.get(roomId);
+    if (room && !room.ended) {
+      if (room.aId === actorSessionId) {
+        return { ok: true, roomId, actorSessionId, peerSessionId: room.bId };
+      }
+      if (room.bId === actorSessionId) {
+        return { ok: true, roomId, actorSessionId, peerSessionId: room.aId };
+      }
+      return { ok: false, errorCode: "SESSION_NOT_IN_ROOM", errorMessage: "SESSION_NOT_IN_ROOM" };
+    }
+  }
+
+  if (!explicitPeerSessionId) {
+    return { ok: false, errorCode: "ROOM_OR_PEER_REQUIRED", errorMessage: "ROOM_OR_PEER_REQUIRED" };
+  }
+  if (explicitPeerSessionId === actorSessionId) {
+    return { ok: false, errorCode: "INVALID_PEER_SESSION", errorMessage: "INVALID_PEER_SESSION" };
+  }
+  return {
+    ok: true,
+    roomId,
+    actorSessionId,
+    peerSessionId: explicitPeerSessionId,
+  };
+}
+
+const __callReportHandler = (req, res) => {
+  try {
+    const body = req.body || {};
+    const pair = resolveCallSafetyParticipants(req, body);
+    if (!pair.ok) {
+      return res.status(400).json({ ok: false, errorCode: pair.errorCode, errorMessage: pair.errorMessage });
+    }
+
+    const reasonCode = sanitizeReasonCode(body.reasonCode);
+    const reasonLabel = sanitizeReasonLabel(body.reasonLabel);
+    const reasonDetail = sanitizeReasonDetail(body.reasonDetail);
+    if (!reasonCode || !reasonLabel) {
+      return res.status(400).json({ ok: false, errorCode: "REPORT_REASON_REQUIRED", errorMessage: "REPORT_REASON_REQUIRED" });
+    }
+
+    const reporterProfileId = sanitizeText(computeProfileId(req, body), 180);
+    const peerSession = sessions.get(pair.peerSessionId);
+    const targetProfileId = sanitizeText(peerSession && peerSession.profileId, 180);
+
+    const reportRow = appendCallReport({
+      reportId: `r_${now()}_${Math.random().toString(16).slice(2, 10)}`,
+      createdAt: now(),
+      roomId: pair.roomId,
+      reasonCode,
+      reasonLabel,
+      reasonDetail,
+      reporterProfileId,
+      reporterSessionKey: toSessionKey(pair.actorSessionId),
+      targetProfileId,
+      targetSessionKey: toSessionKey(pair.peerSessionId),
+      status: "new",
+      emailStatus: "pending",
+      source: sanitizeText(body.source || "call_screen", 80),
+    });
+
+    (async () => {
+      try {
+        const mailOut = await trySendCallReportMail(reportRow);
+        updateCallReportMailResult(reportRow.reportId, Boolean(mailOut && mailOut.ok), sanitizeText(mailOut && mailOut.code, 220));
+      } catch (e) {
+        updateCallReportMailResult(reportRow.reportId, false, sanitizeText((e && e.message) || "EMAIL_SEND_FAILED", 220));
+      }
+    })().catch(() => undefined);
+
+    return res.status(200).json({
+      ok: true,
+      reportId: reportRow.reportId,
+      emailStatus: reportRow.emailStatus,
+      actorSessionKey: reportRow.reporterSessionKey,
+      peerSessionKey: reportRow.targetSessionKey,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      errorCode: "CALL_REPORT_FAILED",
+      errorMessage: sanitizeText((e && e.message) || e, 220) || "CALL_REPORT_FAILED",
+    });
+  }
+};
+
+const __callBlockHandler = (req, res) => {
+  try {
+    const body = req.body || {};
+    const pair = resolveCallSafetyParticipants(req, body);
+    if (!pair.ok) {
+      return res.status(400).json({ ok: false, errorCode: pair.errorCode, errorMessage: pair.errorMessage });
+    }
+
+    const reporterProfileId = sanitizeText(computeProfileId(req, body), 180);
+    const reasonCode = sanitizeReasonCode(body.reasonCode || "USER_BLOCK");
+    const reasonLabel = sanitizeReasonLabel(body.reasonLabel || "사용자 차단");
+    const blockOut = putCallBlock(pair.actorSessionId, pair.peerSessionId, {
+      createdAt: now(),
+      reasonCode,
+      reasonLabel,
+      roomId: pair.roomId,
+      reporterProfileId,
+    });
+    if (!blockOut) {
+      return res.status(400).json({
+        ok: false,
+        errorCode: "CALL_BLOCK_INVALID_PAIR",
+        errorMessage: "CALL_BLOCK_INVALID_PAIR",
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      actorSessionKey: blockOut.actorSessionKey,
+      peerSessionKey: blockOut.peerSessionKey,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      errorCode: "CALL_BLOCK_FAILED",
+      errorMessage: sanitizeText((e && e.message) || e, 220) || "CALL_BLOCK_FAILED",
+    });
+  }
+};
+
+const __adminCallReportListHandler = (req, res) => {
+  try {
+    normalizeCallSafetyStoreShape();
+    const limitRaw = Number(req.query && req.query.limit);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.trunc(limitRaw))) : 200;
+    const reports = profileStore.callReports
+      .slice()
+      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+      .slice(0, limit);
+    return res.status(200).json({
+      ok: true,
+      total: profileStore.callReports.length,
+      limit,
+      reports,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      errorCode: "CALL_REPORT_LIST_FAILED",
+      errorMessage: sanitizeText((e && e.message) || e, 220) || "CALL_REPORT_LIST_FAILED",
+    });
+  }
+};
+
+[
+  "/api/call/report",
+  "/call/report",
+  "/api/call/safety/report",
+  "/call/safety/report",
+  "/api/report/call",
+  "/report/call",
+].forEach((p) => app.post(p, __callReportHandler));
+
+[
+  "/api/call/block",
+  "/call/block",
+  "/api/call/safety/block",
+  "/call/safety/block",
+  "/api/block/call",
+  "/block/call",
+].forEach((p) => app.post(p, __callBlockHandler));
+
+app.get("/api/admin/call-reports", __adminCallReportListHandler);
+app.get("/admin/call-reports", __adminCallReportListHandler);
+
 
 app.get("/health", (_req, res) => res.status(200).send("ok"));
 
@@ -1752,17 +2220,34 @@ function tryMatch() {
   }
 
   while (queue.length >= 2) {
-    const aId = queue.shift();
-    const bId = queue.shift();
+    let found = null;
+    for (let i = 0; i < queue.length - 1; i++) {
+      const aId = queue[i];
+      if (!aId) continue;
+      const a = sessions.get(aId);
+      if (!a || !isWsAlive(a.ws)) continue;
+      for (let j = i + 1; j < queue.length; j++) {
+        const bId = queue[j];
+        if (!bId || bId === aId) continue;
+        const b = sessions.get(bId);
+        if (!b || !isWsAlive(b.ws)) continue;
+        if (hasBlockBetweenSessions(aId, bId)) continue;
+        found = { i, j, aId, bId, a, b };
+        break;
+      }
+      if (found) break;
+    }
 
-    if (!aId || !bId || aId === bId) continue;
+    if (!found) return;
 
-    const a = sessions.get(aId);
-    const b = sessions.get(bId);
+    queue.splice(found.j, 1);
+    queue.splice(found.i, 1);
 
+    const aId = found.aId;
+    const bId = found.bId;
+    const a = found.a;
+    const b = found.b;
     if (!a || !b || !isWsAlive(a.ws) || !isWsAlive(b.ws)) {
-      if (a && isWsAlive(a.ws)) queue.unshift(aId);
-      if (b && isWsAlive(b.ws)) queue.unshift(bId);
       continue;
     }
 
@@ -1801,7 +2286,13 @@ function handleRegister(ws, msg) {
     wsToSessionId.delete(existing.ws);
   }
 
-  sessions.set(sessionId, { ws, token, enqueuedAt: null });
+  sessions.set(sessionId, {
+    ws,
+    token,
+    enqueuedAt: null,
+    sessionKey: toSessionKey(sessionId),
+    profileId: profileIdFromSignalSession(sessionId, token),
+  });
   wsToSessionId.set(ws, sessionId);
 
   safeSend(ws, { type: "registered", sessionId });

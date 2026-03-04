@@ -6,7 +6,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AppText from "../components/AppText";
 import { useAppStore } from "../store/useAppStore";
-import { GIFT_CATALOG, type GiftItem } from "../constants/giftCatalog";
+import { GIFT_CATALOG, getGiftDisplayName, type GiftItem } from "../constants/giftCatalog";
+import { fetchShopGiftInventory, purchaseGiftWithKernelOnServer } from "../services/shop/ShopPurchaseService";
+import { useTranslation } from "../i18n/LanguageProvider";
 
 function formatNumber(n: number): string {
   return Math.max(0, Math.trunc(Number(n) || 0)).toLocaleString("ko-KR");
@@ -29,26 +31,62 @@ function GiftArt({ gift }: { gift: GiftItem }) {
 export default function GiftShopScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const auth = useAppStore((s: any) => s.auth);
   const kernelCount = useAppStore((s: any) => Number(s.assets?.kernelCount ?? 0));
-  const purchaseGiftWithKernel = useAppStore((s: any) => s.purchaseGiftWithKernel);
+  const setAssets = useAppStore((s: any) => s.setAssets);
+  const setShop = useAppStore((s: any) => s.setShop);
   const showGlobalModal = useAppStore((s: any) => s.showGlobalModal);
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: "선물 상점",
+      title: t("giftshop.title"),
     });
-  }, [navigation]);
+  }, [navigation, t]);
 
   const onPressBuy = useCallback(
-    (gift: GiftItem) => {
-      const out = purchaseGiftWithKernel(gift.id, gift.costKernel, 1);
-      if (!out?.ok) {
-        showGlobalModal("선물 상점", "커널이 부족합니다.");
+    async (gift: GiftItem) => {
+      const token = String(auth?.token || "").trim();
+      const userId = String(auth?.userId || "").trim();
+      const deviceKey = String(auth?.deviceKey || "").trim();
+      if (!token || !userId) {
+        showGlobalModal(t("giftshop.title"), t("common.auth_expired"));
         return;
       }
-      showGlobalModal("선물 상점", `${gift.name} 선물을 구매했습니다.`);
+
+      const out = await purchaseGiftWithKernelOnServer({
+        token,
+        userId,
+        deviceKey,
+        giftId: gift.id,
+        costKernel: gift.costKernel,
+        count: 1,
+        idempotencyKey: `gift_${gift.id}_${Date.now()}`,
+      });
+      if (!out.ok) {
+        const errCode = String(out.errorCode || "").toUpperCase();
+        if (errCode === "INSUFFICIENT_KERNEL") {
+          showGlobalModal(t("giftshop.title"), t("giftshop.error.insufficient_kernel", { balance: formatNumber(kernelCount) }));
+          return;
+        }
+        showGlobalModal(t("giftshop.title"), out.errorMessage || out.errorCode || t("giftshop.error.buy_failed"));
+        return;
+      }
+
+      const inventory = await fetchShopGiftInventory({ token, userId, deviceKey });
+      if (inventory.ok && inventory.giftStateFound) {
+        setShop({
+          giftsOwned: inventory.giftsOwned,
+          giftsReceived: inventory.giftsReceived,
+        });
+        setAssets({
+          kernelCount: inventory.walletKernel,
+          updatedAtMs: Date.now(),
+        });
+      }
+      showGlobalModal(t("giftshop.title"), t("giftshop.buy_done", { name: getGiftDisplayName(t, gift) }));
     },
-    [purchaseGiftWithKernel, showGlobalModal]
+    [auth?.deviceKey, auth?.token, auth?.userId, kernelCount, setAssets, setShop, showGlobalModal, t]
   );
 
   return (
@@ -61,10 +99,10 @@ export default function GiftShopScreen() {
         <View style={styles.balanceCard}>
           <View style={styles.balanceRow}>
             <Ionicons name="diamond-outline" size={18} color="#FFE3A4" />
-            <AppText style={styles.balanceTitle}>보유 커널</AppText>
+            <AppText style={styles.balanceTitle}>{t("giftshop.balance_kernel")}</AppText>
             <AppText style={styles.balanceValue}>{formatNumber(kernelCount)}</AppText>
           </View>
-          <AppText style={styles.balanceDesc}>구매한 선물은 통화 중 선물함에서 전송할 수 있습니다.</AppText>
+          <AppText style={styles.balanceDesc}>{t("giftshop.balance_desc")}</AppText>
         </View>
 
         <View style={styles.grid}>
@@ -77,10 +115,10 @@ export default function GiftShopScreen() {
                 style={styles.card}
               >
                 <GiftArt gift={gift} />
-                <AppText style={styles.nameText}>{gift.name}</AppText>
-                <AppText style={styles.priceText}>{formatNumber(gift.costKernel)} 커널</AppText>
+                <AppText style={styles.nameText}>{getGiftDisplayName(t, gift)}</AppText>
+                <AppText style={styles.priceText}>{t("giftshop.price_kernel", { cost: formatNumber(gift.costKernel) })}</AppText>
                 <Pressable onPress={() => onPressBuy(gift)} style={({ pressed }) => [styles.buyBtn, pressed ? styles.buyBtnPressed : null]}>
-                  <AppText style={styles.buyBtnText}>구매</AppText>
+                  <AppText style={styles.buyBtnText}>{t("giftshop.buy")}</AppText>
                 </Pressable>
               </LinearGradient>
             </View>
@@ -191,4 +229,3 @@ const styles = StyleSheet.create({
     color: "#FFF6D6",
   },
 });
-

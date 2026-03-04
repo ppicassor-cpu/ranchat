@@ -48,10 +48,11 @@ function withGooglePlugin(plugins, iosUrlScheme) {
 }
 
 module.exports = ({ config }) => {
-  // Use values from app.json (base.expo) and merge with Expo's incoming config object.
+  // Start from Expo incoming config, then override with base.expo.
+  // This keeps dynamic defaults but ensures app.base.json stays authoritative.
   const merged = {
-    ...(base.expo || {}),
     ...((config && typeof config === "object" ? config : {}) || {}),
+    ...(base.expo || {}),
   };
   const expo = JSON.parse(JSON.stringify(merged));
   const googleIosUrlScheme = deriveGoogleIosUrlScheme();

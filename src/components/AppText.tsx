@@ -33,16 +33,19 @@ function scaleStyle(style: StyleProp<TextStyle>, scale: number): StyleProp<TextS
 
 type Props = TextProps & {
   children?: React.ReactNode;
+  ignoreUiScale?: boolean;
 };
 
 export default function AppText(props: Props) {
   const scale = useAppStore((s) => s.ui.fontScale);
+  const { ignoreUiScale = false, style, children, ...rest } = props;
+  const effectiveScale = ignoreUiScale ? 1 : scale;
 
-  const scaledStyle = useMemo(() => scaleStyle(props.style as any, scale), [props.style, scale]);
+  const scaledStyle = useMemo(() => scaleStyle(style as any, effectiveScale), [style, effectiveScale]);
 
   return (
-    <Text {...props} allowFontScaling={false} maxFontSizeMultiplier={1} style={scaledStyle}>
-      {props.children}
+    <Text {...rest} allowFontScaling={false} maxFontSizeMultiplier={1} style={scaledStyle}>
+      {children}
     </Text>
   );
 }

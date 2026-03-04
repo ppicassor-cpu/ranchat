@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import { useHeaderHeight } from "@react-navigation/elements";
 import AppText from "../components/AppText";
 import { theme } from "../config/theme";
 import { useAppStore } from "../store/useAppStore";
@@ -344,6 +345,7 @@ function DropdownWheel({
 export default function FortuneScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const { t, currentLang } = useTranslation();
   const callMatchedSignal = useAppStore((s: any) => Number(s.ui?.callMatchedSignal ?? 0));
   const now = useMemo(() => new Date(), []);
@@ -392,6 +394,7 @@ export default function FortuneScreen() {
   const [resultVisible, setResultVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [matchedModalVisible, setMatchedModalVisible] = useState(false);
+  const contentTopPadding = useMemo(() => Math.max(insets.top + 24, headerHeight + 58) + 30, [headerHeight, insets.top]);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -543,7 +546,10 @@ export default function FortuneScreen() {
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 20) + 20 },
+        {
+          paddingTop: contentTopPadding,
+          paddingBottom: Math.max(insets.bottom, 20) + 20,
+        },
       ]}
     >
       <View style={styles.headerCard}>
@@ -802,7 +808,7 @@ const styles = StyleSheet.create({
   headerTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
     marginBottom: 8,
   },
   headerTitle: {

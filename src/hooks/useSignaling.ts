@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { APP_CONFIG } from "../config/app";
 import { bootstrapDeviceBinding } from "../services/auth/AuthBootstrap";
 import { SignalClient, SignalMessage } from "../services/signal/SignalClient";
+import type { MatchFilter } from "../services/call/MatchFilterService";
 import { useAppStore } from "../store/useAppStore";
 import { PEER_INFO_WAIT_TIMEOUT_MS } from "../constants/callConfig";
 
@@ -32,12 +33,14 @@ type UseSignalingArgs = {
   myLangRaw: string;
   myGenderRaw: string;
   myFlag: string;
+  myUserId: string;
   setAuthBooting: (v: boolean) => void;
   setMatchingActionsVisible: (v: boolean) => void;
   setNoMatchModal: (v: boolean) => void;
   setPhase: (v: any) => void;
   setSignalUnstable: (v: boolean) => void;
   setPeerInfo: (v: any) => void;
+  setPeerSessionId: (v: string | null) => void;
   setRemoteCamOn: (v: boolean) => void;
   onGiftSignal?: (giftId: string, payload?: any) => void;
   setFastMatchHint: (v: boolean) => void;
@@ -54,6 +57,16 @@ type UseSignalingArgs = {
   beginCall: (ws: SignalClient, rid: string, caller: boolean, qTok: number) => Promise<void> | void;
   endCallAndRequeue: (why: "remote_left" | "disconnect" | "error" | "find_other") => void;
   beforeStartQueue?: () => Promise<boolean> | boolean;
+  getQueueMatchFilter?: () => MatchFilter | null | undefined;
+  shouldSkipMatch?: (args: { roomId: string; peerSessionId: string }) => boolean;
+  shouldSkipPeerInfo?: (args: { roomId: string; peerSessionId: string; peerInfo: any }) => boolean;
+  tryStartSyntheticMatch?: (args: {
+    qTok: number;
+    queueCountry: string;
+    queueGender: string;
+    queueLanguage: string;
+    queueMatchFilter: MatchFilter | null | undefined;
+  }) => Promise<boolean> | boolean;
 };
 
 export default function useSignaling({
@@ -83,12 +96,14 @@ export default function useSignaling({
   myLangRaw,
   myGenderRaw,
   myFlag,
+  myUserId,
   setAuthBooting,
   setMatchingActionsVisible,
   setNoMatchModal,
   setPhase,
   setSignalUnstable,
   setPeerInfo,
+  setPeerSessionId,
   setRemoteCamOn,
   onGiftSignal,
   setFastMatchHint,
@@ -105,6 +120,10 @@ export default function useSignaling({
   beginCall,
   endCallAndRequeue,
   beforeStartQueue,
+  getQueueMatchFilter,
+  shouldSkipMatch,
+  shouldSkipPeerInfo,
+  tryStartSyntheticMatch,
 }: UseSignalingArgs) {
   const onMessage = useCallback(
     async (ws: SignalClient, qTok: number, msg: SignalMessage) => {
@@ -113,10 +132,27 @@ export default function useSignaling({
 
       if (msg.type === "signal") {
         const d: any = (msg as any).data;
+        const fromSessionId = String((msg as any).fromSessionId || "").trim();
         const sigType = String(d?.type ?? d?.kind ?? "").toLowerCase();
 
         if (sigType === "peer_info") {
           if (String(d?.nonce ?? "") === String(myPeerInfoNonceRef.current)) return;
+          const roomId = String((msg as any).roomId || "").trim();
+          if (
+            shouldSkipPeerInfo?.({
+              roomId,
+              peerSessionId: fromSessionId,
+              peerInfo: d,
+            })
+          ) {
+            if (roomId) {
+              try {
+                ws.leaveRoom(roomId);
+              } catch {}
+            }
+            endCallAndRequeue("disconnect");
+            return;
+          }
 
           setPeerInfo(d);
 
@@ -138,7 +174,12 @@ export default function useSignaling({
 
         if (sigType === "gift") {
           const giftId = String(d?.giftId ?? d?.id ?? "").trim();
-          if (giftId) onGiftSignal?.(giftId, d);
+          if (giftId) {
+            onGiftSignal?.(giftId, {
+              ...(d && typeof d === "object" ? d : {}),
+              _fromSessionId: fromSessionId || undefined,
+            });
+          }
           return;
         }
 
@@ -150,10 +191,28 @@ export default function useSignaling({
         return;
       }
 
+      if (msg.type === "error") {
+        const reason = String((msg as any).message || "").trim().toLowerCase();
+        if (reason === "other_device_login" || reason === "session_replaced") {
+          manualCloseRef.current = true;
+          queueRunningRef.current = false;
+          clearNoMatchTimer();
+          clearMatchingActionsTimer(false);
+          clearWebrtcDownTimer();
+          try {
+            ws.close();
+          } catch {}
+          useAppStore.getState().showGlobalModal(t("auth.title"), t("auth.logout_other_device"));
+          useAppStore.getState().logoutAndWipe();
+        }
+        return;
+      }
+
       if (msg.type === "queued") {
         if (phaseRef.current === "matched" || phaseRef.current === "calling") return;
         const wasQueued = phaseRef.current === "queued";
         setPhase("queued");
+        startMatchingActionsTimer(false);
         if (!wasQueued) {
           if (!noMatchTimerRef.current) {
             startNoMatchTimer();
@@ -164,6 +223,15 @@ export default function useSignaling({
       if (msg.type === "match") {
         const rid = String(msg.roomId || "").trim();
         if (!rid) return;
+        const peerSessionId = String((msg as any).peerSessionId || "").trim();
+
+        if (shouldSkipMatch?.({ roomId: rid, peerSessionId })) {
+          try {
+            ws.leaveRoom(rid);
+          } catch {}
+          endCallAndRequeue("disconnect");
+          return;
+        }
 
         if (!queueRunningRef.current) {
           return;
@@ -184,9 +252,11 @@ export default function useSignaling({
         setPhase("matched");
         queueRunningRef.current = false;
         enqueuedRef.current = false;
+        setPeerSessionId(peerSessionId || null);
         setRoomId(rid);
         setIsCaller(Boolean(msg.isCaller));
         try {
+          const myUid = String(myUserId || "").trim();
           ws.relay(rid, {
             type: "peer_info",
             nonce: myPeerInfoNonceRef.current,
@@ -194,6 +264,8 @@ export default function useSignaling({
             language: myLangRaw,
             gender: myGenderRaw,
             flag: myFlag,
+            userId: myUid || undefined,
+            uid: myUid || undefined,
           });
         } catch {}
 
@@ -257,6 +329,7 @@ export default function useSignaling({
       queueTokenRef,
       myPeerInfoNonceRef,
       setPeerInfo,
+      setPeerSessionId,
       beginCallReqRef,
       peerReadyTimerRef,
       beginCall,
@@ -273,6 +346,7 @@ export default function useSignaling({
       beautyOpeningIntentRef,
       clearLocalPreviewStream,
       setNoMatchModal,
+      setMatchingActionsVisible,
       setFastMatchHint,
       setReMatchText,
       enqueuedRef,
@@ -282,6 +356,7 @@ export default function useSignaling({
       myLangRaw,
       myGenderRaw,
       myFlag,
+      myUserId,
       suppressEndRelayRef,
       endCallAndRequeue,
       clearWebrtcDownTimer,
@@ -341,6 +416,8 @@ export default function useSignaling({
       const prefsNow = st.prefs ?? {};
       const queueCountry = String(prefsNow.country || "");
       const queueGender = String(prefsNow.gender || "");
+      const queueLanguage = String(prefsNow.language || prefsNow.lang || "").trim().toLowerCase();
+      const queueMatchFilter = getQueueMatchFilter ? getQueueMatchFilter() : null;
 
       if (!(queueCountry.length > 0 && queueGender.length > 0)) {
         useAppStore.getState().showGlobalModal(t("call.match_title"), t("call.match_filter_missing"));
@@ -393,6 +470,30 @@ export default function useSignaling({
       setPhase("connecting");
       startMatchingActionsTimer(resetMatchingActions);
 
+      if (tryStartSyntheticMatch) {
+        let syntheticMatched = false;
+        try {
+          syntheticMatched = Boolean(
+            await Promise.resolve(
+              tryStartSyntheticMatch({
+                qTok,
+                queueCountry,
+                queueGender,
+                queueLanguage,
+                queueMatchFilter,
+              })
+            )
+          );
+        } catch {
+          syntheticMatched = false;
+        }
+        if (syntheticMatched) {
+          queueRunningRef.current = false;
+          enqueuedRef.current = false;
+          return;
+        }
+      }
+
       const ws = new SignalClient({
         onOpen: () => {
           if (wsRef.current !== ws) return;
@@ -405,7 +506,7 @@ export default function useSignaling({
           if (enqueuedRef.current) return;
           enqueuedRef.current = true;
           startNoMatchTimer();
-          ws.enqueue(queueCountry, queueGender);
+          ws.enqueue(queueCountry, queueGender, queueLanguage, queueMatchFilter || undefined);
         },
         onClose: () => {
           if (wsRef.current !== ws) return;
@@ -461,6 +562,10 @@ export default function useSignaling({
       endCallAndRequeue,
       onMessage,
       beforeStartQueue,
+      getQueueMatchFilter,
+      shouldSkipMatch,
+      shouldSkipPeerInfo,
+      tryStartSyntheticMatch,
     ]
   );
 

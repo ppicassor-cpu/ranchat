@@ -21,7 +21,7 @@ export type MainStackParamList = {
   Dino: undefined;
   Profile: undefined;
   Premium: undefined;
-  Shop: undefined;
+  Shop: { initialTab?: 0 | 1 | 2 | 3 | 4 } | undefined;
   GiftShop: undefined;
   GiftBox: { mode?: "view" | "send" } | undefined;
 };
@@ -47,9 +47,25 @@ export default function MainStack() {
         component={FortuneScreen}
         options={({ navigation }) => ({
           title: "",
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: "transparent" },
+          statusBarTranslucent: true,
+          statusBarColor: "transparent",
           headerBackVisible: false,
           headerLeft: () => (
-            <Pressable onPress={() => navigation.goBack()} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+            <Pressable
+              onPressIn={() => navigation.goBack()}
+              hitSlop={16}
+              style={{
+                marginTop: 8,
+                marginLeft: 2,
+                minWidth: 44,
+                minHeight: 44,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <Text style={{ fontSize: 24, fontWeight: "700", color: theme.colors.text }}>{"<"}</Text>
             </Pressable>
           ),
@@ -57,10 +73,38 @@ export default function MainStack() {
       />
       <Stack.Screen name="Dino" component={DinoScreen} options={{ title: t("screen.dino") }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: t("screen.profile") }} />
-      <Stack.Screen name="Premium" component={PremiumScreen} options={{ title: t("screen.premium") }} />
-      <Stack.Screen name="Shop" component={ShopScreen} options={{ title: "팝톡 상점" }} />
-      <Stack.Screen name="GiftShop" component={GiftShopScreen} options={{ title: "선물 상점" }} />
-      <Stack.Screen name="GiftBox" component={GiftBoxScreen} options={{ title: "내 선물함" }} />
+      <Stack.Screen
+        name="Premium"
+        component={PremiumScreen}
+        options={({ navigation }) => ({
+          title: "",
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: "transparent" },
+          statusBarTranslucent: true,
+          statusBarColor: "transparent",
+          headerBackVisible: false,
+          headerLeft: () => (
+            <Pressable
+              onPressIn={() => navigation.goBack()}
+              hitSlop={12}
+              style={{
+                marginTop: 2,
+                marginLeft: 2,
+                minWidth: 44,
+                minHeight: 44,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 20, fontWeight: "800", color: "#FFFFFF" }}>{"<"}</Text>
+            </Pressable>
+          ),
+        })}
+      />
+      <Stack.Screen name="Shop" component={ShopScreen} options={{ title: t("shop.title") }} />
+      <Stack.Screen name="GiftShop" component={GiftShopScreen} options={{ title: t("giftshop.title") }} />
+      <Stack.Screen name="GiftBox" component={GiftBoxScreen} options={{ title: t("giftbox.header_box") }} />
     </Stack.Navigator>
   );
 }

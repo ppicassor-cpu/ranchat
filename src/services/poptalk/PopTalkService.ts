@@ -135,7 +135,7 @@ function normalizeSnapshot(raw: any): PopTalkSnapshot | null {
 
   if (!Number.isFinite(balance)) return null;
   if (!Number.isFinite(cap) || cap <= 0) {
-    cap = Math.max(1000, balance);
+    cap = Math.max(0, balance);
   }
   balance = Math.min(balance, cap);
 

@@ -36,6 +36,13 @@ export default function useBeautyEffects({
 
   const openBeauty = useCallback(() => {
     beautyOpeningIntentRef.current = true;
+    setBeautyConfig((prev) => {
+      if (prev.enabled) return prev;
+      return {
+        ...prev,
+        enabled: true,
+      };
+    });
     setBeautyOpen(true);
   }, []);
 

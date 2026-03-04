@@ -36,6 +36,8 @@ export default function GlobalModalHost() {
       visible={m.visible}
       title={m.title}
       dismissible={true}
+      size="compact"
+      animationType="none"
       onClose={hide}
       footer={
         <View style={{ gap: 10 }}>

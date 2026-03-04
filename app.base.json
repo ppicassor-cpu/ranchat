@@ -3,7 +3,7 @@
     "name": "ranchat",
     "slug": "ranchat",
     "scheme": "ranchat",
-    "version": "13.0.0",
+    "version": "14.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -30,7 +30,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 13,
+      "versionCode": 14,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -72,6 +72,7 @@
       ],
       "expo-secure-store",
       "expo-font",
+      "expo-video",
       [
         "expo-build-properties",
         {

@@ -7,17 +7,19 @@ import { NativeAd, NativeAdView, NativeAsset, NativeAssetType, NativeMediaView, 
 type QueueNativeAdProps = {
   styles: any;
   width: number;
+  onAdVisibleChange?: (visible: boolean) => void;
 };
 
 const NATIVE_UNIT_ID = (process.env.EXPO_PUBLIC_AD_UNIT_NATIVE_ANDROID ?? "").trim() || "ca-app-pub-5144004139813427/8416045900";
 
-export default function QueueNativeAd256x144({ styles, width }: QueueNativeAdProps) {
+export default function QueueNativeAd256x144({ styles, width, onAdVisibleChange }: QueueNativeAdProps) {
   const [nativeAd, setNativeAd] = useState<NativeAd | null>(null);
   const adRef = useRef<NativeAd | null>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
     let alive = true;
+    onAdVisibleChange?.(false);
 
     NativeAd.createForAdRequest(NATIVE_UNIT_ID, { aspectRatio: NativeMediaAspectRatio.LANDSCAPE })
       .then((ad) => {
@@ -29,8 +31,11 @@ export default function QueueNativeAd256x144({ styles, width }: QueueNativeAdPro
         }
         adRef.current = ad;
         setNativeAd(ad);
+        onAdVisibleChange?.(true);
       })
-      .catch(() => {});
+      .catch(() => {
+        onAdVisibleChange?.(false);
+      });
 
     return () => {
       alive = false;
@@ -38,8 +43,9 @@ export default function QueueNativeAd256x144({ styles, width }: QueueNativeAdPro
         adRef.current?.destroy();
       } catch {}
       adRef.current = null;
+      onAdVisibleChange?.(false);
     };
-  }, []);
+  }, [onAdVisibleChange]);
 
   if (!nativeAd) return null;
 

@@ -273,11 +273,11 @@ export default function useCallRuntime({
           } catch {}
 
           setRemoteStreamURL(s.toURL());
-          if (phaseRef.current === "matched") {
+          if (phaseRef.current !== "calling") {
             setReMatchText("");
             runMatchRevealTransition(() => {
               if (queueTokenRef.current !== qTok) return;
-              if (phaseRef.current !== "matched") return;
+              if (phaseRef.current === "calling") return;
               setPhase("calling");
             });
           }
@@ -307,6 +307,18 @@ export default function useCallRuntime({
             webrtcConnectTimerRef.current = null;
             clearWebrtcDownTimer();
             setSignalUnstable(false);
+            // Fallback: if remote stream callback is delayed/missed, do not stay stuck before call UI.
+            if (phaseRef.current !== "calling") {
+              setReMatchText("");
+              const started = runMatchRevealTransition(() => {
+                if (queueTokenRef.current !== qTok) return;
+                if (phaseRef.current === "calling") return;
+                setPhase("calling");
+              });
+              if (!started && phaseRef.current !== "calling") {
+                setPhase("calling");
+              }
+            }
             if ((phaseRef.current === "matched" || phaseRef.current === "calling") && matchedSignalTokenRef.current !== qTok) {
               matchedSignalTokenRef.current = qTok;
               try {

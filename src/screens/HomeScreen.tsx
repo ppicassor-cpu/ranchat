@@ -19,9 +19,11 @@ import { APP_CONFIG } from "../config/app";
 import usePopTalk from "../hooks/usePopTalk";
 import { POPTALK_MATCH_BLOCK_THRESHOLD, POPTALK_REWARDED_AMOUNT } from "../constants/popTalkConfig";
 import { fetchUnifiedWalletState } from "../services/shop/ShopPurchaseService";
+import { formatPopTalkCount, isPopTalkUnlimited } from "../utils/poptalkDisplay";
 
 const POPTALK_BALANCE_ICON = require("../../assets/poptalk_ICON.png");
 const KERNEL_BALANCE_ICON = require("../../assets/kernel.png");
+const HOME_LOGO = require("../../assets/ranchat_logo.png");
 const HOME_WALLET_POLL_INTERVAL_MS = 60000;
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -43,7 +45,6 @@ export default function HomeScreen({ navigation }: any) {
 
   const [prefsModal, setPrefsModal] = useState(false);
   const [activeUsers, setActiveUsers] = useState(0);
-  const [bannerH, setBannerH] = useState(0);
   const [bannerReady, setBannerReady] = useState(false);
 
   const [langOpen, setLangOpen] = useState(false);
@@ -53,8 +54,13 @@ export default function HomeScreen({ navigation }: any) {
   const [matchBlockedModal, setMatchBlockedModal] = useState(false);
   const [rewardAdFailModal, setRewardAdFailModal] = useState(false);
   const [rewardAdFailCount, setRewardAdFailCount] = useState(0);
+  const [updateModal, setUpdateModal] = useState(false);
+  const [updateBusy, setUpdateBusy] = useState(false);
 
   const interstitialRef = useRef<any>(null);
+  const updateCheckedRef = useRef(false);
+  const updateCheckInFlightRef = useRef(false);
+  const lastUpdateCheckAtRef = useRef(0);
 
   const onBannerLoaded = useCallback(() => {
     setBannerReady(true);
@@ -62,13 +68,15 @@ export default function HomeScreen({ navigation }: any) {
 
   const onBannerFailed = useCallback(() => {
     setBannerReady(false);
-    setBannerH(0);
   }, []);
 
   const canMatch = useMemo(() => {
-    const countryOk = String(prefs.country || "").length > 0;
-    const genderOk = String(prefs.gender || "").length > 0;
-    const langOk = String(prefs.language || "").length > 0;
+    const countryRaw = String(prefs.country || "").trim().toUpperCase();
+    const genderRaw = String(prefs.gender || "").trim().toLowerCase();
+    const langRaw = normalizeLanguageCode(String(prefs.language || "").trim());
+    const countryOk = COUNTRY_CODES.some((code) => code === countryRaw);
+    const genderOk = genderRaw === "male" || genderRaw === "female";
+    const langOk = LANGUAGE_CODES.some((code) => code === langRaw);
     return countryOk && genderOk && langOk;
   }, [prefs.country, prefs.gender, prefs.language]);
 
@@ -84,9 +92,18 @@ export default function HomeScreen({ navigation }: any) {
     navigation.navigate("Shop");
   }, [navigation]);
 
-  const myPopTalkBalance = useMemo(() => {
-    return Math.max(0, Math.trunc(Number(popTalk?.balance ?? 0)));
-  }, [popTalk?.balance]);
+  const myPopTalkBalanceText = useMemo(() => {
+    if (isPopTalkUnlimited(popTalk)) return t("poptalk.unlimited_short");
+    return formatPopTalkCount(popTalk?.balance ?? 0);
+  }, [popTalk?.balance, popTalk?.cap, popTalk?.plan, t]);
+
+  const popTalkBalanceLine = useMemo(() => {
+    if (isPopTalkUnlimited(popTalk)) return t("poptalk.balance_unlimited_label");
+    return t("poptalk.balance_label", {
+      balance: Number(popTalk?.balance ?? 0),
+      cap: Number(popTalk?.cap ?? 0),
+    });
+  }, [popTalk?.balance, popTalk?.cap, popTalk?.plan, t]);
 
   const kernelBalance = useMemo(() => {
     return Math.max(0, Math.trunc(Number(assets?.kernelCount ?? 0)));
@@ -107,7 +124,7 @@ const headerRight = useCallback(() => (
     <View style={styles.walletGroup}>
       <View style={styles.walletChip}>
         <Image source={POPTALK_BALANCE_ICON} style={styles.walletIcon} resizeMode="contain" />
-        <AppText style={styles.walletValue}>{myPopTalkBalance.toLocaleString("ko-KR")}</AppText>
+        <AppText style={styles.walletValue}>{myPopTalkBalanceText}</AppText>
       </View>
       <View style={styles.walletChip}>
         <Image source={KERNEL_BALANCE_ICON} style={styles.walletIcon} resizeMode="contain" />
@@ -129,7 +146,7 @@ const headerRight = useCallback(() => (
       <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
     </Pressable>
   </View>
-), [goShop, kernelBalance, myPopTalkBalance, openPrefs]);
+), [goShop, kernelBalance, myPopTalkBalanceText, openPrefs]);
 
 useLayoutEffect(() => {
   navigation.setOptions({
@@ -141,6 +158,46 @@ useLayoutEffect(() => {
     headerRight,
   });
 }, [navigation, headerLeft, headerRight]);
+
+  const checkUpdateAvailability = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (__DEV__) return false;
+      if (!Updates.isEnabled) return false;
+      if (updateCheckInFlightRef.current) return false;
+
+      const force = opts?.force === true;
+      const nowMs = Date.now();
+      if (!force && nowMs - Number(lastUpdateCheckAtRef.current || 0) < 15000) {
+        return false;
+      }
+
+      updateCheckInFlightRef.current = true;
+      lastUpdateCheckAtRef.current = nowMs;
+      try {
+        const r = await Updates.checkForUpdateAsync();
+        if (r.isAvailable) setUpdateModal(true);
+        return Boolean(r.isAvailable);
+      } catch {
+        return false;
+      } finally {
+        updateCheckInFlightRef.current = false;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (updateCheckedRef.current) return;
+    updateCheckedRef.current = true;
+    checkUpdateAvailability({ force: true }).catch(() => undefined);
+  }, [checkUpdateAvailability]);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkUpdateAvailability({ force: false }).catch(() => undefined);
+      return () => undefined;
+    }, [checkUpdateAvailability])
+  );
 
 useEffect(() => {
   const fetchActiveUsers = async () => {
@@ -170,15 +227,11 @@ useEffect(() => {
       popTalkServerNowMs: number | null;
       walletKernel: number;
     }) => {
-      const currentPopTalk = (useAppStore.getState() as any)?.popTalk ?? {};
-      const currentBalance = Math.max(0, Math.trunc(Number(currentPopTalk?.balance ?? 0)));
-      const currentCap = Math.max(currentBalance, Math.max(0, Math.trunc(Number(currentPopTalk?.cap ?? 0))));
-      const incomingBalance = Math.max(0, Math.trunc(Number(out.popTalkBalance ?? 0)));
-      const nextBalance = Math.max(currentBalance, incomingBalance);
-      const nextCap = Math.max(nextBalance, currentCap, Math.max(0, Math.trunc(Number(out.popTalkCap ?? 0))));
+      const balance = Math.max(0, Math.trunc(Number(out.popTalkBalance ?? 0)));
+      const cap = Math.max(balance, Math.max(0, Math.trunc(Number(out.popTalkCap ?? 0))));
       setPopTalk({
-        balance: nextBalance,
-        cap: nextCap,
+        balance,
+        cap,
         plan: out.popTalkPlan || null,
         serverNowMs: out.popTalkServerNowMs ?? null,
         syncedAtMs: Date.now(),
@@ -276,13 +329,30 @@ useEffect(() => {
             const type = String(msg?.type || "").trim();
             if (type !== "wallet_state") return;
             const data = msg?.data || {};
-            applyUnifiedState({
-              popTalkBalance: Number(data?.popTalk?.balance ?? 0),
-              popTalkCap: Number(data?.popTalk?.cap ?? 0),
-              popTalkPlan: String(data?.popTalk?.plan || "") || null,
-              popTalkServerNowMs: Number.isFinite(Number(data?.popTalk?.serverNowMs)) ? Number(data?.popTalk?.serverNowMs) : null,
-              walletKernel: Number(data?.wallet?.kernelBalance ?? 0),
-            });
+            const wallet = data?.wallet || {};
+            const popTalkPush =
+              (data?.popTalk && typeof data?.popTalk === "object" ? data.popTalk : null) ||
+              (data?.poptalk && typeof data?.poptalk === "object" ? data.poptalk : null);
+            const popTalkBalanceRaw = popTalkPush?.balance ?? data?.popTalkBalance ?? data?.poptalkBalance;
+            const hasPopTalkPush = popTalkPush != null || popTalkBalanceRaw != null;
+            if (hasPopTalkPush) {
+              const bal = Number(popTalkBalanceRaw ?? 0);
+              const cap = Number(popTalkPush?.cap ?? data?.popTalkCap ?? data?.poptalkCap ?? bal);
+              const serverNowRaw = popTalkPush?.serverNowMs ?? popTalkPush?.serverNow ?? data?.popTalkServerNowMs;
+              applyUnifiedState({
+                popTalkBalance: bal,
+                popTalkCap: cap,
+                popTalkPlan: String(popTalkPush?.plan ?? data?.popTalkPlan ?? "") || null,
+                popTalkServerNowMs: Number.isFinite(Number(serverNowRaw)) ? Number(serverNowRaw) : null,
+                walletKernel: Number(wallet?.kernelBalance ?? 0),
+              });
+            } else {
+              // Do not treat shop wallet values as call-consumable poptalk.
+              setAssets({
+                kernelCount: Number(wallet?.kernelBalance ?? 0),
+                updatedAtMs: Date.now(),
+              });
+            }
           } catch {}
         };
 
@@ -312,7 +382,7 @@ useEffect(() => {
         reconnectTimer = null;
         closeSocket();
       };
-    }, [applyUnifiedState, auth?.deviceKey, auth?.token, auth?.userId, sub?.isPremium, sub?.planId, sub?.storeProductId])
+    }, [applyUnifiedState, auth?.deviceKey, auth?.token, auth?.userId, setAssets, sub?.isPremium, sub?.planId, sub?.storeProductId])
   );
 
   const isoToFlag = useCallback((iso: string) => {
@@ -380,27 +450,38 @@ useEffect(() => {
     { key: "female", label: t("gender.female") },
   ], [t]);
 
+  const normalizedCountry = useMemo(() => String(prefs.country || "").trim().toUpperCase(), [prefs.country]);
+  const normalizedLanguage = useMemo(() => normalizeLanguageCode(String(prefs.language || "").trim()), [prefs.language]);
+  const normalizedGender = useMemo(() => String(prefs.gender || "").trim().toLowerCase(), [prefs.gender]);
+
   const currentLanguageLabel = useMemo(() => {
-    const cur = normalizeLanguageCode(String(prefs.language || ""));
-    const found = languageOptions.find((x) => x.key === cur);
-    return found ? found.label : cur ? getLanguageName(t, cur) : t("common.not_set");
-  }, [languageOptions, prefs.language, t]);
+    const found = languageOptions.find((x) => x.key === normalizedLanguage);
+    return found ? found.label : t("common.not_set");
+  }, [languageOptions, normalizedLanguage, t]);
 
   const currentCountryDisplay = useMemo(() => {
-    const cur = String(prefs.country || "").toUpperCase();
-    const found = countryOptions.find((x) => x.key === cur);
-    const nm = found ? found.name : cur || t("common.not_set");
-    const cc = found ? found.key : cur;
-    const flag = isoToFlag(cc);
-    if (!cc) return nm;
-    return `${flag ? flag + " " : ""}${nm} (${cc})`;
-  }, [countryOptions, isoToFlag, prefs.country, t]);
+    const found = countryOptions.find((x) => x.key === normalizedCountry);
+    if (!found) return t("common.not_set");
+    const flag = isoToFlag(found.key);
+    return `${flag ? flag + " " : ""}${found.name} (${found.key})`;
+  }, [countryOptions, isoToFlag, normalizedCountry, t]);
 
   const currentGenderLabel = useMemo(() => {
-    const cur = String(prefs.gender || "");
-    const found = genderOptions.find((x) => x.key === cur);
-    return found ? found.label : cur || t("common.not_set");
-  }, [genderOptions, prefs.gender, t]);
+    const found = genderOptions.find((x) => x.key === normalizedGender);
+    return found ? found.label : t("common.not_set");
+  }, [genderOptions, normalizedGender, t]);
+  const isCountryUnset = useMemo(
+    () => !countryOptions.some((x) => x.key === normalizedCountry),
+    [countryOptions, normalizedCountry]
+  );
+  const isLanguageUnset = useMemo(
+    () => !languageOptions.some((x) => x.key === normalizedLanguage),
+    [languageOptions, normalizedLanguage]
+  );
+  const isGenderUnset = useMemo(
+    () => !genderOptions.some((x) => x.key === normalizedGender),
+    [genderOptions, normalizedGender]
+  );
 
   const onPressRewardAd = useCallback(async () => {
     const out = await watchRewardedAdAndReward(POPTALK_REWARDED_AMOUNT, "match_block_rewarded");
@@ -417,6 +498,45 @@ useEffect(() => {
       return next;
     });
   }, [watchRewardedAdAndReward]);
+
+  const doApplyUpdate = useCallback(async () => {
+    if (updateBusy) return;
+    setUpdateBusy(true);
+
+    try {
+      const check = await Updates.checkForUpdateAsync();
+      if (!check.isAvailable) {
+        setUpdateModal(false);
+        showGlobalModal(t("modal.update.title"), t("profile.update.already_latest"));
+        return;
+      }
+
+      const fetched = await Updates.fetchUpdateAsync();
+      if (!Boolean((fetched as any)?.isNew)) {
+        setUpdateModal(false);
+        showGlobalModal(t("modal.update.title"), t("profile.update.already_latest"));
+        return;
+      }
+
+      await Updates.reloadAsync();
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "string"
+          ? e
+          : e && typeof e === "object" && "message" in e
+          ? String((e as any).message || "UNKNOWN_ERROR")
+          : "UNKNOWN_ERROR";
+      const lower = msg.toLowerCase();
+      if (lower.includes("cannot relaunch without a launched update")) {
+        setUpdateModal(false);
+        showGlobalModal(t("modal.update.title"), t("profile.update.restart_required"));
+        return;
+      }
+      showGlobalModal(t("modal.update.title"), msg);
+    } finally {
+      setUpdateBusy(false);
+    }
+  }, [showGlobalModal, t, updateBusy]);
 
   const onPressMatch = useCallback(async () => {
     if (matchBusy) return;
@@ -480,29 +600,33 @@ useEffect(() => {
     setTimeout(() => { cleanup(); runOnce(); }, 1500);
   }, [canMatch, goCall, isPremium, matchBusy, refreshPopTalk]);
 
+  const bannerBottomPadding = Math.max(insets.bottom, 8);
+  const bannerSlotHeight = 56 + bannerBottomPadding;
+  const backgroundShiftY = !isPremium && bannerReady ? bannerSlotHeight : 0;
+  const bodyTopPadding = Math.max(insets.top + 64, 88);
+  const bodyBottomPadding = !isPremium ? bannerSlotHeight + 12 : Math.max(insets.bottom + 16, 24);
+  const centerLiftY = Math.max(26, Math.min(42, insets.top + 24));
+
   return (
     <View style={styles.root}>
       <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
         <ImageBackground
           source={require("../../assets/back.png")}
-          style={[
-            StyleSheet.absoluteFillObject,
-            !isPremium && bannerReady && bannerH > 0 ? { transform: [{ translateY: -bannerH }] } : null,
-          ]}
+          style={[StyleSheet.absoluteFillObject, { transform: [{ translateY: -backgroundShiftY }] }]}
           resizeMode="cover"
         />
       </View>
 
-      <View style={styles.body}>
-        <View style={styles.center}>
+      <View style={[styles.body, { paddingTop: bodyTopPadding, paddingBottom: bodyBottomPadding }]}>
+        <View style={[styles.center, { transform: [{ translateY: -centerLiftY }] }]}>
+          <Image source={HOME_LOGO} resizeMode="contain" style={styles.homeLogo} />
           <AppText style={styles.title}>{t("home.title")}</AppText>
           <AppText style={styles.sub}>{t("home.subtitle")}</AppText>
 
           <View style={styles.matchBtnWrap}>
             <PrimaryButton title={t("home.match_button")} onPress={onPressMatch} />
           </View>
-          <View style={{ height: 0 }} />
-          <AppText style={[styles.sub, { fontSize: 12, opacity: 0.6, marginTop: -8 }]}>
+          <AppText style={styles.runtime}>
             {t("home.runtime_info", {
               runtime: Updates.runtimeVersion ?? "-",
               update: Updates.updateId ? Updates.updateId.slice(-4) : "-",
@@ -514,18 +638,45 @@ useEffect(() => {
 
       {!isPremium ? (
         <View
-          onLayout={(e) => {
-            if (!bannerReady) return;
-            setBannerH(e.nativeEvent.layout.height);
-          }}
           style={[
             styles.banner,
-            bannerReady ? { paddingBottom: Math.max(insets.bottom, 8) } : styles.bannerHidden,
+            {
+              minHeight: bannerSlotHeight,
+              paddingBottom: bannerBottomPadding,
+              opacity: bannerReady ? 1 : 0,
+            },
           ]}
         >
           <BannerBar onAdLoaded={onBannerLoaded} onAdFailedToLoad={onBannerFailed} />
         </View>
       ) : null}
+
+      <AppModal
+        visible={updateModal}
+        title={t("modal.update.title")}
+        onClose={() => {
+          if (updateBusy) return;
+          setUpdateModal(false);
+        }}
+        dismissible={!updateBusy}
+        footer={
+          <View style={{ gap: 10 }}>
+            <PrimaryButton
+              title={updateBusy ? t("modal.update.applying") : t("modal.update.apply")}
+              onPress={doApplyUpdate}
+              disabled={updateBusy}
+            />
+            <PrimaryButton
+              title={t("modal.update.later")}
+              onPress={() => setUpdateModal(false)}
+              variant="ghost"
+              disabled={updateBusy}
+            />
+          </View>
+        }
+      >
+        <AppText style={styles.modalText}>{t("modal.update.body")}</AppText>
+      </AppModal>
 
       {/* 설정 모달 */}
       <AppModal
@@ -547,10 +698,24 @@ useEffect(() => {
         <AppText style={styles.modalText}>{t("setting.description")}</AppText>
 
         {/* 나라 선택 */}
-        <AppText style={styles.sectionTitle}>{t("setting.country")}</AppText>
-        <Pressable onPress={() => { setCountryOpen((v) => !v); setLangOpen(false); setGenderOpen(false); }} style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}>
-          <AppText style={styles.dropdownBtnText}>{currentCountryDisplay}</AppText>
-          <AppText style={styles.dropdownChevron}>{countryOpen ? "▲" : "▼"}</AppText>
+        <View style={styles.sectionTitleRow}>
+          <AppText style={[styles.sectionTitle, isCountryUnset ? styles.sectionTitleWarn : null]}>{t("setting.country")}</AppText>
+          {isCountryUnset ? (
+            <View style={styles.requiredBadge}>
+              <AppText style={styles.requiredBadgeText}>{t("common.not_set")}</AppText>
+            </View>
+          ) : null}
+        </View>
+        <Pressable
+          onPress={() => { setCountryOpen((v) => !v); setLangOpen(false); setGenderOpen(false); }}
+          style={({ pressed }) => [
+            styles.dropdownBtn,
+            isCountryUnset ? styles.dropdownBtnWarn : null,
+            pressed ? { opacity: 0.8 } : null,
+          ]}
+        >
+          <AppText style={[styles.dropdownBtnText, isCountryUnset ? styles.dropdownBtnTextWarn : null]}>{currentCountryDisplay}</AppText>
+          <AppText style={[styles.dropdownChevron, isCountryUnset ? styles.dropdownChevronWarn : null]}>{countryOpen ? "▲" : "▼"}</AppText>
         </Pressable>
 
         {countryOpen && (
@@ -580,10 +745,24 @@ useEffect(() => {
         )}
 
         {/* 언어 선택 - 스크롤 리스트로 변경 */}
-        <AppText style={styles.sectionTitle}>{t("setting.language")}</AppText>
-        <Pressable onPress={() => { setLangOpen((v) => !v); setCountryOpen(false); setGenderOpen(false); }} style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}>
-          <AppText style={styles.dropdownBtnText}>{currentLanguageLabel}</AppText>
-          <AppText style={styles.dropdownChevron}>{langOpen ? "▲" : "▼"}</AppText>
+        <View style={styles.sectionTitleRow}>
+          <AppText style={[styles.sectionTitle, isLanguageUnset ? styles.sectionTitleWarn : null]}>{t("setting.language")}</AppText>
+          {isLanguageUnset ? (
+            <View style={styles.requiredBadge}>
+              <AppText style={styles.requiredBadgeText}>{t("common.not_set")}</AppText>
+            </View>
+          ) : null}
+        </View>
+        <Pressable
+          onPress={() => { setLangOpen((v) => !v); setCountryOpen(false); setGenderOpen(false); }}
+          style={({ pressed }) => [
+            styles.dropdownBtn,
+            isLanguageUnset ? styles.dropdownBtnWarn : null,
+            pressed ? { opacity: 0.8 } : null,
+          ]}
+        >
+          <AppText style={[styles.dropdownBtnText, isLanguageUnset ? styles.dropdownBtnTextWarn : null]}>{currentLanguageLabel}</AppText>
+          <AppText style={[styles.dropdownChevron, isLanguageUnset ? styles.dropdownChevronWarn : null]}>{langOpen ? "▲" : "▼"}</AppText>
         </Pressable>
 
         {langOpen && (
@@ -609,11 +788,26 @@ useEffect(() => {
         )}
 
         {/* 성별 선택 */}
-        <AppText style={styles.sectionTitle}>{t("setting.gender")}</AppText>
-        <Pressable onPress={() => { setGenderOpen((v) => !v); setCountryOpen(false); setLangOpen(false); }} style={({ pressed }) => [styles.dropdownBtn, pressed ? { opacity: 0.8 } : null]}>
-          <AppText style={styles.dropdownBtnText}>{currentGenderLabel}</AppText>
-          <AppText style={styles.dropdownChevron}>{genderOpen ? "▲" : "▼"}</AppText>
+        <View style={styles.sectionTitleRow}>
+          <AppText style={[styles.sectionTitle, isGenderUnset ? styles.sectionTitleWarn : null]}>{t("setting.gender")}</AppText>
+          {isGenderUnset ? (
+            <View style={styles.requiredBadge}>
+              <AppText style={styles.requiredBadgeText}>{t("common.not_set")}</AppText>
+            </View>
+          ) : null}
+        </View>
+        <Pressable
+          onPress={() => { setGenderOpen((v) => !v); setCountryOpen(false); setLangOpen(false); }}
+          style={({ pressed }) => [
+            styles.dropdownBtn,
+            isGenderUnset ? styles.dropdownBtnWarn : null,
+            pressed ? { opacity: 0.8 } : null,
+          ]}
+        >
+          <AppText style={[styles.dropdownBtnText, isGenderUnset ? styles.dropdownBtnTextWarn : null]}>{currentGenderLabel}</AppText>
+          <AppText style={[styles.dropdownChevron, isGenderUnset ? styles.dropdownChevronWarn : null]}>{genderOpen ? "▲" : "▼"}</AppText>
         </Pressable>
+        {isGenderUnset ? <AppText style={styles.genderUnsetHint}>{t("home.gender_required_hint")}</AppText> : null}
 
         {genderOpen && (
           <View style={styles.dropdownList}>
@@ -657,10 +851,7 @@ useEffect(() => {
         <AppText style={styles.modalText}>
           {t("poptalk.match_block_desc", { min: POPTALK_MATCH_BLOCK_THRESHOLD })}
           {"\n"}
-          {t("poptalk.balance_label", {
-            balance: Number(popTalk?.balance ?? 0),
-            cap: Number(popTalk?.cap ?? 0),
-          })}
+          {popTalkBalanceLine}
         </AppText>
       </AppModal>
 
@@ -697,10 +888,24 @@ useEffect(() => {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.bg },
-  body: { flex: 1, padding: theme.spacing.lg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, transform: [{ translateY: -40 }] },
-  title: { fontSize: 26, fontWeight: "700", color: theme.colors.text },
-  sub: { fontSize: 14, color: theme.colors.sub, textAlign: "center", lineHeight: 20 },
+  body: { flex: 1, paddingHorizontal: theme.spacing.lg },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    width: "100%",
+  },
+  homeLogo: {
+    width: 80,
+    height: 80,
+    marginTop: -8,
+    marginBottom: 10,
+    transform: [{ translateY: -14 }],
+  },
+  title: { fontSize: 26, fontWeight: "700", color: theme.colors.text, textAlign: "center" },
+  sub: { fontSize: 14, color: theme.colors.sub, textAlign: "center", lineHeight: 20, maxWidth: 460 },
+  runtime: { fontSize: 12, color: theme.colors.sub, textAlign: "center", lineHeight: 18, opacity: 0.6, marginTop: 4 },
   matchBtnWrap: { width: "100%", maxWidth: 420 },
 
   banner: {
@@ -710,12 +915,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: "transparent",
     alignItems: "center",
-  },
-  bannerHidden: {
-    height: 0,
-    paddingBottom: 0,
-    overflow: "hidden",
-    opacity: 0,
   },
   headerBtn: { paddingHorizontal: 12, paddingVertical: 8 },
   headerBtnText: { fontSize: 22, color: theme.colors.text, fontWeight: "700" },
@@ -746,6 +945,28 @@ const styles = StyleSheet.create({
   modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
 
   sectionTitle: { fontSize: 14, fontWeight: "700", color: theme.colors.text },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  sectionTitleWarn: {
+    color: theme.colors.pinkDeep,
+  },
+  requiredBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(233,131,173,0.85)",
+    backgroundColor: "rgba(233,131,173,0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  requiredBadgeText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: theme.colors.pinkDeep,
+  },
 
   dropdownBtn: {
     width: "100%",
@@ -759,8 +980,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  dropdownBtnWarn: {
+    borderColor: "rgba(233,131,173,0.9)",
+    backgroundColor: "rgba(233,131,173,0.1)",
+  },
   dropdownBtnText: { fontSize: 14, color: theme.colors.text, fontWeight: "700" },
+  dropdownBtnTextWarn: { color: theme.colors.pinkDeep },
   dropdownChevron: { fontSize: 12, color: theme.colors.sub, fontWeight: "900" },
+  dropdownChevronWarn: { color: theme.colors.pinkDeep },
+  genderUnsetHint: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.colors.pinkDeep,
+  },
 
   dropdownList: { width: "100%", marginTop: 8, gap: 8 },
   dropdownListWrap: { width: "100%", marginTop: 8, borderRadius: 12, overflow: "hidden" },

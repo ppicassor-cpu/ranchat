@@ -1,15 +1,16 @@
 ﻿import { Platform } from "react-native";
 import { getOrCreateDeviceKey } from "../device/DeviceKey";
+import type { MatchFilter } from "../call/MatchFilterService";
 
 export type SignalMessage =
   | { type: "queued" }
-  | { type: "match"; roomId: string; isCaller: boolean }
+  | { type: "match"; roomId: string; isCaller: boolean; peerSessionId?: string }
   | { type: "offer"; sdp: any }
   | { type: "answer"; sdp: any }
   | { type: "ice"; candidate: any }
   | { type: "end" }
   | { type: "peer_cam"; enabled: boolean }
-  | { type: "signal"; roomId: string; data: any }
+  | { type: "signal"; roomId: string; data: any; fromSessionId?: string }
   | { type: "error"; message?: string };
 
 type Cb = {
@@ -38,6 +39,7 @@ export class SignalClient {
   private baseUrl: string = "";
   private token: string = "";
   private sessionId: string = "";
+  private userId: string = "";
 
   private registered = false;
   private openNotified = false;
@@ -55,7 +57,7 @@ export class SignalClient {
 
   // ✅ 큐 유지(재연결 후 자동 enqueue 용)
   private wantEnqueue = false;
-  private lastEnqueuePayload: { country: string; gender: string; platform: string } | null = null;
+  private lastEnqueuePayload: { country: string; gender: string; language: string; filter?: MatchFilter; platform: string } | null = null;
 
   private ended = false; // 중복 end 방지용
 
@@ -63,7 +65,7 @@ export class SignalClient {
     this.cb = cb;
   }
 
-  async connect(baseUrl: string, token: string | null) {
+  async connect(baseUrl: string, token: string | null, userId?: string | null) {
     // ✅ 기존 reconnect 예약이 있으면 취소
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
@@ -80,6 +82,7 @@ export class SignalClient {
     const deviceKey = await getOrCreateDeviceKey();
     this.sessionId = String(deviceKey || "").trim();
     this.token = String(token || "").trim();
+    this.userId = String(userId || "").trim();
 
     this.registered = false;
     this.openNotified = false;
@@ -149,7 +152,12 @@ export class SignalClient {
       }
 
       // ✅ 여기서 onOpen 호출하지 않음(등록 확인 전 enqueue -> not_registered 루프 원인)
-      this.sendRaw({ type: "register", token: this.token, sessionId: this.sessionId });
+      this.sendRaw({
+        type: "register",
+        token: this.token,
+        sessionId: this.sessionId,
+        userId: this.userId || undefined,
+      });
     };
 
     ws.onclose = () => {
@@ -199,7 +207,12 @@ export class SignalClient {
           this.wantEnqueue = false;
           this.lastEnqueuePayload = null;
 
-          this.cb.onMessage({ type: "match", roomId: msg.roomId, isCaller: !!msg.initiator });
+          this.cb.onMessage({
+            type: "match",
+            roomId: msg.roomId,
+            isCaller: !!msg.initiator,
+            peerSessionId: String(msg.peerSessionId || "").trim() || undefined,
+          });
           return;
         }
 
@@ -254,7 +267,7 @@ export class SignalClient {
             return;
           }
 
-          this.cb.onMessage({ type: "signal", roomId: msg.roomId, data: d });
+          this.cb.onMessage({ type: "signal", roomId: msg.roomId, data: d, fromSessionId: msg.fromSessionId });
           return;
         }
 
@@ -269,10 +282,16 @@ export class SignalClient {
     };
   }
 
-  enqueue(country: string, gender: string) {
+  enqueue(country: string, gender: string, language = "", filter?: MatchFilter) {
     // ✅ 재연결 후 자동으로 다시 enqueue되게 유지
     this.wantEnqueue = true;
-    this.lastEnqueuePayload = { country, gender, platform: Platform.OS };
+    this.lastEnqueuePayload = {
+      country: String(country || "").trim().toUpperCase(),
+      gender: String(gender || "").trim().toLowerCase(),
+      language: String(language || "").trim().toLowerCase(),
+      filter: filter || undefined,
+      platform: Platform.OS,
+    };
 
     // ✅ 서버가 country/gender를 무시해도 문제 없음(추가 필드 허용)
     // ✅ registered 전이면 등록 후 자동 enqueue로 처리(중복 enqueue 방지)

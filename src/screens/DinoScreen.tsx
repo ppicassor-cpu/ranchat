@@ -633,6 +633,10 @@ export default function DinoScreen() {
   const startGame = useCallback(() => {
     if (!canRun) return;
     resetWorld();
+    // Keep the first running frame aligned with idle to avoid a start-time flash.
+    animModeRef.current = "run";
+    animStepRef.current = Math.max(0, RUN_FRAMES.length - 1);
+    animAccumRef.current = 0;
     setState("running");
   }, [canRun, resetWorld]);
 

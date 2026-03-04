@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, InteractionManager, Keyboard, Platform, TextInput } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type ChatMessage = { id: string; mine: boolean; text: string };
 
@@ -12,6 +13,9 @@ type UseChatSystemArgs = {
   beforeSendChat?: (text: string) => Promise<boolean> | boolean;
   onSendBlocked?: (reason: string) => void;
 };
+
+const SWIPE_GUIDE_REFRESH_HIDE_COUNT = 2;
+const SWIPE_GUIDE_STORAGE_KEY = "@ranchat/call/swipe-guide-refresh-count-v1";
 
 export default function useChatSystem({
   phase,
@@ -29,6 +33,7 @@ export default function useChatSystem({
   const [chatComposerOpen, setChatComposerOpen] = useState(false);
   const [showSwipeGuide, setShowSwipeGuide] = useState(false);
   const [swipeGuideFrame, setSwipeGuideFrame] = useState(0);
+  const [swipeGuideStorageReady, setSwipeGuideStorageReady] = useState(false);
 
   const chatSeqRef = useRef(0);
   const chatHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,6 +52,8 @@ export default function useChatSystem({
   const swipeGuideFlipTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const swipeGuideCamOpenPrevRef = useRef(false);
   const lastSwipeRefreshAtRef = useRef(0);
+  const swipeRefreshSuccessCountRef = useRef(0);
+  const swipeGuideDisabledRef = useRef(false);
 
   const clearChatHideTimer = useCallback(() => {
     if (chatHideTimerRef.current) clearTimeout(chatHideTimerRef.current);
@@ -62,6 +69,52 @@ export default function useChatSystem({
     if (swipeGuideFlipTimerRef.current) clearInterval(swipeGuideFlipTimerRef.current);
     swipeGuideFlipTimerRef.current = null;
   }, []);
+
+  const persistSwipeGuideRefreshCount = useCallback(async (count: number) => {
+    const normalized = Math.max(0, Math.floor(Number(count) || 0));
+    try {
+      await AsyncStorage.setItem(SWIPE_GUIDE_STORAGE_KEY, String(normalized));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let restoredCount = 0;
+      try {
+        const raw = await AsyncStorage.getItem(SWIPE_GUIDE_STORAGE_KEY);
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          restoredCount = Math.floor(parsed);
+        }
+      } catch {}
+
+      swipeRefreshSuccessCountRef.current = restoredCount;
+      swipeGuideDisabledRef.current = restoredCount >= SWIPE_GUIDE_REFRESH_HIDE_COUNT;
+
+      if (cancelled) return;
+      if (swipeGuideDisabledRef.current) {
+        setShowSwipeGuide(false);
+        setSwipeGuideFrame(0);
+      }
+      setSwipeGuideStorageReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onSwipeRefreshCommitted = useCallback(() => {
+    const nextCount = swipeRefreshSuccessCountRef.current + 1;
+    swipeRefreshSuccessCountRef.current = nextCount;
+    void persistSwipeGuideRefreshCount(nextCount);
+    if (nextCount < SWIPE_GUIDE_REFRESH_HIDE_COUNT) return;
+    swipeGuideDisabledRef.current = true;
+    clearSwipeGuideTimer();
+    clearSwipeGuideFlipTimer();
+    setShowSwipeGuide(false);
+    setSwipeGuideFrame(0);
+  }, [clearSwipeGuideFlipTimer, clearSwipeGuideTimer, persistSwipeGuideRefreshCount]);
 
   const clearChatFocusTimers = useCallback(() => {
     chatFocusTimerRefs.current.forEach((tm) => clearTimeout(tm));
@@ -354,9 +407,18 @@ export default function useChatSystem({
   }, [clearChatFocusTimers, clearChatHideTimer, clearSwipeGuideFlipTimer, clearSwipeGuideTimer, resetChatFeedAnimations]);
 
   useEffect(() => {
+    if (!swipeGuideStorageReady) return;
     const camOpenedNow = phase === "calling" && myCamOn && Boolean(localStreamURL);
 
     if (camOpenedNow && !swipeGuideCamOpenPrevRef.current) {
+      if (swipeGuideDisabledRef.current || swipeRefreshSuccessCountRef.current >= SWIPE_GUIDE_REFRESH_HIDE_COUNT) {
+        clearSwipeGuideTimer();
+        clearSwipeGuideFlipTimer();
+        setShowSwipeGuide(false);
+        setSwipeGuideFrame(0);
+        swipeGuideCamOpenPrevRef.current = camOpenedNow;
+        return;
+      }
       clearSwipeGuideTimer();
       clearSwipeGuideFlipTimer();
       setShowSwipeGuide(true);
@@ -379,7 +441,7 @@ export default function useChatSystem({
     }
 
     swipeGuideCamOpenPrevRef.current = camOpenedNow;
-  }, [clearSwipeGuideFlipTimer, clearSwipeGuideTimer, localStreamURL, myCamOn, phase]);
+  }, [clearSwipeGuideFlipTimer, clearSwipeGuideTimer, localStreamURL, myCamOn, phase, swipeGuideStorageReady]);
 
   return {
     chatInput,
@@ -406,6 +468,7 @@ export default function useChatSystem({
     chatFeedOpacityRef,
     chatFeedHideProgressRef,
     lastSwipeRefreshAtRef,
+    onSwipeRefreshCommitted,
     appendChatMessage,
     sendChat,
     openChatComposer,

@@ -3,6 +3,7 @@ import Purchases from "react-native-purchases";
 import { APP_CONFIG } from "../../config/app";
 import { useAppStore } from "../../store/useAppStore";
 import { useTranslation } from "../../i18n/LanguageProvider";
+import { createDefaultMatchFilter, saveMatchFilterOnServer } from "../call/MatchFilterService";
 
 let inited = false;
 let initInFlight: Promise<void> | null = null;
@@ -35,6 +36,24 @@ function toUserId(v: string | null | undefined): string {
 function readStoreUserId(): string {
   const st: any = useAppStore.getState?.() ?? {};
   return toUserId(st?.auth?.userId);
+}
+
+async function resetMatchFilterToAllOnServerIfNeeded(): Promise<void> {
+  const st: any = useAppStore.getState?.() ?? {};
+  const token = String(st?.auth?.token || "").trim();
+  const userId = String(st?.auth?.userId || "").trim();
+  const deviceKey = String(st?.auth?.deviceKey || "").trim();
+  if (!token || !userId || !deviceKey) return;
+  try {
+    await saveMatchFilterOnServer({
+      token,
+      userId,
+      deviceKey,
+      filter: createDefaultMatchFilter(),
+    });
+  } catch {
+    // Ignore network failures; next refresh can retry.
+  }
 }
 
 async function loginRcUserIfNeeded(userIdRaw: string | null | undefined): Promise<void> {
@@ -218,6 +237,7 @@ export async function refreshSubscription() {
   if (!inited) return;
   const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
   try {
+    const prevPremium = Boolean((useAppStore.getState() as any)?.sub?.isPremium);
     const customerInfo = await Purchases.getCustomerInfo();
     const active = Boolean(customerInfo?.entitlements?.active?.[entitlementId]);
     const entitlement = customerInfo?.entitlements?.active?.[entitlementId] as any;
@@ -235,6 +255,9 @@ export async function refreshSubscription() {
       storeProductId: productId || null,
       planId: inferPlanId(productId),
     });
+    if (prevPremium && !active) {
+      await resetMatchFilterToAllOnServerIfNeeded();
+    }
   } catch {}
 }
 

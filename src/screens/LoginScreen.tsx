@@ -5,8 +5,6 @@ import AppText from "../components/AppText";
 import { theme } from "../config/theme";
 import { useTranslation } from "../i18n/LanguageProvider";
 import { useAppStore } from "../store/useAppStore";
-import AppModal from "../components/AppModal";
-import PrimaryButton from "../components/PrimaryButton";
 import * as Updates from "expo-updates";
 import { getOrCreateDeviceKey } from "../services/device/DeviceKey";
 import {
@@ -17,6 +15,7 @@ import {
   getGoogleNativeIdentity,
 } from "../services/auth/NativeSocialLogin";
 import { reportLoginEvent } from "../services/admin/LoginEventReporter";
+import { fetchUnifiedWalletState } from "../services/shop/ShopPurchaseService";
 
 function toErrMsg(e: unknown): string {
   if (typeof e === "string") return e;
@@ -29,18 +28,11 @@ function isCancelError(msg: string): boolean {
   return m.includes("cancel");
 }
 
-function normalizeGoogleError(msg: string): string {
+function normalizeGoogleError(msg: string, t: (key: string, params?: Record<string, unknown>) => string): string {
   const raw = String(msg || "");
   const lower = raw.toLowerCase();
   if (!lower.includes("developer_error")) return raw;
-  return [
-    "Google OAuth 설정 불일치(DEVELOPER_ERROR)입니다.",
-    "Google Cloud Console에서 아래를 정확히 일치시켜야 합니다.",
-    "- package: com.ranchat",
-    "- SHA-1: 79:62:E5:1C:88:A1:EF:2E:D3:DD:AF:93:E3:B3:EF:65:63:8B:18:8D",
-    "- SHA-256: EF:D6:74:08:F9:62:76:E3:CB:A2:7D:1D:58:36:38:34:29:2A:1D:AE:94:39:44:8B:72:84:EF:26:36:45:F3:E4",
-    "- Web Client ID(.apps.googleusercontent.com)도 앱/서버에 설정 필요",
-  ].join("\n");
+  return t("login.google_dev_error");
 }
 
 function AuthProviderButton({
@@ -87,10 +79,11 @@ export default function LoginScreen() {
   const { t } = useTranslation();
   const setAuth = useAppStore((s) => s.setAuth);
   const setDeviceKey = useAppStore((s) => s.setDeviceKey);
+  const setPopTalk = useAppStore((s) => s.setPopTalk);
+  const setAssets = useAppStore((s) => s.setAssets);
   const showGlobalModal = useAppStore((s) => s.showGlobalModal);
 
   const [busyProvider, setBusyProvider] = useState<NativeProvider | null>(null);
-  const [updateModal, setUpdateModal] = useState(false);
   const [updateBusy, setUpdateBusy] = useState(false);
   const updateCheckedRef = useRef(false);
 
@@ -100,12 +93,31 @@ export default function LoginScreen() {
     if (updateCheckedRef.current) return;
     updateCheckedRef.current = true;
 
+    let alive = true;
     (async () => {
+      if (alive) setUpdateBusy(true);
       try {
-        const r = await Updates.checkForUpdateAsync();
-        if (r.isAvailable) setUpdateModal(true);
-      } catch {}
+        const check = await Updates.checkForUpdateAsync();
+        if (!check.isAvailable) return;
+
+        const fetched = await Updates.fetchUpdateAsync();
+        if (!Boolean((fetched as any)?.isNew)) return;
+
+        await Updates.reloadAsync();
+      } catch (e) {
+        const msg = toErrMsg(e);
+        const lower = msg.toLowerCase();
+        if (!lower.includes("cannot relaunch without a launched update")) {
+          console.warn("[login-update] auto apply failed:", msg);
+        }
+      } finally {
+        if (alive) setUpdateBusy(false);
+      }
     })();
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const commitAuth = useCallback(
@@ -135,6 +147,44 @@ export default function LoginScreen() {
     };
   }, []);
 
+  const hydrateWalletAfterLogin = useCallback(
+    async (token: string, userId: string, deviceKey: string) => {
+      const uid = String(userId || "").trim();
+      if (!token || !uid) return;
+      const st: any = useAppStore.getState?.() ?? {};
+      const sub = st?.sub ?? {};
+      const planId = String(sub?.planId || "").trim();
+      const storeProductId = String(sub?.storeProductId || "").trim();
+      const isPremium = Boolean(sub?.isPremium);
+
+      const unified = await fetchUnifiedWalletState({
+        token,
+        userId: uid,
+        deviceKey,
+        planId,
+        storeProductId,
+        isPremium,
+      }).catch(() => null);
+      if (!unified?.ok) return;
+
+      const balance = Math.max(0, Math.trunc(Number(unified.popTalkBalance ?? 0)));
+      const cap = Math.max(balance, Math.max(0, Math.trunc(Number(unified.popTalkCap ?? 0))));
+
+      setPopTalk({
+        balance,
+        cap,
+        plan: unified.popTalkPlan || null,
+        serverNowMs: unified.popTalkServerNowMs ?? null,
+        syncedAtMs: Date.now(),
+      });
+      setAssets({
+        kernelCount: Math.max(0, Math.trunc(Number(unified.walletKernel ?? 0))),
+        updatedAtMs: Date.now(),
+      });
+    },
+    [setAssets, setPopTalk]
+  );
+
   const onPressGoogle = useCallback(async () => {
     if (busyProvider) return;
     setBusyProvider("google");
@@ -143,6 +193,7 @@ export default function LoginScreen() {
       const identity = await getGoogleNativeIdentity();
       const auth = await exchangeGoogleNativeIdentity({ ...identity, deviceKey });
       commitAuth(auth.token, auth.userId, deviceKey);
+      hydrateWalletAfterLogin(auth.token, auth.userId, deviceKey).catch(() => undefined);
       reportLoginEvent({
         token: auth.token,
         userId: auth.userId,
@@ -152,14 +203,14 @@ export default function LoginScreen() {
         ...readLoginMonitorMeta(),
       }).catch(() => undefined);
     } catch (e) {
-      const msg = normalizeGoogleError(toErrMsg(e));
+      const msg = normalizeGoogleError(toErrMsg(e), t);
       if (!isCancelError(msg)) {
         showGlobalModal(t("auth.title"), msg);
       }
     } finally {
       setBusyProvider(null);
     }
-  }, [busyProvider, commitAuth, readLoginMonitorMeta, showGlobalModal, t]);
+  }, [busyProvider, commitAuth, hydrateWalletAfterLogin, readLoginMonitorMeta, showGlobalModal, t]);
 
   const onPressApple = useCallback(async () => {
     if (busyProvider) return;
@@ -174,6 +225,7 @@ export default function LoginScreen() {
       const identity = await getAppleNativeIdentity();
       const auth = await exchangeAppleNativeIdentity({ ...identity, deviceKey });
       commitAuth(auth.token, auth.userId, deviceKey);
+      hydrateWalletAfterLogin(auth.token, auth.userId, deviceKey).catch(() => undefined);
       reportLoginEvent({
         token: auth.token,
         userId: auth.userId,
@@ -190,27 +242,15 @@ export default function LoginScreen() {
     } finally {
       setBusyProvider(null);
     }
-  }, [busyProvider, commitAuth, readLoginMonitorMeta, showGlobalModal, t]);
+  }, [busyProvider, commitAuth, hydrateWalletAfterLogin, readLoginMonitorMeta, showGlobalModal, t]);
 
-  const isLocked = Boolean(busyProvider);
+  const isLocked = Boolean(busyProvider || updateBusy);
   const statusText = useMemo(() => {
+    if (updateBusy) return t("modal.update.applying");
     if (busyProvider === "google") return t("login.wait_google_native");
     if (busyProvider === "apple") return t("login.wait_apple_native");
     return "";
-  }, [busyProvider, t]);
-
-  const doApplyUpdate = useCallback(async () => {
-    if (updateBusy) return;
-    setUpdateBusy(true);
-
-    try {
-      await Updates.fetchUpdateAsync();
-      await Updates.reloadAsync();
-    } catch (e) {
-      setUpdateBusy(false);
-      showGlobalModal(t("modal.update.title"), toErrMsg(e));
-    }
-  }, [showGlobalModal, t, updateBusy]);
+  }, [busyProvider, t, updateBusy]);
 
   return (
     <View style={styles.root}>
@@ -238,27 +278,6 @@ export default function LoginScreen() {
         </View>
       </View>
 
-      <AppModal
-        visible={updateModal}
-        title={t("modal.update.title")}
-        onClose={() => {
-          if (updateBusy) return;
-          setUpdateModal(false);
-        }}
-        dismissible={!updateBusy}
-        footer={
-          <View style={{ gap: 10 }}>
-            <PrimaryButton
-              title={updateBusy ? t("modal.update.applying") : t("modal.update.apply")}
-              onPress={doApplyUpdate}
-              disabled={updateBusy}
-            />
-            <PrimaryButton title={t("modal.update.later")} onPress={() => setUpdateModal(false)} variant="ghost" disabled={updateBusy} />
-          </View>
-        }
-      >
-        <AppText style={styles.updateBody}>{t("modal.update.body")}</AppText>
-      </AppModal>
     </View>
   );
 }

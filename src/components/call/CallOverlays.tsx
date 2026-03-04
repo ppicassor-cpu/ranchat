@@ -5,7 +5,6 @@ import AppModal from "../AppModal";
 import PrimaryButton from "../PrimaryButton";
 import AppText from "../AppText";
 import FontSizeSlider from "../FontSizeSlider";
-import MatchingWaitActionsModal from "../MatchingWaitActionsModal";
 import { theme } from "../../config/theme";
 import { COUNTRY_CODES, LANGUAGE_CODES, getCountryName, getLanguageName, normalizeLanguageCode } from "../../i18n/displayNames";
 import { countryCodeToFlagEmoji } from "../../utils/countryUtils";
@@ -21,6 +20,7 @@ type CallOverlaysProps = {
   isPremium: boolean;
   onDismissNoMatch: () => void;
   onRetry: () => void;
+  onOpenMatchConditions: () => void;
   matchingActionsVisible: boolean;
   onPressMatchingBeauty: () => void;
   onPressMatchingFortune: () => void;
@@ -43,6 +43,7 @@ export default function CallOverlays({
   isPremium,
   onDismissNoMatch,
   onRetry,
+  onOpenMatchConditions,
   matchingActionsVisible,
   onPressMatchingBeauty,
   onPressMatchingFortune,
@@ -117,6 +118,11 @@ export default function CallOverlays({
     return found ? found.label : cur || t("common.not_set");
   }, [genderOptions, prefs, t]);
 
+  const onPressChangeMatchConditions = useCallback(() => {
+    onDismissNoMatch();
+    onOpenMatchConditions();
+  }, [onDismissNoMatch, onOpenMatchConditions]);
+
   return (
     <>
       <View pointerEvents="box-none" style={styles.topUiLayer}>
@@ -145,7 +151,17 @@ export default function CallOverlays({
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title={t("common.retry")} onPress={onRetry} />
+              <PrimaryButton
+                title={t("common.retry")}
+                onPress={onRetry}
+                leftIcon={<Ionicons name="refresh" size={17} color="#C6CBD3" />}
+              />
+              <PrimaryButton
+                title={t("call.match_filter.change_conditions")}
+                onPress={onPressChangeMatchConditions}
+                variant="ghost"
+                leftIcon={<Ionicons name="funnel-outline" size={17} color="#AAB0BA" />}
+              />
               <PrimaryButton title={t("common.exit")} onPress={onExitToHome} variant="ghost" />
             </View>
           )
@@ -161,20 +177,6 @@ export default function CallOverlays({
           </AppText>
         )}
       </AppModal>
-
-      <MatchingWaitActionsModal
-        visible={matchingActionsVisible}
-        title={t("call.waiting_actions_title")}
-        description={t("call.waiting_actions_desc")}
-        beautyLabel={t("call.waiting_actions_beauty")}
-        fortuneLabel={t("call.waiting_actions_fortune")}
-        gameLabel={t("call.waiting_actions_game")}
-        closeLabel={t("common.close")}
-        onPressBeauty={onPressMatchingBeauty}
-        onPressFortune={onPressMatchingFortune}
-        onPressGame={onPressMatchingGame}
-        onClose={onDismissMatchingActions}
-      />
 
       <AppModal
         visible={prefsModal}

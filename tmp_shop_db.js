@@ -17,6 +17,9 @@ function toSafeInt(v, min = 0, max = Number.MAX_SAFE_INTEGER) {
   return i;
 }
 
+const SHOP_POP_UNLIMITED_1M_PACK_ID = "once_unlimited_1m";
+const POP_UNLIMITED_1M_MS = 30 * 24 * 60 * 60 * 1000;
+
 function runAsync(db, sql, params) {
   return new Promise((resolve, reject) => {
     db.run(sql, Array.isArray(params) ? params : [], function onRun(err) {
@@ -37,6 +40,17 @@ function getAsync(db, sql, params) {
 
 function openDb(dbPath) {
   return new sqlite3.Database(dbPath);
+}
+
+function getTableColumns(db, tableName) {
+  const table = asText(tableName, 80);
+  if (!table) return Promise.resolve([]);
+  return new Promise((resolve, reject) => {
+    db.all(`PRAGMA table_info(${table})`, [], (err, rows) => {
+      if (err) return reject(err);
+      resolve(Array.isArray(rows) ? rows : []);
+    });
+  });
 }
 
 async function ensureSchema(db) {
@@ -93,6 +107,38 @@ async function ensureSchema(db) {
   await runAsync(db, "CREATE INDEX IF NOT EXISTS idx_shop_purchase_profile_created ON shop_purchase_events (profile_id, created_at DESC)", []);
   await runAsync(db, "CREATE INDEX IF NOT EXISTS idx_shop_purchase_profile_idem ON shop_purchase_events (profile_id, idempotency_key)", []);
 
+  // Backward-compatible wallet schema migration for legacy deployments.
+  // Old DBs can have poptalk_balance / kernel_count columns instead.
+  const walletCols = await getTableColumns(db, "shop_wallets");
+  const walletColSet = new Set(walletCols.map((c) => asText(c && c.name, 80).toLowerCase()).filter((v) => !!v));
+
+  if (!walletColSet.has("popcorn_balance")) {
+    await runAsync(db, "ALTER TABLE shop_wallets ADD COLUMN popcorn_balance INTEGER NOT NULL DEFAULT 0", []);
+    if (walletColSet.has("poptalk_balance")) {
+      await runAsync(
+        db,
+        "UPDATE shop_wallets SET popcorn_balance = CASE WHEN COALESCE(popcorn_balance, 0) <= 0 THEN COALESCE(poptalk_balance, 0) ELSE popcorn_balance END",
+        []
+      );
+    }
+  }
+
+  if (!walletColSet.has("kernel_balance")) {
+    await runAsync(db, "ALTER TABLE shop_wallets ADD COLUMN kernel_balance INTEGER NOT NULL DEFAULT 0", []);
+    if (walletColSet.has("kernel_count")) {
+      await runAsync(
+        db,
+        "UPDATE shop_wallets SET kernel_balance = CASE WHEN COALESCE(kernel_balance, 0) <= 0 THEN COALESCE(kernel_count, 0) ELSE kernel_balance END",
+        []
+      );
+    }
+  }
+
+  if (!walletColSet.has("updated_at")) {
+    await runAsync(db, "ALTER TABLE shop_wallets ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0", []);
+    await runAsync(db, "UPDATE shop_wallets SET updated_at = CASE WHEN COALESCE(updated_at, 0) <= 0 THEN ? ELSE updated_at END", [toSafeInt(Date.now(), 0)]);
+  }
+
   await runAsync(
     db,
     `CREATE TABLE IF NOT EXISTS shop_kernel_convert_events (
@@ -113,6 +159,38 @@ async function ensureSchema(db) {
     []
   );
   await runAsync(db, "CREATE INDEX IF NOT EXISTS idx_kernel_convert_profile_created ON shop_kernel_convert_events (profile_id, created_at DESC)", []);
+
+  await runAsync(
+    db,
+    `CREATE TABLE IF NOT EXISTS shop_gift_inventory (
+      profile_id TEXT NOT NULL,
+      gift_id TEXT NOT NULL,
+      owned_count INTEGER NOT NULL DEFAULT 0,
+      received_count INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (profile_id, gift_id)
+    )`,
+    []
+  );
+  await runAsync(db, "CREATE INDEX IF NOT EXISTS idx_shop_gift_inventory_profile ON shop_gift_inventory (profile_id)", []);
+
+  await runAsync(
+    db,
+    `CREATE TABLE IF NOT EXISTS shop_gift_action_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id TEXT NOT NULL,
+      action_type TEXT NOT NULL,
+      action_key TEXT NOT NULL,
+      gift_id TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 1,
+      peer_profile_id TEXT NOT NULL DEFAULT '',
+      wallet_kernel_balance INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      UNIQUE (profile_id, action_type, action_key)
+    )`,
+    []
+  );
+  await runAsync(db, "CREATE INDEX IF NOT EXISTS idx_shop_gift_action_profile_created ON shop_gift_action_events (profile_id, created_at DESC)", []);
 }
 
 function mapWallet(row) {
@@ -140,6 +218,83 @@ async function ensureWallet(db, profileId, atMs) {
   }
 
   return mapWallet(row);
+}
+
+function parseGiftCount(v, fallback = 1) {
+  const raw = toSafeInt(v, 0, 1000000);
+  if (raw > 0) return raw;
+  return Math.max(1, toSafeInt(fallback, 1, 1000000));
+}
+
+function toGiftCountMap(rows, keyName) {
+  const out = {};
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const giftId = asText(row && row.gift_id, 120);
+    if (!giftId) return;
+    const count = toSafeInt(row && row[keyName], 0);
+    if (count <= 0) return;
+    out[giftId] = count;
+  });
+  return out;
+}
+
+function allAsync(db, sql, params) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, Array.isArray(params) ? params : [], (err, rows) => {
+      if (err) return reject(err);
+      resolve(Array.isArray(rows) ? rows : []);
+    });
+  });
+}
+
+async function ensureGiftRow(db, profileId, giftId, atMs) {
+  const pid = asText(profileId, 180);
+  const gid = asText(giftId, 120);
+  const ts = toSafeInt(atMs, 0);
+  if (!pid || !gid) {
+    return { profileId: pid, giftId: gid, ownedCount: 0, receivedCount: 0 };
+  }
+
+  await runAsync(
+    db,
+    "INSERT OR IGNORE INTO shop_gift_inventory (profile_id, gift_id, owned_count, received_count, updated_at) VALUES (?, ?, 0, 0, ?)",
+    [pid, gid, ts]
+  );
+  const row = await getAsync(
+    db,
+    "SELECT profile_id, gift_id, owned_count, received_count FROM shop_gift_inventory WHERE profile_id = ? AND gift_id = ? LIMIT 1",
+    [pid, gid]
+  );
+  return {
+    profileId: pid,
+    giftId: gid,
+    ownedCount: toSafeInt(row && row.owned_count, 0),
+    receivedCount: toSafeInt(row && row.received_count, 0),
+  };
+}
+
+async function readGiftState(db, profileId, atMs) {
+  const pid = asText(profileId, 180);
+  const wallet = await ensureWallet(db, pid, toSafeInt(atMs, 0));
+  if (!pid) {
+    return {
+      profileId: "",
+      wallet,
+      giftsOwned: {},
+      giftsReceived: {},
+    };
+  }
+  const rows = await allAsync(
+    db,
+    "SELECT gift_id, owned_count, received_count FROM shop_gift_inventory WHERE profile_id = ?",
+    [pid]
+  );
+  return {
+    profileId: pid,
+    wallet,
+    giftsOwned: toGiftCountMap(rows, "owned_count"),
+    giftsReceived: toGiftCountMap(rows, "received_count"),
+  };
 }
 
 function isUniqueTxError(err) {
@@ -177,6 +332,8 @@ function buildConfirmPayload(input) {
 }
 
 function buildUnifiedStatePayload(input) {
+  const giftsOwned = input && input.giftState && typeof input.giftState === "object" ? input.giftState.giftsOwned || {} : {};
+  const giftsReceived = input && input.giftState && typeof input.giftState === "object" ? input.giftState.giftsReceived || {} : {};
   return {
     ok: true,
     profileId: asText(input.profileId, 180),
@@ -185,6 +342,47 @@ function buildUnifiedStatePayload(input) {
     wallet: {
       popcornBalance: toSafeInt(input.wallet && input.wallet.popcornBalance, 0),
       kernelBalance: toSafeInt(input.wallet && input.wallet.kernelBalance, 0),
+    },
+    giftInventory: {
+      owned: giftsOwned,
+      received: giftsReceived,
+    },
+    giftsOwned,
+    giftsReceived,
+  };
+}
+
+function buildGiftStatePayload(input) {
+  const giftsOwned = input && input.giftsOwned && typeof input.giftsOwned === "object" ? input.giftsOwned : {};
+  const giftsReceived = input && input.giftsReceived && typeof input.giftsReceived === "object" ? input.giftsReceived : {};
+  const walletKernel = toSafeInt(input && input.wallet && input.wallet.kernelBalance, 0);
+  const walletPopcorn = toSafeInt(input && input.wallet && input.wallet.popcornBalance, 0);
+  return {
+    ok: true,
+    profileId: asText(input && input.profileId, 180),
+    giftInventory: {
+      owned: giftsOwned,
+      received: giftsReceived,
+    },
+    giftsOwned,
+    giftsReceived,
+    wallet: {
+      popcornBalance: walletPopcorn,
+      kernelBalance: walletKernel,
+    },
+    walletKernel,
+    data: {
+      giftInventory: {
+        owned: giftsOwned,
+        received: giftsReceived,
+      },
+      giftsOwned,
+      giftsReceived,
+      wallet: {
+        popcornBalance: walletPopcorn,
+        kernelBalance: walletKernel,
+      },
+      walletKernel,
     },
   };
 }
@@ -284,7 +482,8 @@ function mountShopPurchaseRoutes(app, deps) {
 
     await initPromise;
     const serverNowMs = toSafeInt(now(), 0);
-    const wallet = await ensureWallet(db, profileId, serverNowMs);
+    const giftState = await readGiftState(db, profileId, serverNowMs);
+    const wallet = giftState.wallet;
     const popTalkRaw = resolvePopTalkSnapshot ? resolvePopTalkSnapshot(req, body, profileId) : null;
 
     return buildUnifiedStatePayload({
@@ -292,6 +491,7 @@ function mountShopPurchaseRoutes(app, deps) {
       serverNowMs,
       wallet,
       popTalk: popTalkRaw,
+      giftState,
     });
   }
 
@@ -348,6 +548,443 @@ function mountShopPurchaseRoutes(app, deps) {
     });
   }
 
+  async function resolveExistingGiftAction(profileId, actionType, actionKey, atMs) {
+    const pid = asText(profileId, 180);
+    const type = asText(actionType, 24).toLowerCase();
+    const key = sanitizeText(actionKey, 200);
+    if (!pid || !type || !key) return null;
+    const row = await getAsync(
+      db,
+      "SELECT id FROM shop_gift_action_events WHERE profile_id = ? AND action_type = ? AND action_key = ? LIMIT 1",
+      [pid, type, key]
+    );
+    if (!row) return null;
+    const state = await readGiftState(db, pid, atMs);
+    return buildGiftStatePayload(state);
+  }
+
+  function parseGiftMutationBody(bodyRaw) {
+    const body = bodyRaw && typeof bodyRaw === "object" ? bodyRaw : {};
+    return {
+      giftId: sanitizeText(body.giftId || body.id || "", 120),
+      count: parseGiftCount(body.count ?? body.qty ?? body.quantity ?? body.amount, 1),
+      costKernel: toSafeInt(body.costKernel ?? body.kernelCost ?? body.unitKernelCost ?? body.cost ?? 0, 0, 1000000000),
+      idempotencyKey: sanitizeText(body.idempotencyKey || body.deliveryId || body.eventId || "", 200),
+      deliveryId: sanitizeText(body.deliveryId || body.eventId || body.idempotencyKey || "", 200),
+      receiverProfileId: sanitizeText(body.receiverProfileId || body.toProfileId || "", 180),
+    };
+  }
+
+  function parseGiftExchangeItems(bodyRaw) {
+    const body = bodyRaw && typeof bodyRaw === "object" ? bodyRaw : {};
+    const rawItems = Array.isArray(body.items)
+      ? body.items
+      : Array.isArray(body.exchangeItems)
+        ? body.exchangeItems
+        : null;
+
+    const fallbackSingle = {
+      giftId: sanitizeText(body.giftId || body.id || "", 120),
+      count: parseGiftCount(body.count ?? body.qty ?? body.quantity ?? body.amount, 1),
+      costKernel: toSafeInt(body.costKernel ?? body.kernelCost ?? body.unitKernelCost ?? body.cost ?? 0, 0, 1000000000),
+    };
+
+    const rows = rawItems && rawItems.length > 0 ? rawItems : [fallbackSingle];
+    const out = [];
+    for (const row of rows) {
+      const item = row && typeof row === "object" ? row : {};
+      const giftId = sanitizeText(item.giftId || item.id || "", 120);
+      const count = parseGiftCount(item.count ?? item.qty ?? item.quantity ?? item.amount, 1);
+      const costKernel = toSafeInt(item.costKernel ?? item.kernelCost ?? item.unitKernelCost ?? item.cost ?? 0, 0, 1000000000);
+      if (!giftId || count <= 0 || costKernel <= 0) continue;
+      out.push({ giftId, count, costKernel });
+    }
+    return out;
+  }
+
+  async function giftStateHandler(req, res) {
+    const input = { ...(req.query || {}), ...(req.body || {}) };
+    const profileId = asText(computeProfileId(req, input), 180);
+    if (!profileId) {
+      return res.status(400).json({ ok: false, error: "profile_id_required", message: "profile_id_required" });
+    }
+    try {
+      await initPromise;
+      const state = await readGiftState(db, profileId, toSafeInt(now(), 0));
+      return res.status(200).json(buildGiftStatePayload(state));
+    } catch (e) {
+      return res.status(500).json({
+        ok: false,
+        error: "gift_state_failed",
+        message: String((e && e.message) || e || "gift_state_failed"),
+      });
+    }
+  }
+
+  async function giftPurchaseHandler(req, res) {
+    const bodyRaw = req.body && typeof req.body === "object" ? req.body : {};
+    const profileId = asText(computeProfileId(req, bodyRaw), 180);
+    if (!profileId) {
+      return res.status(400).json({ ok: false, error: "profile_id_required", message: "profile_id_required" });
+    }
+
+    const body = parseGiftMutationBody(bodyRaw);
+    if (!body.giftId || body.costKernel <= 0 || body.count <= 0) {
+      return res.status(400).json({ ok: false, error: "invalid_input", message: "invalid_input" });
+    }
+    const nowMs = toSafeInt(now(), 0);
+    const totalCost = toSafeInt(body.costKernel * body.count, 0, 2000000000);
+
+    try {
+      await initPromise;
+      await runAsync(db, "BEGIN IMMEDIATE", []);
+      try {
+        if (body.idempotencyKey) {
+          const existing = await resolveExistingGiftAction(profileId, "purchase", body.idempotencyKey, nowMs);
+          if (existing) {
+            await runAsync(db, "COMMIT", []);
+            return res.status(200).json(existing);
+          }
+        }
+
+        const wallet = await ensureWallet(db, profileId, nowMs);
+        if (wallet.kernelBalance < totalCost) {
+          const state = await readGiftState(db, profileId, nowMs);
+          await runAsync(db, "ROLLBACK", []);
+          return res.status(409).json({
+            ...buildGiftStatePayload(state),
+            ok: false,
+            error: "INSUFFICIENT_KERNEL",
+            code: "INSUFFICIENT_KERNEL",
+            message: "INSUFFICIENT_KERNEL",
+          });
+        }
+
+        const row = await ensureGiftRow(db, profileId, body.giftId, nowMs);
+        const nextOwned = toSafeInt(row.ownedCount + body.count, 0, 1000000000);
+        const nextKernel = toSafeInt(wallet.kernelBalance - totalCost, 0, 2000000000);
+
+        await runAsync(
+          db,
+          "UPDATE shop_gift_inventory SET owned_count = ?, updated_at = ? WHERE profile_id = ? AND gift_id = ?",
+          [nextOwned, nowMs, profileId, body.giftId]
+        );
+        await runAsync(
+          db,
+          "UPDATE shop_wallets SET kernel_balance = ?, updated_at = ? WHERE profile_id = ?",
+          [nextKernel, nowMs, profileId]
+        );
+        if (body.idempotencyKey) {
+          await runAsync(
+            db,
+            `INSERT INTO shop_gift_action_events (
+              profile_id, action_type, action_key, gift_id, count, peer_profile_id, wallet_kernel_balance, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [profileId, "purchase", body.idempotencyKey, body.giftId, body.count, "", nextKernel, nowMs]
+          );
+        }
+
+        await runAsync(db, "COMMIT", []);
+        const state = await readGiftState(db, profileId, nowMs);
+        emitWalletChanged({
+          profileId,
+          req,
+          body: bodyRaw,
+          wallet: {
+            kernelBalance: nextKernel,
+          },
+          reason: "gift_purchased",
+        });
+        return res.status(200).json(buildGiftStatePayload(state));
+      } catch (innerErr) {
+        try {
+          await runAsync(db, "ROLLBACK", []);
+        } catch {}
+        if (body.idempotencyKey) {
+          const existing = await resolveExistingGiftAction(profileId, "purchase", body.idempotencyKey, nowMs);
+          if (existing) return res.status(200).json(existing);
+        }
+        throw innerErr;
+      }
+    } catch (e) {
+      return res.status(500).json({
+        ok: false,
+        error: "gift_purchase_failed",
+        message: String((e && e.message) || e || "gift_purchase_failed"),
+      });
+    }
+  }
+
+  async function giftSendHandler(req, res) {
+    const bodyRaw = req.body && typeof req.body === "object" ? req.body : {};
+    const profileId = asText(computeProfileId(req, bodyRaw), 180);
+    if (!profileId) {
+      return res.status(400).json({ ok: false, error: "profile_id_required", message: "profile_id_required" });
+    }
+    const body = parseGiftMutationBody(bodyRaw);
+    const actionKey = body.idempotencyKey || body.deliveryId;
+    if (!body.giftId || body.count <= 0) {
+      return res.status(400).json({ ok: false, error: "invalid_input", message: "invalid_input" });
+    }
+    const nowMs = toSafeInt(now(), 0);
+
+    try {
+      await initPromise;
+      await runAsync(db, "BEGIN IMMEDIATE", []);
+      try {
+        if (actionKey) {
+          const existing = await resolveExistingGiftAction(profileId, "send", actionKey, nowMs);
+          if (existing) {
+            await runAsync(db, "COMMIT", []);
+            return res.status(200).json(existing);
+          }
+        }
+
+        const row = await ensureGiftRow(db, profileId, body.giftId, nowMs);
+        if (row.ownedCount < body.count) {
+          const state = await readGiftState(db, profileId, nowMs);
+          await runAsync(db, "ROLLBACK", []);
+          return res.status(409).json({
+            ...buildGiftStatePayload(state),
+            ok: false,
+            error: "INSUFFICIENT_GIFT",
+            code: "INSUFFICIENT_GIFT",
+            message: "INSUFFICIENT_GIFT",
+          });
+        }
+
+        const nextOwned = toSafeInt(row.ownedCount - body.count, 0, 1000000000);
+        const wallet = await ensureWallet(db, profileId, nowMs);
+        await runAsync(
+          db,
+          "UPDATE shop_gift_inventory SET owned_count = ?, updated_at = ? WHERE profile_id = ? AND gift_id = ?",
+          [nextOwned, nowMs, profileId, body.giftId]
+        );
+        if (actionKey) {
+          await runAsync(
+            db,
+            `INSERT INTO shop_gift_action_events (
+              profile_id, action_type, action_key, gift_id, count, peer_profile_id, wallet_kernel_balance, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [profileId, "send", actionKey, body.giftId, body.count, body.receiverProfileId || "", wallet.kernelBalance, nowMs]
+          );
+        }
+
+        await runAsync(db, "COMMIT", []);
+        const state = await readGiftState(db, profileId, nowMs);
+        emitWalletChanged({
+          profileId,
+          req,
+          body: bodyRaw,
+          wallet: {
+            kernelBalance: wallet.kernelBalance,
+          },
+          reason: "gift_sent",
+        });
+        return res.status(200).json(buildGiftStatePayload(state));
+      } catch (innerErr) {
+        try {
+          await runAsync(db, "ROLLBACK", []);
+        } catch {}
+        if (actionKey) {
+          const existing = await resolveExistingGiftAction(profileId, "send", actionKey, nowMs);
+          if (existing) return res.status(200).json(existing);
+        }
+        throw innerErr;
+      }
+    } catch (e) {
+      return res.status(500).json({
+        ok: false,
+        error: "gift_send_failed",
+        message: String((e && e.message) || e || "gift_send_failed"),
+      });
+    }
+  }
+
+  async function giftReceiveHandler(req, res) {
+    const bodyRaw = req.body && typeof req.body === "object" ? req.body : {};
+    const profileId = asText(computeProfileId(req, bodyRaw), 180);
+    if (!profileId) {
+      return res.status(400).json({ ok: false, error: "profile_id_required", message: "profile_id_required" });
+    }
+    const body = parseGiftMutationBody(bodyRaw);
+    const actionKey = body.idempotencyKey || body.deliveryId;
+    if (!body.giftId || body.count <= 0 || !actionKey) {
+      return res.status(400).json({ ok: false, error: "invalid_input", message: "invalid_input" });
+    }
+    const nowMs = toSafeInt(now(), 0);
+
+    try {
+      await initPromise;
+      await runAsync(db, "BEGIN IMMEDIATE", []);
+      try {
+        const existing = await resolveExistingGiftAction(profileId, "receive", actionKey, nowMs);
+        if (existing) {
+          await runAsync(db, "COMMIT", []);
+          return res.status(200).json(existing);
+        }
+
+        const row = await ensureGiftRow(db, profileId, body.giftId, nowMs);
+        const nextReceived = toSafeInt(row.receivedCount + body.count, 0, 1000000000);
+        const wallet = await ensureWallet(db, profileId, nowMs);
+
+        await runAsync(
+          db,
+          "UPDATE shop_gift_inventory SET received_count = ?, updated_at = ? WHERE profile_id = ? AND gift_id = ?",
+          [nextReceived, nowMs, profileId, body.giftId]
+        );
+        await runAsync(
+          db,
+          `INSERT INTO shop_gift_action_events (
+            profile_id, action_type, action_key, gift_id, count, peer_profile_id, wallet_kernel_balance, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [profileId, "receive", actionKey, body.giftId, body.count, "", wallet.kernelBalance, nowMs]
+        );
+
+        await runAsync(db, "COMMIT", []);
+        const state = await readGiftState(db, profileId, nowMs);
+        emitWalletChanged({
+          profileId,
+          req,
+          body: bodyRaw,
+          wallet: {
+            kernelBalance: wallet.kernelBalance,
+          },
+          reason: "gift_received",
+        });
+        return res.status(200).json(buildGiftStatePayload(state));
+      } catch (innerErr) {
+        try {
+          await runAsync(db, "ROLLBACK", []);
+        } catch {}
+        if (actionKey) {
+          const existing = await resolveExistingGiftAction(profileId, "receive", actionKey, nowMs);
+          if (existing) return res.status(200).json(existing);
+        }
+        throw innerErr;
+      }
+    } catch (e) {
+      return res.status(500).json({
+        ok: false,
+        error: "gift_receive_failed",
+        message: String((e && e.message) || e || "gift_receive_failed"),
+      });
+    }
+  }
+
+  async function giftExchangeHandler(req, res) {
+    const bodyRaw = req.body && typeof req.body === "object" ? req.body : {};
+    const profileId = asText(computeProfileId(req, bodyRaw), 180);
+    if (!profileId) {
+      return res.status(400).json({ ok: false, error: "profile_id_required", message: "profile_id_required" });
+    }
+
+    const items = parseGiftExchangeItems(bodyRaw);
+    const actionKey = sanitizeText(bodyRaw.idempotencyKey || bodyRaw.deliveryId || bodyRaw.eventId || "", 200);
+    if (items.length <= 0) {
+      return res.status(400).json({ ok: false, error: "invalid_input", message: "invalid_input" });
+    }
+    const nowMs = toSafeInt(now(), 0);
+
+    try {
+      await initPromise;
+      await runAsync(db, "BEGIN IMMEDIATE", []);
+      try {
+        if (actionKey) {
+          const existing = await resolveExistingGiftAction(profileId, "exchange", actionKey, nowMs);
+          if (existing) {
+            await runAsync(db, "COMMIT", []);
+            return res.status(200).json(existing);
+          }
+        }
+
+        const wallet = await ensureWallet(db, profileId, nowMs);
+        const rowsByGiftId = {};
+        let totalKernelBack = 0;
+        let totalCount = 0;
+
+        for (const item of items) {
+          const row = await ensureGiftRow(db, profileId, item.giftId, nowMs);
+          if (row.receivedCount < item.count) {
+            const state = await readGiftState(db, profileId, nowMs);
+            await runAsync(db, "ROLLBACK", []);
+            return res.status(409).json({
+              ...buildGiftStatePayload(state),
+              ok: false,
+              error: "INSUFFICIENT_RECEIVED_GIFT",
+              code: "INSUFFICIENT_RECEIVED_GIFT",
+              message: "INSUFFICIENT_RECEIVED_GIFT",
+            });
+          }
+          rowsByGiftId[item.giftId] = row;
+          const unitRefund = toSafeInt(Math.floor(item.costKernel * 0.8), 0, 1000000000);
+          const lineRefund = toSafeInt(unitRefund * item.count, 0, 2000000000);
+          totalKernelBack = toSafeInt(totalKernelBack + lineRefund, 0, 2000000000);
+          totalCount = toSafeInt(totalCount + item.count, 0, 1000000000);
+        }
+
+        for (const item of items) {
+          const row = rowsByGiftId[item.giftId] || (await ensureGiftRow(db, profileId, item.giftId, nowMs));
+          const nextReceived = toSafeInt(row.receivedCount - item.count, 0, 1000000000);
+          await runAsync(
+            db,
+            "UPDATE shop_gift_inventory SET received_count = ?, updated_at = ? WHERE profile_id = ? AND gift_id = ?",
+            [nextReceived, nowMs, profileId, item.giftId]
+          );
+        }
+
+        const nextKernel = toSafeInt(wallet.kernelBalance + totalKernelBack, 0, 2000000000);
+        await runAsync(
+          db,
+          "UPDATE shop_wallets SET kernel_balance = ?, updated_at = ? WHERE profile_id = ?",
+          [nextKernel, nowMs, profileId]
+        );
+
+        if (actionKey) {
+          await runAsync(
+            db,
+            `INSERT INTO shop_gift_action_events (
+              profile_id, action_type, action_key, gift_id, count, peer_profile_id, wallet_kernel_balance, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [profileId, "exchange", actionKey, "__multi__", totalCount, "", nextKernel, nowMs]
+          );
+        }
+
+        await runAsync(db, "COMMIT", []);
+        const state = await readGiftState(db, profileId, nowMs);
+        emitWalletChanged({
+          profileId,
+          req,
+          body: bodyRaw,
+          wallet: {
+            kernelBalance: nextKernel,
+          },
+          reason: "gift_exchanged",
+        });
+
+        return res.status(200).json({
+          ...buildGiftStatePayload(state),
+          exchangedKernel: totalKernelBack,
+        });
+      } catch (innerErr) {
+        try {
+          await runAsync(db, "ROLLBACK", []);
+        } catch {}
+        if (actionKey) {
+          const existing = await resolveExistingGiftAction(profileId, "exchange", actionKey, nowMs);
+          if (existing) return res.status(200).json(existing);
+        }
+        throw innerErr;
+      }
+    } catch (e) {
+      return res.status(500).json({
+        ok: false,
+        error: "gift_exchange_failed",
+        message: String((e && e.message) || e || "gift_exchange_failed"),
+      });
+    }
+  }
+
   async function confirmHandler(req, res) {
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const profileId = asText(computeProfileId(req, body), 180);
@@ -369,8 +1006,9 @@ function mountShopPurchaseRoutes(app, deps) {
     const userId = sanitizeText(body.userId || req.headers["x-user-id"] || "", 128);
     const deviceKey = sanitizeText(body.deviceKey || req.headers["x-device-key"] || "", 256);
     const idempotencyKey = sanitizeText(body.idempotencyKey || req.headers["x-idempotency-key"] || "", 200);
+    const isUnlimited1m = kind === "popcorn" && packId === SHOP_POP_UNLIMITED_1M_PACK_ID;
 
-    if (!packId || !productId || !transactionId || amount <= 0) {
+    if (!packId || !productId || !transactionId || (!isUnlimited1m && amount <= 0)) {
       return res.status(400).json({ ok: false, error: "invalid_input", message: "invalid_input" });
     }
 
@@ -396,8 +1034,8 @@ function mountShopPurchaseRoutes(app, deps) {
           [profileId, packId]
         );
 
-        const firstPurchaseBonusApplied = !claimed && bonusAmount > 0;
-        const grantedAmount = amount + (firstPurchaseBonusApplied ? bonusAmount : 0);
+        const firstPurchaseBonusApplied = kind === "popcorn" && !isUnlimited1m && !claimed && bonusAmount > 0;
+        const grantedAmount = isUnlimited1m ? 0 : amount + (firstPurchaseBonusApplied ? bonusAmount : 0);
 
         const currentWallet = await ensureWallet(db, profileId, nowMs);
         const nextPopcorn = kind === "popcorn" ? currentWallet.popcornBalance + grantedAmount : currentWallet.popcornBalance;
@@ -472,6 +1110,8 @@ function mountShopPurchaseRoutes(app, deps) {
                 body,
                 profileId,
                 convertedPopTalk: grantedAmount,
+                popTalkPlanOverride: isUnlimited1m ? "monthly" : "",
+                unlimitedUntilMs: isUnlimited1m ? nowMs + POP_UNLIMITED_1M_MS : 0,
                 reason: "shop_purchase_popcorn",
                 source: "shop_purchase",
                 atMs: nowMs,
@@ -717,6 +1357,84 @@ function mountShopPurchaseRoutes(app, deps) {
   ["/api/shop/wallet", "/shop/wallet"].forEach((p) => {
     app.get(p, walletHandler);
     app.post(p, walletHandler);
+  });
+
+  [
+    "/api/shop/gifts/state",
+    "/shop/gifts/state",
+    "/api/shop/gift/state",
+    "/shop/gift/state",
+    "/api/shop/gifts",
+    "/shop/gifts",
+    "/api/shop/gift",
+    "/shop/gift",
+  ].forEach((p) => {
+    app.get(p, giftStateHandler);
+    app.post(p, giftStateHandler);
+  });
+
+  [
+    "/api/shop/gift/purchase",
+    "/shop/gift/purchase",
+    "/api/shop/gifts/purchase",
+    "/shop/gifts/purchase",
+    "/api/shop/gift/buy",
+    "/shop/gift/buy",
+    "/api/shop/gifts/buy",
+    "/shop/gifts/buy",
+    "/api/gift/purchase",
+    "/gift/purchase",
+    "/api/gifts/purchase",
+    "/gifts/purchase",
+  ].forEach((p) => {
+    app.post(p, giftPurchaseHandler);
+  });
+
+  [
+    "/api/shop/gift/send",
+    "/shop/gift/send",
+    "/api/shop/gifts/send",
+    "/shop/gifts/send",
+    "/api/gift/send",
+    "/gift/send",
+    "/api/gifts/send",
+    "/gifts/send",
+    "/api/shop/gift/send-call",
+    "/shop/gift/send-call",
+    "/api/shop/gift/transfer",
+    "/shop/gift/transfer",
+  ].forEach((p) => {
+    app.post(p, giftSendHandler);
+  });
+
+  [
+    "/api/shop/gift/receive",
+    "/shop/gift/receive",
+    "/api/shop/gifts/receive",
+    "/shop/gifts/receive",
+    "/api/gift/receive",
+    "/gift/receive",
+    "/api/gifts/receive",
+    "/gifts/receive",
+    "/api/shop/gift/receive-call",
+    "/shop/gift/receive-call",
+  ].forEach((p) => {
+    app.post(p, giftReceiveHandler);
+  });
+
+  [
+    "/api/shop/gift/exchange",
+    "/shop/gift/exchange",
+    "/api/shop/gifts/exchange",
+    "/shop/gifts/exchange",
+    "/api/gift/exchange",
+    "/gift/exchange",
+    "/api/gifts/exchange",
+    "/gifts/exchange",
+    "/api/shop/gift/redeem",
+    "/shop/gift/redeem",
+  ].forEach((p) => {
+    app.post(p, giftExchangeHandler);
   });
 
   ["/api/wallet/state", "/wallet/state", "/api/state/wallet"].forEach((p) => {

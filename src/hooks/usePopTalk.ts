@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import { AdEventType, RewardedAdEventType } from "react-native-google-mobile-ads";
-import { createRewarded, initAds } from "../services/ads/AdManager";
-import { consumePopTalk, fetchPopTalkSnapshot, PopTalkMutationResult, PopTalkSnapshot, rewardPopTalk } from "../services/poptalk/PopTalkService";
+import { createRewarded, createRewardedInterstitial, initAds } from "../services/ads/AdManager";
+import { consumePopTalk, PopTalkMutationResult, PopTalkSnapshot, rewardPopTalk } from "../services/poptalk/PopTalkService";
+import { fetchUnifiedWalletState } from "../services/shop/ShopPurchaseService";
 import { useAppStore } from "../store/useAppStore";
 
 type RewardFlowResult = {
@@ -10,9 +11,12 @@ type RewardFlowResult = {
 };
 
 function safeSnapshot(snap: PopTalkSnapshot) {
+  const balance = Math.max(0, Math.trunc(Number(snap.balance || 0)));
+  const capRaw = Math.max(0, Math.trunc(Number(snap.cap || 0)));
+  const cap = Math.max(balance, capRaw);
   return {
-    balance: Math.max(0, Math.trunc(Number(snap.balance || 0))),
-    cap: Math.max(1, Math.trunc(Number(snap.cap || 0))),
+    balance,
+    cap,
     plan: snap.plan || null,
     serverNowMs: Number.isFinite(Number(snap.serverNowMs || 0)) ? Math.trunc(Number(snap.serverNowMs || 0)) : null,
     syncedAtMs: Date.now(),
@@ -35,28 +39,30 @@ export default function usePopTalk() {
 
   const refreshPopTalk = useCallback(async () => {
     const token = String(auth?.token || "").trim();
-    if (!token) return null;
+    const userId = String(auth?.userId || "").trim();
+    if (!token || !userId) return null;
 
-    const snap = await fetchPopTalkSnapshot({
+    const out = await fetchUnifiedWalletState({
       token,
-      userId: auth?.userId,
+      userId,
       deviceKey: auth?.deviceKey,
       planId: sub?.planId,
       storeProductId: sub?.storeProductId,
       isPremium: sub?.isPremium,
+    }).catch(() => null);
+
+    if (!out?.ok) return null;
+
+    const balance = Math.max(0, Math.trunc(Number(out.popTalkBalance ?? 0)));
+    const cap = Math.max(balance, Math.max(0, Math.trunc(Number(out.popTalkCap ?? 0))));
+    setPopTalk({
+      balance,
+      cap,
+      plan: out.popTalkPlan || null,
+      serverNowMs: out.popTalkServerNowMs ?? null,
+      syncedAtMs: Date.now(),
     });
-    if (snap) {
-      const incoming = safeSnapshot(snap);
-      const currentPopTalk = (useAppStore.getState() as any)?.popTalk ?? {};
-      const currentBalance = Math.max(0, Math.trunc(Number(currentPopTalk?.balance ?? 0)));
-      const currentCap = Math.max(currentBalance, Math.max(0, Math.trunc(Number(currentPopTalk?.cap ?? 0))));
-      setPopTalk({
-        ...incoming,
-        balance: Math.max(currentBalance, incoming.balance),
-        cap: Math.max(currentCap, incoming.cap, incoming.balance, currentBalance),
-      });
-    }
-    return snap;
+    return out;
   }, [auth?.deviceKey, auth?.token, auth?.userId, setPopTalk, sub?.isPremium, sub?.planId, sub?.storeProductId]);
 
   const consume = useCallback(
@@ -111,9 +117,14 @@ export default function usePopTalk() {
 
       let ad: any;
       try {
-        ad = createRewarded();
+        ad = createRewardedInterstitial();
       } catch {
-        return { ok: false, errorCode: "AD_CREATE_FAILED" };
+        try {
+          // Fallback for environments where rewarded-interstitial is not configured.
+          ad = createRewarded();
+        } catch {
+          return { ok: false, errorCode: "AD_CREATE_FAILED" };
+        }
       }
 
       if (!ad) return { ok: false, errorCode: "AD_CREATE_FAILED" };

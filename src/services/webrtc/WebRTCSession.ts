@@ -476,13 +476,6 @@ export class WebRTCSession {
     const mic = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
 
     if (cam !== "granted" || mic !== "granted") throw new Error("PERMISSION_DENIED");
-
-    try {
-      const btConnect = (PermissionsAndroid as any)?.PERMISSIONS?.BLUETOOTH_CONNECT;
-      if (Platform.Version >= 31 && typeof btConnect === "string") {
-        await (PermissionsAndroid as any).request(btConnect);
-      }
-    } catch {}
   }
 
   private async tuneSenders() {

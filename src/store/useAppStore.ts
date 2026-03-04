@@ -34,6 +34,8 @@ type GlobalModal = {
 type Ui = {
   fontScale: number; // 0.85~1.25 권장
   callMatchedSignal: number;
+  callCamOn: boolean;
+  callMicOn: boolean;
   dinoBestScore: number;
   dinoBestComment: string | null;
 };
@@ -91,6 +93,7 @@ type Store = {
 
   setFontScale: (v: number) => void;
   setCallMatchedSignal: (v: number) => void;
+  setCallMediaPrefs: (p: { camOn?: boolean; micOn?: boolean }) => void;
   setDinoBestScore: (v: number) => void;
   setDinoBestComment: (v: string | null) => void;
   setPopTalk: (p: Partial<PopTalk>) => void;
@@ -121,8 +124,8 @@ export const useAppStore = create<Store>()(
       sub: { isPremium: false, entitlementId: null, lastCheckedAt: null },
       auth: { verified: false, token: null, userId: null, deviceKey: null },
 
-      ui: { fontScale: 1, callMatchedSignal: 0, dinoBestScore: 0, dinoBestComment: null },
-      popTalk: { balance: 0, cap: 1000, plan: null, serverNowMs: null, syncedAtMs: null },
+      ui: { fontScale: 1, callMatchedSignal: 0, callCamOn: true, callMicOn: true, dinoBestScore: 0, dinoBestComment: null },
+      popTalk: { balance: 0, cap: 0, plan: null, serverNowMs: null, syncedAtMs: null },
       assets: { kernelCount: 0, updatedAtMs: null },
       shop: { firstPurchaseClaimed: {}, giftsOwned: {}, giftsReceived: {} },
 
@@ -150,6 +153,13 @@ export const useAppStore = create<Store>()(
         const n = Number(v);
         if (!Number.isFinite(n)) return;
         set({ ui: { ...get().ui, callMatchedSignal: n } });
+      },
+
+      setCallMediaPrefs: (p) => {
+        const prev = get().ui;
+        const nextCam = typeof p?.camOn === "boolean" ? p.camOn : prev.callCamOn;
+        const nextMic = typeof p?.micOn === "boolean" ? p.micOn : prev.callMicOn;
+        set({ ui: { ...prev, callCamOn: nextCam, callMicOn: nextMic } });
       },
 
       setDinoBestScore: (v) => {
@@ -205,93 +215,13 @@ export const useAppStore = create<Store>()(
         set({ shop: { ...prev, firstPurchaseClaimed: next } });
       },
 
-      purchaseGiftWithKernel: (giftId, costKernel, count = 1) => {
-        const key = String(giftId || "").trim();
-        const cost = Math.max(0, Math.trunc(Number(costKernel) || 0));
-        const qty = Math.max(1, Math.trunc(Number(count) || 1));
-        const totalCost = cost * qty;
+      // Gift / wallet writes must go through server APIs.
+      purchaseGiftWithKernel: () => ({ ok: false, message: "SERVER_ONLY_MUTATION" }),
 
-        if (!key || !totalCost) {
-          return { ok: false, message: "INVALID_GIFT_INPUT" };
-        }
-
-        const st = get();
-        const kernelNow = Math.max(0, Math.trunc(Number(st.assets?.kernelCount ?? 0)));
-        if (kernelNow < totalCost) {
-          return { ok: false, message: "INSUFFICIENT_KERNEL" };
-        }
-
-        const ownedPrev = st.shop?.giftsOwned || {};
-        const ownedNow = Math.max(0, Math.trunc(Number(ownedPrev[key] ?? 0)));
-        const nextOwned = { ...ownedPrev, [key]: ownedNow + qty };
-
-        set({
-          assets: {
-            ...st.assets,
-            kernelCount: kernelNow - totalCost,
-            updatedAtMs: Date.now(),
-          },
-          shop: {
-            ...st.shop,
-            giftsOwned: nextOwned,
-          },
-        });
-
-        return { ok: true };
-      },
-
-      consumeOwnedGift: (giftId, count = 1) => {
-        const key = String(giftId || "").trim();
-        const qty = Math.max(1, Math.trunc(Number(count) || 1));
-        if (!key || !qty) return false;
-
-        const st = get();
-        const ownedPrev = st.shop?.giftsOwned || {};
-        const ownNow = Math.max(0, Math.trunc(Number(ownedPrev[key] ?? 0)));
-        if (ownNow < qty) return false;
-
-        const nextOwned = { ...ownedPrev, [key]: ownNow - qty };
-        if (nextOwned[key] <= 0) delete nextOwned[key];
-        set({
-          shop: {
-            ...st.shop,
-            giftsOwned: nextOwned,
-          },
-        });
-        return true;
-      },
-
-      addOwnedGift: (giftId, count = 1) => {
-        const key = String(giftId || "").trim();
-        const qty = Math.max(1, Math.trunc(Number(count) || 1));
-        if (!key || !qty) return;
-
-        const st = get();
-        const ownedPrev = st.shop?.giftsOwned || {};
-        const ownNow = Math.max(0, Math.trunc(Number(ownedPrev[key] ?? 0)));
-        set({
-          shop: {
-            ...st.shop,
-            giftsOwned: { ...ownedPrev, [key]: ownNow + qty },
-          },
-        });
-      },
-
-      addReceivedGift: (giftId, count = 1) => {
-        const key = String(giftId || "").trim();
-        const qty = Math.max(1, Math.trunc(Number(count) || 1));
-        if (!key || !qty) return;
-
-        const st = get();
-        const prev = st.shop?.giftsReceived || {};
-        const now = Math.max(0, Math.trunc(Number(prev[key] ?? 0)));
-        set({
-          shop: {
-            ...st.shop,
-            giftsReceived: { ...prev, [key]: now + qty },
-          },
-        });
-      },
+      // Deprecated local mutation helpers: intentionally disabled.
+      consumeOwnedGift: () => false,
+      addOwnedGift: () => undefined,
+      addReceivedGift: () => undefined,
 
       requestGiftSend: (giftId) => {
         const key = String(giftId || "").trim();
@@ -328,8 +258,33 @@ export const useAppStore = create<Store>()(
     }),
     {
       name: "ranchat_store_v1",
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ prefs: s.prefs, sub: s.sub, auth: s.auth, ui: s.ui, popTalk: s.popTalk, assets: s.assets, shop: s.shop }),
+      partialize: (s) => ({
+        prefs: s.prefs,
+        sub: s.sub,
+        auth: s.auth,
+        ui: s.ui,
+      }),
+      migrate: (persistedState: any) => {
+        if (!persistedState || typeof persistedState !== "object") return persistedState as any;
+        const next = { ...persistedState } as any;
+        delete next.popTalk;
+        delete next.assets;
+        delete next.shop;
+        return next;
+      },
+      merge: (persistedState: any, currentState: Store): Store => {
+        const persisted =
+          persistedState && typeof persistedState === "object" ? (persistedState as Partial<Store>) : {};
+        return {
+          ...currentState,
+          prefs: { ...currentState.prefs, ...(persisted.prefs || {}) },
+          sub: { ...currentState.sub, ...(persisted.sub || {}) },
+          auth: { ...currentState.auth, ...(persisted.auth || {}) },
+          ui: { ...currentState.ui, ...(persisted.ui || {}) },
+        };
+      },
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

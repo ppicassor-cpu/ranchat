@@ -26,7 +26,7 @@ const TXT = {
   cam: "카메라 / Camera",
   mic: "마이크(소리) / Microphone",
   loc: "위치(GPS) / Location (GPS)",
-  required: "권한허용필요 / Required",
+  bt: "근처 기기(블루투스) / Nearby devices (Bluetooth)",
 
   setupTitle: "설정 중... / Setting up...",
   setupMsg: "위치와 언어를 찾고 있습니다.\nFinding your location and language...",
@@ -74,6 +74,7 @@ async function resolveIsoCountryCode(): Promise<string | null> {
 export default function App() {
   const didInitRef = useRef(false);
   const lastActiveReportRef = useRef(0);
+  const forcedLogoutRef = useRef(false);
 
   const hasHydrated = useAppStore((s: any) => s.hasHydrated);
   const prefs = useAppStore((s: any) => s.prefs);
@@ -83,6 +84,8 @@ export default function App() {
   const assets = useAppStore((s: any) => s.assets);
   const billing = useAppStore((s: any) => (s as any).billing);
   const setPrefs = useAppStore((s: any) => s.setPrefs);
+  const logoutAndWipe = useAppStore((s: any) => s.logoutAndWipe);
+  const showGlobalModal = useAppStore((s: any) => s.showGlobalModal);
 
   const [permChecked, setPermChecked] = useState(false);
   const [permBusy, setPermBusy] = useState(false);
@@ -129,6 +132,7 @@ export default function App() {
 
     const emitPresence = async (provider: "app_active" | "app_heartbeat") => {
       if (closed) return;
+      if (forcedLogoutRef.current) return;
       const token = String(auth?.token || "").trim();
       const userId = String(auth?.userId || "").trim();
       if (!token || !userId) return;
@@ -147,7 +151,7 @@ export default function App() {
         Math.trunc(Number((billing as any)?.totalPaidKrw ?? (billing as any)?.totalPaymentKrw ?? 0))
       );
 
-      await reportLoginEvent({
+      const out = await reportLoginEvent({
         token,
         userId,
         deviceKey: auth?.deviceKey,
@@ -160,6 +164,15 @@ export default function App() {
         kernelCount,
         totalPaymentKrw,
       });
+
+      if (out.forceLogout && !forcedLogoutRef.current) {
+        forcedLogoutRef.current = true;
+        showGlobalModal(
+          "인증 / Authentication",
+          "다른 기기에서 같은 계정으로 로그인되어 자동 로그아웃되었습니다.\nThis account was signed in on another device."
+        );
+        logoutAndWipe();
+      }
     };
 
     emitPresence("app_active").catch(() => undefined);
@@ -196,6 +209,8 @@ export default function App() {
     sub?.isPremium,
     sub?.planId,
     sub?.storeProductId,
+    logoutAndWipe,
+    showGlobalModal,
   ]);
 
   const hasAndroidPermission = useCallback(async (perm: string) => {
@@ -245,11 +260,16 @@ export default function App() {
       const locBefore =
         (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION)) ||
         (await hasAndroidPermission(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION));
+      const btConnectPerm =
+        Number(Platform.Version) >= 31 ? (PermissionsAndroid as any)?.PERMISSIONS?.BLUETOOTH_CONNECT : undefined;
+      const btBefore =
+        typeof btConnectPerm === "string" ? await hasAndroidPermission(btConnectPerm) : true;
 
       const needs: string[] = [];
       if (!camBefore) needs.push(PermissionsAndroid.PERMISSIONS.CAMERA);
       if (!micBefore) needs.push(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
       if (!locBefore) needs.push(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+      if (typeof btConnectPerm === "string" && !btBefore) needs.push(btConnectPerm);
 
       const results: Record<string, string> = {};
 
@@ -377,25 +397,28 @@ export default function App() {
             </View>
           }
         >
-          <AppText style={styles.modalText}>{TXT.permMsg}</AppText>
+          <AppText style={styles.modalTextCenter}>{TXT.permMsg}</AppText>
 
           <View style={{ height: 12 }} />
 
           <View style={styles.permList}>
             <View style={styles.permRow}>
-              <AppText style={[styles.permLeft, !permState.cam ? styles.permLeftNeed : null]}>• {TXT.cam}</AppText>
-              {!permState.cam && <AppText style={styles.permNeed}>({TXT.required})</AppText>}
+              <AppText style={[styles.permLeft, !permState.cam ? styles.permLeftNeed : null]}>{TXT.cam}</AppText>
             </View>
 
             <View style={styles.permRow}>
-              <AppText style={[styles.permLeft, !permState.mic ? styles.permLeftNeed : null]}>• {TXT.mic}</AppText>
-              {!permState.mic && <AppText style={styles.permNeed}>({TXT.required})</AppText>}
+              <AppText style={[styles.permLeft, !permState.mic ? styles.permLeftNeed : null]}>{TXT.mic}</AppText>
             </View>
 
             <View style={styles.permRow}>
-              <AppText style={[styles.permLeft, !permState.loc ? styles.permLeftNeed : null]}>• {TXT.loc}</AppText>
-              {!permState.loc && <AppText style={styles.permNeed}>({TXT.required})</AppText>}
+              <AppText style={[styles.permLeft, !permState.loc ? styles.permLeftNeed : null]}>{TXT.loc}</AppText>
             </View>
+
+            {Platform.OS === "android" && Number(Platform.Version) >= 31 ? (
+              <View style={styles.permRow}>
+                <AppText style={styles.permLeft}>{TXT.bt}</AppText>
+              </View>
+            ) : null}
           </View>
         </AppModal>
 
@@ -424,11 +447,10 @@ const styles = StyleSheet.create({
   modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
   modalTextCenter: { fontSize: 14, color: theme.colors.sub, lineHeight: 20, textAlign: "center" },
 
-  permList: { width: "100%", gap: 8 },
-  permRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  permLeft: { fontSize: 14, color: theme.colors.text, fontWeight: "800" },
+  permList: { width: "100%", gap: 8, alignItems: "center" },
+  permRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  permLeft: { fontSize: 14, color: theme.colors.text, fontWeight: "800", textAlign: "center" },
   permLeftNeed: { color: "#ff4d4f" },
-  permNeed: { fontSize: 12, color: "#ff4d4f", fontWeight: "900" },
 
   setupBox: { alignItems: "center", justifyContent: "center" },
 });

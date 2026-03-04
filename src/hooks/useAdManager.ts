@@ -7,6 +7,8 @@ type UseAdManagerArgs = {
   interstitialCooldownMs: number;
 };
 
+let sharedLastInterstitialAtMs = 0;
+
 export default function useAdManager({ isPremium, interstitialCooldownMs }: UseAdManagerArgs) {
   const [adsReady, setAdsReady] = useState(false);
   const adsReadyRef = useRef(false);
@@ -17,7 +19,7 @@ export default function useAdManager({ isPremium, interstitialCooldownMs }: UseA
   const interstitialTokenRef = useRef(0);
   const interstitialCleanupRef = useRef<(() => void) | null>(null);
   const interstitialTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastInterstitialAtRef = useRef<number>(0);
+  const lastInterstitialAtRef = useRef<number>(sharedLastInterstitialAtMs);
 
   const waitAdsReady = useCallback(async (maxWaitMs = 1000) => {
     if (adsReadyRef.current) return true;
@@ -87,7 +89,12 @@ export default function useAdManager({ isPremium, interstitialCooldownMs }: UseA
       interstitialTokenRef.current = token;
 
       const now = Date.now();
-      const diff = now - (lastInterstitialAtRef.current || 0);
+      const lastAtMs = Math.max(
+        Number(lastInterstitialAtRef.current || 0),
+        Number(sharedLastInterstitialAtMs || 0)
+      );
+      lastInterstitialAtRef.current = lastAtMs;
+      const diff = now - lastAtMs;
       const allowed = diff >= interstitialCooldownMs;
 
       if (!allowed) {
@@ -148,7 +155,9 @@ export default function useAdManager({ isPremium, interstitialCooldownMs }: UseA
 
         try {
           ad.show();
-          lastInterstitialAtRef.current = Date.now();
+          const shownAt = Date.now();
+          lastInterstitialAtRef.current = shownAt;
+          sharedLastInterstitialAtMs = shownAt;
         } catch {
           runOnce();
         }

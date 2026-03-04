@@ -10,6 +10,7 @@ type UsePeerInfoArgs = {
 
 export default function usePeerInfo({ peerInfo, prefs, t }: UsePeerInfoArgs) {
   const peerCountryRaw = useMemo(() => String((peerInfo as any)?.country ?? ""), [peerInfo]);
+  const isAiPeer = useMemo(() => Boolean((peerInfo as any)?.ai || (peerInfo as any)?.isAi), [peerInfo]);
   const peerLangRaw = useMemo(() => String((peerInfo as any)?.language ?? (peerInfo as any)?.lang ?? ""), [peerInfo]);
   const peerFlag = useMemo(() => {
     const direct = String((peerInfo as any)?.flag ?? "").trim();
@@ -30,7 +31,7 @@ export default function usePeerInfo({ peerInfo, prefs, t }: UsePeerInfoArgs) {
   const peerInfoText = useMemo(() => {
     const parts: string[] = [];
 
-    const countryPart = (peerFlag ? `${peerFlag} ` : "") + (peerCountryRaw || "");
+    const countryPart = `${peerFlag ? `${peerFlag} ` : ""}${peerCountryRaw || ""}`;
     if (countryPart.trim()) parts.push(countryPart.trim());
 
     if (peerLangLabel) parts.push(peerLangLabel);
@@ -46,6 +47,7 @@ export default function usePeerInfo({ peerInfo, prefs, t }: UsePeerInfoArgs) {
   const myGenderRaw = useMemo(() => String((prefs as any)?.gender ?? ""), [prefs]);
 
   return {
+    isAiPeer,
     peerInfoText,
     myCountryRaw,
     myLangRaw,
