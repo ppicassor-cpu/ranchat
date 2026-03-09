@@ -1,7 +1,7 @@
 param(
-  [string]$ServerHost = "152.67.213.225",
+  [string]$ServerHost = "140.245.71.36",
   [string]$User = "ubuntu",
-  [string]$KeyPath = "C:\\Users\\Home\\Downloads\\ssh-key-2025-12-30.key",
+  [string]$KeyPath = "$env:USERPROFILE\.ssh\oci-ranchat-backup.key",
   [string]$EnvFile = ".env",
   [string]$Pm2Name = "rtc-signal",
   [string]$AppleNativeClientId = "com.ranchat"

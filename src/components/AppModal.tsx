@@ -1,11 +1,12 @@
 ﻿import React from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View, type ModalProps } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View, type ModalProps } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 
 type Props = {
   visible: boolean;
   title?: string;
+  titleUseSystemFont?: boolean;
   children?: React.ReactNode;
   onClose?: () => void;
   footer?: React.ReactNode;
@@ -17,6 +18,7 @@ type Props = {
 export default function AppModal({
   visible,
   title,
+  titleUseSystemFont = false,
   children,
   onClose,
   footer,
@@ -47,7 +49,13 @@ export default function AppModal({
           }}
         />
         <View style={[styles.card, size === "compact" ? styles.cardCompact : null]}>
-          {title ? <AppText style={styles.title}>{title}</AppText> : null}
+          {title ? (
+            titleUseSystemFont ? (
+              <Text style={styles.title}>{title}</Text>
+            ) : (
+              <AppText style={styles.title}>{title}</AppText>
+            )
+          ) : null}
           <View style={styles.body}>{children}</View>
           {footer ? <View style={styles.footer}>{footer}</View> : null}
         </View>

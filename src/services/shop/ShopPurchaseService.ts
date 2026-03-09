@@ -5,7 +5,7 @@ export type ConfirmShopPurchaseInput = {
   token: string | null | undefined;
   userId: string | null | undefined;
   deviceKey?: string | null;
-  kind: "popcorn" | "kernel";
+  kind: "poptalk" | "kernel";
   packId: string;
   productId: string;
   amount: number;
@@ -68,6 +68,7 @@ export type UnifiedWalletStateInput = {
   planId?: string | null;
   storeProductId?: string | null;
   isPremium?: boolean | null;
+  premiumExpiresAtMs?: number | null;
 };
 
 export type ConvertKernelToPopTalkInput = {
@@ -149,6 +150,7 @@ export type SendGiftOnServerInput = {
   count?: number;
   deliveryId?: string | null;
   idempotencyKey?: string | null;
+  receiverProfileId?: string | null;
 };
 
 export type ReceiveGiftOnServerInput = {
@@ -612,7 +614,7 @@ export async function confirmShopPurchase(input: ConfirmShopPurchaseInput): Prom
   const productId = asText(input.productId, 160);
   const packId = asText(input.packId, 80);
   const transactionId = asText(input.transactionId, 200);
-  const kind = asText(input.kind, 16) === "kernel" ? "kernel" : "popcorn";
+  const kind = asText(input.kind, 16) === "kernel" ? "kernel" : "poptalk";
 
   if (!token || !userId || !productId || !packId || !transactionId) {
     return {
@@ -790,6 +792,8 @@ export async function fetchUnifiedWalletState(input: UnifiedWalletStateInput): P
   const planId = asText(input.planId, 64);
   const storeProductId = asText(input.storeProductId, 120);
   const isPremium = input.isPremium == null ? "" : input.isPremium ? "1" : "0";
+  const premiumExpiresRaw = Number(input.premiumExpiresAtMs);
+  const premiumExpiresAtMs = Number.isFinite(premiumExpiresRaw) && premiumExpiresRaw > 0 ? Math.trunc(premiumExpiresRaw) : 0;
 
   if (!token || !userId) {
     return {
@@ -827,6 +831,7 @@ export async function fetchUnifiedWalletState(input: UnifiedWalletStateInput): P
     "X-Plan-Id": planId,
     "X-Store-Product-Id": storeProductId,
     "X-Is-Premium": isPremium,
+    "X-Premium-Expires-At-Ms": premiumExpiresAtMs > 0 ? String(premiumExpiresAtMs) : "",
   };
 
   let last: UnifiedWalletStateResult | null = null;
@@ -1650,6 +1655,7 @@ async function mutateGiftTransferOnServer(input: {
   count?: number;
   deliveryId?: string | null;
   idempotencyKey?: string | null;
+  receiverProfileId?: string | null;
   action: "send" | "receive";
 }): Promise<GiftTransferResult> {
   const token = asText(input.token, 4096);
@@ -1659,6 +1665,7 @@ async function mutateGiftTransferOnServer(input: {
   const count = Math.max(1, asInt(input.count ?? 1));
   const deliveryId = asText(input.deliveryId, 200);
   const idempotencyKey = asText(input.idempotencyKey || deliveryId, 200);
+  const receiverProfileId = asText(input.receiverProfileId, 180);
   const action = input.action === "receive" ? "receive" : "send";
   const routeNotFoundCode = action === "receive" ? "GIFT_RECEIVE_ROUTE_NOT_FOUND" : "GIFT_SEND_ROUTE_NOT_FOUND";
   const genericFailCode = action === "receive" ? "GIFT_RECEIVE_FAILED" : "GIFT_SEND_FAILED";
@@ -1725,6 +1732,8 @@ async function mutateGiftTransferOnServer(input: {
       deliveryId: deliveryId || null,
       eventId: deliveryId || null,
       idempotencyKey: idempotencyKey || null,
+      receiverProfileId: receiverProfileId || null,
+      toProfileId: receiverProfileId || null,
       source: "call_gift",
     },
     {
@@ -1733,12 +1742,16 @@ async function mutateGiftTransferOnServer(input: {
       count,
       deliveryId: deliveryId || null,
       idempotencyKey: idempotencyKey || null,
+      receiverProfileId: receiverProfileId || null,
+      toProfileId: receiverProfileId || null,
     },
     {
       giftId,
       count,
       deliveryId: deliveryId || null,
       idempotencyKey: idempotencyKey || null,
+      receiverProfileId: receiverProfileId || null,
+      toProfileId: receiverProfileId || null,
     },
   ];
 

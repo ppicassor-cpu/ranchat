@@ -16,7 +16,14 @@ import { useTranslation } from "../i18n/LanguageProvider";
 
 export type MainStackParamList = {
   Home: undefined;
-  Call: undefined;
+  Call:
+    | {
+        entryMode?: "match" | "contactRecall" | "contactRecallAccept";
+        recallPeerSessionId?: string;
+        recallPeerProfileId?: string;
+        recallInviteId?: string;
+      }
+    | undefined;
   Fortune: undefined;
   Dino: undefined;
   Profile: undefined;

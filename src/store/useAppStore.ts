@@ -16,6 +16,7 @@ type Sub = {
   lastCheckedAt: number | null;
   storeProductId?: string | null;
   planId?: string | null;
+  premiumExpiresAtMs?: number | null;
 };
 
 type Auth = {
@@ -23,6 +24,15 @@ type Auth = {
   token: string | null;
   userId: string | null;
   deviceKey: string | null;
+  email?: string | null;
+};
+
+type Profile = {
+  nickname: string | null;
+  avatarUrl: string | null;
+  interests?: string[] | null;
+  avatarUpdatedAt: number | null;
+  updatedAt: number | null;
 };
 
 type GlobalModal = {
@@ -36,8 +46,10 @@ type Ui = {
   callMatchedSignal: number;
   callCamOn: boolean;
   callMicOn: boolean;
+  callSpeakerOn: boolean;
   dinoBestScore: number;
   dinoBestComment: string | null;
+  aiMatchingDisabledByUser: Record<string, boolean>;
 };
 
 type PopTalk = {
@@ -72,6 +84,7 @@ type Store = {
   prefs: Prefs;
   sub: Sub;
   auth: Auth;
+  profile: Profile;
 
   ui: Ui;
   popTalk: PopTalk;
@@ -90,10 +103,12 @@ type Store = {
 
   setDeviceKey: (k: string) => void;
   setAuth: (a: Partial<Auth>) => void;
+  setProfile: (p: Partial<Profile>) => void;
 
   setFontScale: (v: number) => void;
   setCallMatchedSignal: (v: number) => void;
-  setCallMediaPrefs: (p: { camOn?: boolean; micOn?: boolean }) => void;
+  setAiMatchingDisabledForUser: (userId: string, disabled: boolean) => void;
+  setCallMediaPrefs: (p: { camOn?: boolean; micOn?: boolean; speakerOn?: boolean }) => void;
   setDinoBestScore: (v: number) => void;
   setDinoBestComment: (v: string | null) => void;
   setPopTalk: (p: Partial<PopTalk>) => void;
@@ -121,10 +136,20 @@ export const useAppStore = create<Store>()(
       pendingGiftSend: null,
 
       prefs: { language: null, country: null, gender: null },
-      sub: { isPremium: false, entitlementId: null, lastCheckedAt: null },
-      auth: { verified: false, token: null, userId: null, deviceKey: null },
+      sub: { isPremium: false, entitlementId: null, lastCheckedAt: null, premiumExpiresAtMs: null },
+      auth: { verified: false, token: null, userId: null, deviceKey: null, email: null },
+      profile: { nickname: null, avatarUrl: null, interests: null, avatarUpdatedAt: null, updatedAt: null },
 
-      ui: { fontScale: 1, callMatchedSignal: 0, callCamOn: true, callMicOn: true, dinoBestScore: 0, dinoBestComment: null },
+      ui: {
+        fontScale: 1,
+        callMatchedSignal: 0,
+        callCamOn: true,
+        callMicOn: true,
+        callSpeakerOn: true,
+        dinoBestScore: 0,
+        dinoBestComment: null,
+        aiMatchingDisabledByUser: {},
+      },
       popTalk: { balance: 0, cap: 0, plan: null, serverNowMs: null, syncedAtMs: null },
       assets: { kernelCount: 0, updatedAtMs: null },
       shop: { firstPurchaseClaimed: {}, giftsOwned: {}, giftsReceived: {} },
@@ -141,6 +166,7 @@ export const useAppStore = create<Store>()(
 
       setDeviceKey: (k) => set({ auth: { ...get().auth, deviceKey: k } }),
       setAuth: (a) => set({ auth: { ...get().auth, ...a } }),
+      setProfile: (p) => set({ profile: { ...get().profile, ...p } }),
 
       setFontScale: (v) => {
         const n = Number(v);
@@ -155,11 +181,33 @@ export const useAppStore = create<Store>()(
         set({ ui: { ...get().ui, callMatchedSignal: n } });
       },
 
+      setAiMatchingDisabledForUser: (userId, disabled) => {
+        const uid = String(userId || "").trim();
+        if (!uid) return;
+        const prevUi = get().ui as any;
+        const prevMap =
+          prevUi?.aiMatchingDisabledByUser && typeof prevUi.aiMatchingDisabledByUser === "object"
+            ? (prevUi.aiMatchingDisabledByUser as Record<string, boolean>)
+            : {};
+        const nextDisabled = Boolean(disabled);
+        if (Boolean(prevMap[uid]) === nextDisabled) return;
+        set({
+          ui: {
+            ...prevUi,
+            aiMatchingDisabledByUser: {
+              ...prevMap,
+              [uid]: nextDisabled,
+            },
+          },
+        });
+      },
+
       setCallMediaPrefs: (p) => {
         const prev = get().ui;
         const nextCam = typeof p?.camOn === "boolean" ? p.camOn : prev.callCamOn;
         const nextMic = typeof p?.micOn === "boolean" ? p.micOn : prev.callMicOn;
-        set({ ui: { ...prev, callCamOn: nextCam, callMicOn: nextMic } });
+        const nextSpeaker = typeof p?.speakerOn === "boolean" ? p.speakerOn : prev.callSpeakerOn;
+        set({ ui: { ...prev, callCamOn: nextCam, callMicOn: nextMic, callSpeakerOn: nextSpeaker } });
       },
 
       setDinoBestScore: (v) => {
@@ -248,6 +296,14 @@ export const useAppStore = create<Store>()(
             verified: false,
             token: null,
             userId: null,
+            email: null,
+          },
+          profile: {
+            nickname: null,
+            avatarUrl: null,
+            interests: null,
+            avatarUpdatedAt: null,
+            updatedAt: null,
           },
         });
         get().bumpAuthNonce();
@@ -258,12 +314,13 @@ export const useAppStore = create<Store>()(
     }),
     {
       name: "ranchat_store_v1",
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (s) => ({
         prefs: s.prefs,
         sub: s.sub,
         auth: s.auth,
+        profile: s.profile,
         ui: s.ui,
       }),
       migrate: (persistedState: any) => {
@@ -282,6 +339,7 @@ export const useAppStore = create<Store>()(
           prefs: { ...currentState.prefs, ...(persisted.prefs || {}) },
           sub: { ...currentState.sub, ...(persisted.sub || {}) },
           auth: { ...currentState.auth, ...(persisted.auth || {}) },
+          profile: { ...currentState.profile, ...(persisted.profile || {}) },
           ui: { ...currentState.ui, ...(persisted.ui || {}) },
         };
       },

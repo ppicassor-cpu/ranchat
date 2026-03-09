@@ -127,6 +127,8 @@ export default function ChatComposer({
                 onChangeText={setChatInput}
                 placeholder={t("chat.input_placeholder")}
                 placeholderTextColor="rgba(255,255,255,0.45)"
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
                 returnKeyType="send"
                 onSubmitEditing={sendChat}
                 blurOnSubmit={false}

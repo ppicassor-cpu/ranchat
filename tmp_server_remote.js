@@ -1796,7 +1796,9 @@ async function enrichCallContactRow(row, viewerProfileIds = []) {
   const waiting = Boolean(live && !live.roomId && normalizeRtcInt(live.enqueuedAt, 0) > 0);
   const resolvedPeerProfileId = base.peerProfileId || sanitizeText(live && live.profileId, 180) || profileIdFromUserId(base.peerUserId);
   const storedProfile = getStoredProfileUserRow(resolvedPeerProfileId);
+  const storedMatch = resolveStoredProfileMatchData(resolvedPeerProfileId);
   const publicProfile = buildPublicProfilePayload(resolvedPeerProfileId, storedProfile);
+  const aliasProfile = findBestStoredProfileRowByLoginAccount(resolveCallReportLoginAccount(resolvedPeerProfileId, base.peerLoginAccount), resolvedPeerProfileId) || {};
   const storedNickname = pickPreferredProfileNickname(
     publicProfile.nickname,
     resolveStoredProfileNickname(storedProfile, resolvedPeerProfileId),
@@ -1809,16 +1811,29 @@ async function enrichCallContactRow(row, viewerProfileIds = []) {
     allowAll: false,
     fallbackToAll: false,
   }).slice(0, PROFILE_INTEREST_MAX_COUNT);
+  const resolvedCountry =
+    normalizeMatchCountry((live && live.country) || (homePresence && homePresence.country) || storedMatch.country || storedProfile.country || aliasProfile.country || "") ||
+    base.peerCountry;
+  const resolvedLanguage =
+    normalizeMatchLanguage((live && live.language) || (homePresence && homePresence.language) || storedMatch.language || storedProfile.language || storedProfile.lang || aliasProfile.language || aliasProfile.lang || "") ||
+    base.peerLanguage;
+  const resolvedGender =
+    normalizeMatchGender((live && live.gender) || (homePresence && homePresence.gender) || storedMatch.gender || storedProfile.gender || aliasProfile.gender || "") ||
+    base.peerGender;
+  const resolvedFlag =
+    sanitizeText((homePresence && homePresence.flag) || storedProfile.flag || aliasProfile.flag || "", 8) ||
+    base.peerFlag;
   return {
     ...base,
     peerSessionId: sanitizeText(live && live.sessionId, 256) || base.peerSessionId,
     peerProfileId: resolvedPeerProfileId,
     peerSessionKey: sanitizeText(live && live.sessionKey, 128) || base.peerSessionKey,
     peerNickname: pickPreferredProfileNickname(storedNickname, base.peerNickname),
-    peerAvatarUrl: base.peerAvatarUrl || storedAvatarUrl || undefined,
-    peerCountry: base.peerCountry || normalizeMatchCountry((live && live.country) || (homePresence && homePresence.country)),
-    peerLanguage: base.peerLanguage || normalizeMatchLanguage((live && live.language) || (homePresence && homePresence.language)),
-    peerGender: base.peerGender || normalizeMatchGender((live && live.gender) || (homePresence && homePresence.gender)),
+    peerAvatarUrl: storedAvatarUrl || base.peerAvatarUrl || undefined,
+    peerCountry: resolvedCountry,
+    peerLanguage: resolvedLanguage,
+    peerGender: resolvedGender,
+    peerFlag: resolvedFlag,
     peerLoginAccount:
       base.peerLoginAccount ||
       sanitizeText(homePresence && homePresence.loginAccount, 240) ||
@@ -1863,6 +1878,37 @@ async function listEnrichedCallContactsForProfiles(profileIds, limit = 200, filt
     ids.flatMap((profileId) => listCallContacts(profileId, Math.max(hardLimit * 3, 300)))
   ).filter((row) => matchesCallContactFilter(row, filters));
   const enriched = await Promise.all(rows.slice(0, hardLimit).map((row) => enrichCallContactRow(row, ids)));
+  return enriched.filter(Boolean);
+}
+
+async function listEnrichedFollowerCallContactsForProfiles(profileIds, limit = 200, filters = null) {
+  const ids = Array.isArray(profileIds) ? profileIds.map((value) => sanitizeText(value || "", 180)).filter(Boolean) : [];
+  if (ids.length <= 0) return [];
+
+  const hardLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(500, Math.trunc(Number(limit)))) : 200;
+  const viewerProfileIdSet = new Set(ids);
+  const viewerUserIdSet = new Set(ids.map((value) => extractUserIdFromProfileId(value)).filter(Boolean));
+  const users = profileStore && profileStore.users && typeof profileStore.users === "object" ? profileStore.users : {};
+  const rows = [];
+
+  Object.entries(users).forEach(([profileIdRaw, rowRaw]) => {
+    const source = rowRaw && typeof rowRaw === "object" ? rowRaw : {};
+    const followerProfileId = sanitizeText(source.profileId || profileIdRaw, 180);
+    if (!followerProfileId) return;
+    if (viewerProfileIdSet.has(followerProfileId)) return;
+    const followerUserId = extractUserIdFromProfileId(followerProfileId);
+    if (followerUserId && viewerUserIdSet.has(followerUserId)) return;
+
+    listStoredCallContactRows(followerProfileId).forEach((item) => {
+      if (item.isFriend !== true) return;
+      if (!callContactMatchesViewer(item, viewerProfileIdSet, viewerUserIdSet)) return;
+      const reverseRow = buildFollowerCallContactRow(followerProfileId, item);
+      if (reverseRow) rows.push(reverseRow);
+    });
+  });
+
+  const merged = mergeCallContactRows(rows).filter((row) => matchesCallContactFilter(row, filters));
+  const enriched = await Promise.all(merged.slice(0, hardLimit).map((row) => enrichCallContactRow(row, ids)));
   return enriched.filter(Boolean);
 }
 
@@ -2337,6 +2383,68 @@ function getStoredProfileUserRow(profileId) {
   return users[pid] && typeof users[pid] === "object" ? users[pid] : {};
 }
 
+function resolvePreferredCallContactProfileId(rawProfileId, fallbackLoginAccount = "") {
+  const profileId = sanitizeText(rawProfileId || "", 180);
+  if (extractUserIdFromProfileId(profileId)) return profileId;
+  const loginAccount = readStoredLoginAccountByProfileId(profileId) || normalizeLoginAccountValue(fallbackLoginAccount);
+  const alias = findBestStoredProfileRowByLoginAccount(loginAccount, profileId) || {};
+  const aliasProfileId = sanitizeText(alias.profileId || "", 180);
+  if (aliasProfileId && extractUserIdFromProfileId(aliasProfileId)) return aliasProfileId;
+  return profileId || aliasProfileId || "";
+}
+
+function buildCallContactAggregateKey(rawProfileId, fallbackLoginAccount = "") {
+  const profileId = sanitizeText(rawProfileId || "", 180);
+  const userId = extractUserIdFromProfileId(profileId);
+  if (userId) return `u:${userId}`;
+  const loginAccount = readStoredLoginAccountByProfileId(profileId) || normalizeLoginAccountValue(fallbackLoginAccount);
+  if (loginAccount) {
+    return `l:${sanitizeText(anonymizeKey(loginAccount), 64)}`;
+  }
+  return profileId;
+}
+
+function callContactMatchesViewer(row, viewerProfileIdSet, viewerUserIdSet) {
+  const base = normalizeCallContactRow(row);
+  const peerProfileId = sanitizeText(base.peerProfileId || "", 180);
+  const peerUserId = sanitizeText(base.peerUserId || "", 128);
+  if (peerProfileId && viewerProfileIdSet.has(peerProfileId)) return true;
+  if (peerUserId && viewerUserIdSet.has(peerUserId)) return true;
+  return false;
+}
+
+function buildFollowerCallContactRow(followerProfileId, row) {
+  const sourceProfileId = sanitizeText(followerProfileId || "", 180);
+  const base = normalizeCallContactRow(row);
+  if (!sourceProfileId || !base.contactKey || base.isFriend !== true) return null;
+
+  const followerLoginAccount = resolveCallReportLoginAccount(sourceProfileId, "");
+  const peerProfileId = resolvePreferredCallContactProfileId(sourceProfileId, followerLoginAccount) || sourceProfileId;
+  const storedProfile = getStoredProfileUserRow(peerProfileId);
+  const alias = findBestStoredProfileRowByLoginAccount(followerLoginAccount, peerProfileId) || {};
+
+  return normalizeCallContactRow({
+    contactKey: buildCallContactAggregateKey(peerProfileId, followerLoginAccount) || peerProfileId || sourceProfileId,
+    peerProfileId,
+    peerUserId: extractUserIdFromProfileId(peerProfileId),
+    peerNickname: pickPreferredProfileNickname(storedProfile.nickname, alias.nickname),
+    peerAvatarUrl: resolveStoredProfileAvatarUrl(storedProfile) || resolveStoredProfileAvatarUrl(alias),
+    peerLoginAccount: followerLoginAccount,
+    peerCountry: normalizeMatchCountry(storedProfile.country || alias.country || ""),
+    peerLanguage: normalizeMatchLanguage(storedProfile.language || storedProfile.lang || alias.language || alias.lang || ""),
+    peerGender: normalizeMatchGender(storedProfile.gender || alias.gender || ""),
+    peerFlag: sanitizeText(storedProfile.flag || alias.flag || "", 8),
+    peerInterests: normalizeMatchInterestArray(
+      (Array.isArray(storedProfile.interests) && storedProfile.interests.length > 0 ? storedProfile.interests : alias.interests),
+      { allowAll: false, fallbackToAll: false }
+    ).slice(0, PROFILE_INTEREST_MAX_COUNT),
+    isFriend: true,
+    friendAt: base.friendAt,
+    lastCallAt: base.lastCallAt,
+    updatedAt: base.updatedAt,
+  });
+}
+
 function buildRtcPeerInfoSeed(entryOrRecord, fallbackSessionId = "") {
   const source = entryOrRecord && typeof entryOrRecord === "object" ? entryOrRecord : {};
   const sessionId = sanitizeText(source.sessionId || fallbackSessionId || "", 256);
@@ -2346,6 +2454,10 @@ function buildRtcPeerInfoSeed(entryOrRecord, fallbackSessionId = "") {
   const storedMatch = resolveStoredProfileMatchData(profileId);
   const storedProfileRow = getStoredProfileUserRow(profileId);
   const publicProfile = buildPublicProfilePayload(profileId, storedProfileRow);
+  const loginAccount = resolveCallReportLoginAccount(
+    profileId,
+    source.loginAccount || source.email || source.account || ""
+  );
   const country = normalizeMatchCountry(source.country || storedMatch.country || "");
   const language = normalizeMatchLanguage(source.language || source.lang || storedMatch.language || "");
   const gender = normalizeMatchGender(source.gender || storedMatch.gender || "");
@@ -2365,6 +2477,8 @@ function buildRtcPeerInfoSeed(entryOrRecord, fallbackSessionId = "") {
     gender: gender || undefined,
     nickname: nickname || undefined,
     avatarUrl: avatarUrl || undefined,
+    loginAccount: loginAccount || undefined,
+    email: loginAccount || undefined,
   };
 
   return Object.values(payload).some(Boolean) ? payload : null;
@@ -6539,6 +6653,41 @@ const __callContactListHandler = async (req, res) => {
   }
 };
 
+const __callFollowerListHandler = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const reporterProfileIds = await resolveActorProfileIds(req, body);
+    const roomId = sanitizeText(body.roomId || "", 120);
+    const peerSessionId = sanitizeText(body.peerSessionId || "", 256);
+    const livePeer = peerSessionId ? await resolvePeerSessionForCallContact(peerSessionId) : null;
+    const peerProfileId = sanitizeText(body.peerProfileId || (livePeer && livePeer.profileId) || "", 180);
+    const peerUserId = sanitizeText(body.peerUserId || "", 128);
+    if (reporterProfileIds.length <= 0) {
+      return res.status(400).json({ ok: false, errorCode: "PROFILE_ID_REQUIRED", errorMessage: "PROFILE_ID_REQUIRED", contacts: [] });
+    }
+
+    const limitRaw = Number((body && body.limit) || (req.query && req.query.limit) || 200);
+    const contacts = await listEnrichedFollowerCallContactsForProfiles(reporterProfileIds, limitRaw, {
+      roomId,
+      peerSessionId,
+      peerProfileId,
+      peerUserId,
+    });
+    return res.status(200).json({
+      ok: true,
+      total: contacts.length,
+      contacts,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      errorCode: "CALL_FOLLOWER_LIST_FAILED",
+      errorMessage: sanitizeText((e && e.message) || e, 220) || "CALL_FOLLOWER_LIST_FAILED",
+      contacts: [],
+    });
+  }
+};
+
 const __callRecallHandler = async (req, res) => {
   try {
     const body = req.body || {};
@@ -6784,6 +6933,13 @@ const __adminCallReportListHandler = (req, res) => {
   "/api/call/contact/list",
   "/call/contact/list",
 ].forEach((p) => app.post(p, __callContactListHandler));
+
+[
+  "/api/call/followers",
+  "/call/followers",
+  "/api/call/contact/followers",
+  "/call/contact/followers",
+].forEach((p) => app.post(p, __callFollowerListHandler));
 
 [
   "/api/call/recall",

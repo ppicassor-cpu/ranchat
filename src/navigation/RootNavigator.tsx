@@ -1,16 +1,19 @@
 import React, { useEffect } from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import MainStack from "./MainStack";
 import AuthStack from "./AuthStack";
 import { useAppStore } from "../store/useAppStore";
-import { syncProfileToServer } from "../services/profile/ProfileSync";
+import { mergeProfileSyncResult, syncProfileToServer } from "../services/profile/ProfileSync";
 import GlobalModalHost from "../screens/_GlobalModalHost";
 import { LanguageProvider } from "../i18n/LanguageProvider";
+import RecallInviteHost from "../components/call/RecallInviteHost";
 
 function RootNavigatorInner() {
+  const navigationRef = useNavigationContainerRef();
   const hasHydrated = useAppStore((s) => s.hasHydrated);
   const auth = useAppStore((s) => s.auth);
   const prefs = useAppStore((s) => s.prefs);
+  const setProfile = useAppStore((s: any) => s.setProfile);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -25,7 +28,13 @@ function RootNavigatorInner() {
         country: prefs?.country,
         language: prefs?.language,
         gender: prefs?.gender,
-      }).catch(() => undefined);
+      })
+        .then((out) => {
+          if (!out) return;
+          const currentProfile = (useAppStore.getState() as any)?.profile;
+          setProfile(mergeProfileSyncResult(currentProfile, out));
+        })
+        .catch(() => undefined);
     }, 220);
 
     return () => clearTimeout(timer);
@@ -37,14 +46,16 @@ function RootNavigatorInner() {
     prefs?.language,
     prefs?.gender,
     hasHydrated,
+    setProfile,
   ]);
 
   const token = String(auth?.token || "").trim();
   const isAuthed = Boolean(hasHydrated && auth?.verified && token);
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       {isAuthed ? <MainStack /> : <AuthStack />}
+      <RecallInviteHost navigationRef={navigationRef} enabled={isAuthed} />
       <GlobalModalHost />
     </NavigationContainer>
   );

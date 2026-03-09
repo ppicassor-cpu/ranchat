@@ -3,7 +3,7 @@
     "name": "ranchat",
     "slug": "ranchat",
     "scheme": "ranchat",
-    "version": "14.0.0",
+    "version": "16.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -27,10 +27,18 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ranchat",
+      "buildNumber": "16",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "RanChat needs camera access so you can join video calls.",
+        "NSMicrophoneUsageDescription": "RanChat needs microphone access so you can join voice and video calls.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "versionCode": 14,
+      "versionCode": 16,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -73,6 +81,13 @@
       "expo-secure-store",
       "expo-font",
       "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RanChat needs photo access so you can choose a profile image.",
+          "cameraPermission": "RanChat needs camera access so you can take a profile image."
+        }
+      ],
       [
         "expo-build-properties",
         {

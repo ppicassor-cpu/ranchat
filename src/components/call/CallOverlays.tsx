@@ -168,11 +168,11 @@ export default function CallOverlays({
         }
       >
         {isPremium ? (
-          <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
+          <AppText style={{ width: "100%", fontSize: 16, color: theme.colors.sub, lineHeight: 20, textAlign: "center" }}>
             {t("call.fast_matching_desc")}
           </AppText>
         ) : (
-          <AppText style={{ fontSize: 16, color: theme.colors.sub, lineHeight: 20 }}>
+          <AppText style={{ width: "100%", fontSize: 16, color: theme.colors.sub, lineHeight: 20, textAlign: "center" }}>
             {t("call.delay_matching_desc")}
           </AppText>
         )}

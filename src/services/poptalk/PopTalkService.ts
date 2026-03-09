@@ -14,6 +14,7 @@ type PopTalkRequestInput = {
   planId?: string | null;
   storeProductId?: string | null;
   isPremium?: boolean | null;
+  premiumExpiresAtMs?: number | null;
 };
 
 type PopTalkMutationInput = PopTalkRequestInput & {
@@ -154,6 +155,8 @@ function normalizeSnapshot(raw: any): PopTalkSnapshot | null {
 }
 
 function buildHeaders(input: PopTalkRequestInput): Record<string, string> {
+  const premiumExpiresRaw = Number(input.premiumExpiresAtMs);
+  const premiumExpiresAtMs = Number.isFinite(premiumExpiresRaw) && premiumExpiresRaw > 0 ? Math.trunc(premiumExpiresRaw) : 0;
   return {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -163,6 +166,7 @@ function buildHeaders(input: PopTalkRequestInput): Record<string, string> {
     "X-Plan-Id": String(input.planId || ""),
     "X-Store-Product-Id": String(input.storeProductId || ""),
     "X-Is-Premium": input.isPremium == null ? "" : input.isPremium ? "1" : "0",
+    "X-Premium-Expires-At-Ms": premiumExpiresAtMs > 0 ? String(premiumExpiresAtMs) : "",
   };
 }
 

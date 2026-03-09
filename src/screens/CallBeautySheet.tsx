@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, Pressable, StyleSheet, Switch, View, Text } from "react-native";
+import { Animated, Dimensions, Pressable, ScrollView, StyleSheet, Switch, View, Text } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "../i18n/LanguageProvider";
 
-type BeautyPreset = "none" | "warm" | "cool" | "mono";
+type BeautyPreset = "none" | "warm" | "cool" | "mono" | "mosaic";
 
 export type BeautyConfig = {
   enabled: boolean;
@@ -46,6 +46,7 @@ const FILTER_NAME_KEY_BY_KEY: Record<BeautyPreset | ControlKey, string> = {
   warm: "beauty.filter.warm",
   cool: "beauty.filter.cool",
   mono: "beauty.filter.mono",
+  mosaic: "beauty.filter.mosaic",
   brightness: "beauty.filter.brightness",
   saturation: "beauty.filter.saturation",
   contrast: "beauty.filter.contrast",
@@ -195,7 +196,14 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
     else if (active === "focus") update({ bgFocusStrength: clamp01(Math.max(0, x)) });
   };
 
-  const iconBtn = (k: ControlKey | null, icon: any, onPress: () => void, highlighted?: boolean, isOn?: boolean) => {
+  const iconColor = "#a0738a";
+  const iconBtn = (
+    k: ControlKey | null,
+    onPress: () => void,
+    iconNode: React.ReactNode,
+    highlighted?: boolean,
+    isOn?: boolean
+  ) => {
     const isActive = k ? active === k : false;
     const onState = typeof isOn === "boolean" ? isOn : true;
     const hi = typeof highlighted === "boolean" ? highlighted : isActive;
@@ -210,7 +218,7 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
           pressed ? { opacity: 0.75 } : null,
         ]}
       >
-        <Ionicons name={icon} size={22} color={hi ? "#a0738a" : "#a0738a"} />
+        {iconNode}
       </Pressable>
     );
   };
@@ -263,16 +271,34 @@ export default function CallBeautySheet({ visible, onClose, config, defaultConfi
           </View>
         </View>
 
-        <View style={styles.iconRow}>
-          {iconBtn(null, "flame-outline", () => togglePreset("warm"), preset === "warm")}
-          {iconBtn(null, "snow-outline", () => togglePreset("cool"), preset === "cool")}
-          {iconBtn(null, "contrast-outline", () => togglePreset("mono"), preset === "mono")}
+        <ScrollView
+          horizontal={true}
+          style={styles.iconRow}
+          contentContainerStyle={styles.iconRowContent}
+          showsHorizontalScrollIndicator={false}
+          alwaysBounceHorizontal={false}
+          bounces={true}
+        >
+          {iconBtn(null, () => togglePreset("warm"), <Ionicons name="flame-outline" size={22} color={iconColor} />, preset === "warm")}
+          {iconBtn(null, () => togglePreset("cool"), <Ionicons name="snow-outline" size={22} color={iconColor} />, preset === "cool")}
+          {iconBtn(null, () => togglePreset("mono"), <Ionicons name="contrast-outline" size={22} color={iconColor} />, preset === "mono")}
+          {iconBtn(null, () => togglePreset("mosaic"), <Ionicons name="grid-outline" size={21} color={iconColor} />, preset === "mosaic")}
 
-          {iconBtn("brightness", "flash-outline", () => onPressControl("brightness"))}
-          {iconBtn("saturation", "color-palette-outline", () => onPressControl("saturation"))}
-          {iconBtn("contrast", "options-outline", () => onPressControl("contrast"))}
-          {iconBtn("focus", "scan-outline", toggleFocus, Boolean(current.bgFocus))}
-        </View>
+          {iconBtn("brightness", () => onPressControl("brightness"), <Ionicons name="sunny-outline" size={22} color={iconColor} />)}
+          {iconBtn("saturation", () => onPressControl("saturation"), <Ionicons name="color-palette-outline" size={22} color={iconColor} />)}
+          {iconBtn("contrast", () => onPressControl("contrast"), <Ionicons name="options-outline" size={22} color={iconColor} />)}
+          {iconBtn(
+            "focus",
+            toggleFocus,
+            <View style={styles.focusIconWrap}>
+              <Ionicons name="scan-outline" size={22} color={iconColor} />
+              <View pointerEvents="none" style={styles.focusIconCenterMark}>
+                <Ionicons name="locate" size={10} color={iconColor} />
+              </View>
+            </View>,
+            Boolean(current.bgFocus)
+          )}
+        </ScrollView>
       </Animated.View>
     </View>
   );
@@ -378,14 +404,15 @@ const styles = StyleSheet.create({
   },
   iconRow: {
     height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
     marginBottom: 8,
   },
+  iconRowContent: {
+    alignItems: "center",
+    paddingRight: 6,
+    gap: 8,
+  },
   iconBtn: {
-    flex: 1,
+    width: 46,
     height: 44,
     borderRadius: 14,
     alignItems: "center",
@@ -397,5 +424,16 @@ const styles = StyleSheet.create({
   },
   iconBtnOff: {
     opacity: 0.45,
+  },
+  focusIconWrap: {
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  focusIconCenterMark: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

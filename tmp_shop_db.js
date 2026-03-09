@@ -61,7 +61,6 @@ async function ensureSchema(db) {
     db,
     `CREATE TABLE IF NOT EXISTS shop_wallets (
       profile_id TEXT PRIMARY KEY,
-      popcorn_balance INTEGER NOT NULL DEFAULT 0,
       kernel_balance INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL
     )`,
@@ -107,36 +106,54 @@ async function ensureSchema(db) {
   await runAsync(db, "CREATE INDEX IF NOT EXISTS idx_shop_purchase_profile_created ON shop_purchase_events (profile_id, created_at DESC)", []);
   await runAsync(db, "CREATE INDEX IF NOT EXISTS idx_shop_purchase_profile_idem ON shop_purchase_events (profile_id, idempotency_key)", []);
 
-  // Backward-compatible wallet schema migration for legacy deployments.
-  // Old DBs can have poptalk_balance / kernel_count columns instead.
+  // Legacy deployments can still be missing kernel_balance / updated_at.
+  // Rebuild the wallet table into the current kernel-only shape when needed.
   const walletCols = await getTableColumns(db, "shop_wallets");
   const walletColSet = new Set(walletCols.map((c) => asText(c && c.name, 80).toLowerCase()).filter((v) => !!v));
+  const walletNeedsRebuild =
+    walletColSet.has("kernel_count") ||
+    !walletColSet.has("kernel_balance") ||
+    !walletColSet.has("updated_at");
 
-  if (!walletColSet.has("popcorn_balance")) {
-    await runAsync(db, "ALTER TABLE shop_wallets ADD COLUMN popcorn_balance INTEGER NOT NULL DEFAULT 0", []);
-    if (walletColSet.has("poptalk_balance")) {
+  if (walletNeedsRebuild) {
+    const rebuildAtMs = toSafeInt(Date.now(), 0);
+    const kernelExpr = walletColSet.has("kernel_balance")
+      ? "COALESCE(kernel_balance, 0)"
+      : walletColSet.has("kernel_count")
+        ? "COALESCE(kernel_count, 0)"
+        : "0";
+    const updatedAtExpr = walletColSet.has("updated_at")
+      ? `CASE WHEN COALESCE(updated_at, 0) > 0 THEN updated_at ELSE ${rebuildAtMs} END`
+      : `${rebuildAtMs}`;
+
+    await runAsync(db, "BEGIN IMMEDIATE", []);
+    try {
+      await runAsync(db, "DROP TABLE IF EXISTS shop_wallets_next", []);
       await runAsync(
         db,
-        "UPDATE shop_wallets SET popcorn_balance = CASE WHEN COALESCE(popcorn_balance, 0) <= 0 THEN COALESCE(poptalk_balance, 0) ELSE popcorn_balance END",
+        `CREATE TABLE shop_wallets_next (
+          profile_id TEXT PRIMARY KEY,
+          kernel_balance INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        )`,
         []
       );
-    }
-  }
-
-  if (!walletColSet.has("kernel_balance")) {
-    await runAsync(db, "ALTER TABLE shop_wallets ADD COLUMN kernel_balance INTEGER NOT NULL DEFAULT 0", []);
-    if (walletColSet.has("kernel_count")) {
       await runAsync(
         db,
-        "UPDATE shop_wallets SET kernel_balance = CASE WHEN COALESCE(kernel_balance, 0) <= 0 THEN COALESCE(kernel_count, 0) ELSE kernel_balance END",
+        `INSERT INTO shop_wallets_next (profile_id, kernel_balance, updated_at)
+         SELECT profile_id, ${kernelExpr}, ${updatedAtExpr}
+         FROM shop_wallets`,
         []
       );
+      await runAsync(db, "DROP TABLE shop_wallets", []);
+      await runAsync(db, "ALTER TABLE shop_wallets_next RENAME TO shop_wallets", []);
+      await runAsync(db, "COMMIT", []);
+    } catch (e) {
+      try {
+        await runAsync(db, "ROLLBACK", []);
+      } catch {}
+      throw e;
     }
-  }
-
-  if (!walletColSet.has("updated_at")) {
-    await runAsync(db, "ALTER TABLE shop_wallets ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0", []);
-    await runAsync(db, "UPDATE shop_wallets SET updated_at = CASE WHEN COALESCE(updated_at, 0) <= 0 THEN ? ELSE updated_at END", [toSafeInt(Date.now(), 0)]);
   }
 
   await runAsync(
@@ -195,26 +212,42 @@ async function ensureSchema(db) {
 
 function mapWallet(row) {
   return {
-    popcornBalance: toSafeInt(row && row.popcorn_balance, 0),
     kernelBalance: toSafeInt(row && row.kernel_balance, 0),
   };
+}
+
+async function readFirstPurchaseClaimMap(db, profileId) {
+  const pid = asText(profileId, 180);
+  if (!pid) return {};
+  const rows = await allAsync(
+    db,
+    "SELECT pack_id, claimed_at FROM shop_first_purchase_claims WHERE profile_id = ?",
+    [pid]
+  );
+  const out = {};
+  rows.forEach((row) => {
+    const packId = asText(row && row.pack_id, 80);
+    if (!packId) return;
+    out[packId] = toSafeInt(row && row.claimed_at, 0) > 0;
+  });
+  return out;
 }
 
 async function ensureWallet(db, profileId, atMs) {
   const pid = asText(profileId, 180);
   if (!pid) {
-    return { popcornBalance: 0, kernelBalance: 0 };
+    return { kernelBalance: 0 };
   }
 
-  let row = await getAsync(db, "SELECT profile_id, popcorn_balance, kernel_balance FROM shop_wallets WHERE profile_id = ?", [pid]);
+  let row = await getAsync(db, "SELECT profile_id, kernel_balance FROM shop_wallets WHERE profile_id = ?", [pid]);
   if (!row) {
     const ts = toSafeInt(atMs, 0);
     await runAsync(
       db,
-      "INSERT INTO shop_wallets (profile_id, popcorn_balance, kernel_balance, updated_at) VALUES (?, 0, 0, ?)",
+      "INSERT INTO shop_wallets (profile_id, kernel_balance, updated_at) VALUES (?, 0, ?)",
       [pid, ts]
     );
-    row = await getAsync(db, "SELECT profile_id, popcorn_balance, kernel_balance FROM shop_wallets WHERE profile_id = ?", [pid]);
+    row = await getAsync(db, "SELECT profile_id, kernel_balance FROM shop_wallets WHERE profile_id = ?", [pid]);
   }
 
   return mapWallet(row);
@@ -325,7 +358,6 @@ function buildConfirmPayload(input) {
     grantedAmount: toSafeInt(input.grantedAmount, 0),
     popTalk: normalizePopTalkSnapshot(input.popTalk),
     wallet: {
-      popcornBalance: toSafeInt(input.wallet && input.wallet.popcornBalance, 0),
       kernelBalance: toSafeInt(input.wallet && input.wallet.kernelBalance, 0),
     },
   };
@@ -334,19 +366,24 @@ function buildConfirmPayload(input) {
 function buildUnifiedStatePayload(input) {
   const giftsOwned = input && input.giftState && typeof input.giftState === "object" ? input.giftState.giftsOwned || {} : {};
   const giftsReceived = input && input.giftState && typeof input.giftState === "object" ? input.giftState.giftsReceived || {} : {};
+  const firstPurchaseClaimed =
+    input && input.firstPurchaseClaimed && typeof input.firstPurchaseClaimed === "object"
+      ? input.firstPurchaseClaimed
+      : {};
   return {
     ok: true,
     profileId: asText(input.profileId, 180),
     serverNowMs: toSafeInt(input.serverNowMs, 0),
     popTalk: normalizePopTalkSnapshot(input.popTalk),
     wallet: {
-      popcornBalance: toSafeInt(input.wallet && input.wallet.popcornBalance, 0),
       kernelBalance: toSafeInt(input.wallet && input.wallet.kernelBalance, 0),
     },
     giftInventory: {
       owned: giftsOwned,
       received: giftsReceived,
     },
+    firstPurchaseClaimed,
+    claimedPackIds: Object.keys(firstPurchaseClaimed).filter((key) => firstPurchaseClaimed[key] === true),
     giftsOwned,
     giftsReceived,
   };
@@ -356,7 +393,6 @@ function buildGiftStatePayload(input) {
   const giftsOwned = input && input.giftsOwned && typeof input.giftsOwned === "object" ? input.giftsOwned : {};
   const giftsReceived = input && input.giftsReceived && typeof input.giftsReceived === "object" ? input.giftsReceived : {};
   const walletKernel = toSafeInt(input && input.wallet && input.wallet.kernelBalance, 0);
-  const walletPopcorn = toSafeInt(input && input.wallet && input.wallet.popcornBalance, 0);
   return {
     ok: true,
     profileId: asText(input && input.profileId, 180),
@@ -367,7 +403,6 @@ function buildGiftStatePayload(input) {
     giftsOwned,
     giftsReceived,
     wallet: {
-      popcornBalance: walletPopcorn,
       kernelBalance: walletKernel,
     },
     walletKernel,
@@ -379,7 +414,6 @@ function buildGiftStatePayload(input) {
       giftsOwned,
       giftsReceived,
       wallet: {
-        popcornBalance: walletPopcorn,
         kernelBalance: walletKernel,
       },
       walletKernel,
@@ -483,6 +517,7 @@ function mountShopPurchaseRoutes(app, deps) {
     await initPromise;
     const serverNowMs = toSafeInt(now(), 0);
     const giftState = await readGiftState(db, profileId, serverNowMs);
+    const firstPurchaseClaimed = await readFirstPurchaseClaimMap(db, profileId);
     const wallet = giftState.wallet;
     const popTalkRaw = resolvePopTalkSnapshot ? resolvePopTalkSnapshot(req, body, profileId) : null;
 
@@ -492,7 +527,37 @@ function mountShopPurchaseRoutes(app, deps) {
       wallet,
       popTalk: popTalkRaw,
       giftState,
+      firstPurchaseClaimed,
     });
+  }
+
+  async function firstPurchaseClaimsHandler(req, res) {
+    const input = { ...(req.query || {}), ...(req.body || {}) };
+    const profileId = asText(computeProfileId(req, input), 180);
+    if (!profileId) {
+      return res.status(400).json({ ok: false, error: "profile_id_required", message: "profile_id_required" });
+    }
+
+    try {
+      await initPromise;
+      const claimed = await readFirstPurchaseClaimMap(db, profileId);
+      return res.status(200).json({
+        ok: true,
+        profileId,
+        firstPurchaseClaimed: claimed,
+        claimedPackIds: Object.keys(claimed).filter((key) => claimed[key] === true),
+        claims: claimed,
+        firstPurchase: {
+          claimed,
+        },
+      });
+    } catch (e) {
+      return res.status(500).json({
+        ok: false,
+        error: "first_purchase_claims_failed",
+        message: String((e && e.message) || e || "first_purchase_claims_failed"),
+      });
+    }
   }
 
   async function resolveExistingByTransaction(transactionId, profileId, atMs) {
@@ -755,6 +820,7 @@ function mountShopPurchaseRoutes(app, deps) {
 
         const nextOwned = toSafeInt(row.ownedCount - body.count, 0, 1000000000);
         const wallet = await ensureWallet(db, profileId, nowMs);
+        const receiverProfileId = asText(body.receiverProfileId, 180);
         await runAsync(
           db,
           "UPDATE shop_gift_inventory SET owned_count = ?, updated_at = ? WHERE profile_id = ? AND gift_id = ?",
@@ -766,8 +832,27 @@ function mountShopPurchaseRoutes(app, deps) {
             `INSERT INTO shop_gift_action_events (
               profile_id, action_type, action_key, gift_id, count, peer_profile_id, wallet_kernel_balance, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [profileId, "send", actionKey, body.giftId, body.count, body.receiverProfileId || "", wallet.kernelBalance, nowMs]
+            [profileId, "send", actionKey, body.giftId, body.count, receiverProfileId || "", wallet.kernelBalance, nowMs]
           );
+        }
+        if (receiverProfileId) {
+          const receiverRow = await ensureGiftRow(db, receiverProfileId, body.giftId, nowMs);
+          const nextReceived = toSafeInt(receiverRow.receivedCount + body.count, 0, 1000000000);
+          const receiverWallet = await ensureWallet(db, receiverProfileId, nowMs);
+          await runAsync(
+            db,
+            "UPDATE shop_gift_inventory SET received_count = ?, updated_at = ? WHERE profile_id = ? AND gift_id = ?",
+            [nextReceived, nowMs, receiverProfileId, body.giftId]
+          );
+          if (actionKey) {
+            await runAsync(
+              db,
+              `INSERT INTO shop_gift_action_events (
+                profile_id, action_type, action_key, gift_id, count, peer_profile_id, wallet_kernel_balance, created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [receiverProfileId, "receive", actionKey, body.giftId, body.count, profileId, receiverWallet.kernelBalance, nowMs]
+            );
+          }
         }
 
         await runAsync(db, "COMMIT", []);
@@ -781,6 +866,18 @@ function mountShopPurchaseRoutes(app, deps) {
           },
           reason: "gift_sent",
         });
+        if (receiverProfileId) {
+          const receiverWallet = await getWalletByProfileId(receiverProfileId, nowMs);
+          emitWalletChanged({
+            profileId: receiverProfileId,
+            req,
+            body: bodyRaw,
+            wallet: {
+              kernelBalance: receiverWallet.kernelBalance,
+            },
+            reason: "gift_received",
+          });
+        }
         return res.status(200).json(buildGiftStatePayload(state));
       } catch (innerErr) {
         try {
@@ -993,7 +1090,7 @@ function mountShopPurchaseRoutes(app, deps) {
     }
 
     const kindRaw = asText(body.kind, 16).toLowerCase();
-    const kind = kindRaw === "kernel" ? "kernel" : "popcorn";
+    const kind = kindRaw === "kernel" ? "kernel" : "poptalk";
     const packId = sanitizeText(body.packId, 80);
     const productId = sanitizeText(body.productId, 160);
     const transactionId = sanitizeText(body.transactionId, 200);
@@ -1006,7 +1103,7 @@ function mountShopPurchaseRoutes(app, deps) {
     const userId = sanitizeText(body.userId || req.headers["x-user-id"] || "", 128);
     const deviceKey = sanitizeText(body.deviceKey || req.headers["x-device-key"] || "", 256);
     const idempotencyKey = sanitizeText(body.idempotencyKey || req.headers["x-idempotency-key"] || "", 200);
-    const isUnlimited1m = kind === "popcorn" && packId === SHOP_POP_UNLIMITED_1M_PACK_ID;
+    const isUnlimited1m = kind === "poptalk" && packId === SHOP_POP_UNLIMITED_1M_PACK_ID;
 
     if (!packId || !productId || !transactionId || (!isUnlimited1m && amount <= 0)) {
       return res.status(400).json({ ok: false, error: "invalid_input", message: "invalid_input" });
@@ -1034,17 +1131,16 @@ function mountShopPurchaseRoutes(app, deps) {
           [profileId, packId]
         );
 
-        const firstPurchaseBonusApplied = kind === "popcorn" && !isUnlimited1m && !claimed && bonusAmount > 0;
+        const firstPurchaseBonusApplied = kind === "poptalk" && !isUnlimited1m && !claimed && bonusAmount > 0;
         const grantedAmount = isUnlimited1m ? 0 : amount + (firstPurchaseBonusApplied ? bonusAmount : 0);
 
         const currentWallet = await ensureWallet(db, profileId, nowMs);
-        const nextPopcorn = kind === "popcorn" ? currentWallet.popcornBalance + grantedAmount : currentWallet.popcornBalance;
         const nextKernel = kind === "kernel" ? currentWallet.kernelBalance + grantedAmount : currentWallet.kernelBalance;
 
         await runAsync(
           db,
-          "UPDATE shop_wallets SET popcorn_balance = ?, kernel_balance = ?, updated_at = ? WHERE profile_id = ?",
-          [nextPopcorn, nextKernel, nowMs, profileId]
+          "UPDATE shop_wallets SET kernel_balance = ?, updated_at = ? WHERE profile_id = ?",
+          [nextKernel, nowMs, profileId]
         );
 
         if (firstPurchaseBonusApplied) {
@@ -1102,7 +1198,7 @@ function mountShopPurchaseRoutes(app, deps) {
         await runAsync(db, "COMMIT", []);
 
         let popTalkSnapshot = null;
-        if (kind === "popcorn" && typeof applyKernelToPopTalk === "function") {
+        if (kind === "poptalk" && typeof applyKernelToPopTalk === "function") {
           try {
             const applyOut = await Promise.resolve(
               applyKernelToPopTalk({
@@ -1112,7 +1208,7 @@ function mountShopPurchaseRoutes(app, deps) {
                 convertedPopTalk: grantedAmount,
                 popTalkPlanOverride: isUnlimited1m ? "monthly" : "",
                 unlimitedUntilMs: isUnlimited1m ? nowMs + POP_UNLIMITED_1M_MS : 0,
-                reason: "shop_purchase_popcorn",
+                reason: "shop_purchase_poptalk",
                 source: "shop_purchase",
                 atMs: nowMs,
               })
@@ -1135,7 +1231,6 @@ function mountShopPurchaseRoutes(app, deps) {
           grantedAmount,
           popTalk: popTalkSnapshot,
           wallet: {
-            popcornBalance: nextPopcorn,
             kernelBalance: nextKernel,
           },
         });
@@ -1360,6 +1455,16 @@ function mountShopPurchaseRoutes(app, deps) {
   });
 
   [
+    "/api/shop/first-purchase/claims",
+    "/shop/first-purchase/claims",
+    "/api/shop/first-purchase/status",
+    "/shop/first-purchase/status",
+  ].forEach((p) => {
+    app.get(p, firstPurchaseClaimsHandler);
+    app.post(p, firstPurchaseClaimsHandler);
+  });
+
+  [
     "/api/shop/gifts/state",
     "/shop/gifts/state",
     "/api/shop/gift/state",
@@ -1437,7 +1542,7 @@ function mountShopPurchaseRoutes(app, deps) {
     app.post(p, giftExchangeHandler);
   });
 
-  ["/api/wallet/state", "/wallet/state", "/api/state/wallet"].forEach((p) => {
+  ["/api/shop/state", "/shop/state", "/api/wallet/state", "/wallet/state", "/api/state/wallet"].forEach((p) => {
     app.get(p, unifiedStateHandler);
     app.post(p, unifiedStateHandler);
   });

@@ -8,6 +8,7 @@ import { createDefaultMatchFilter, saveMatchFilterOnServer } from "../call/Match
 let inited = false;
 let initInFlight: Promise<void> | null = null;
 let currentRcAppUserId: string | null = null;
+let customerInfoListenerBound = false;
 
 export type OneTimePurchaseResult = {
   ok: boolean;
@@ -31,6 +32,21 @@ function inferPlanId(productIdRaw: string): string | null {
 
 function toUserId(v: string | null | undefined): string {
   return String(v || "").trim();
+}
+
+function parseRevenueCatExpiryMs(entitlement: any): number | null {
+  const raw =
+    entitlement?.expirationDate ??
+    entitlement?.expiresDate ??
+    entitlement?.expiration_date ??
+    entitlement?.expires_at_ms ??
+    entitlement?.expirationDateMillis ??
+    null;
+  if (raw == null || raw === "") return null;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) return Math.trunc(numeric);
+  const parsed = Date.parse(String(raw));
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 }
 
 function readStoreUserId(): string {
@@ -70,6 +86,36 @@ async function loginRcUserIfNeeded(userIdRaw: string | null | undefined): Promis
   }
 }
 
+function applyCustomerInfoToStore(customerInfo: any): void {
+  const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
+  const prevPremium = Boolean((useAppStore.getState() as any)?.sub?.isPremium);
+  const activeEntitlement = customerInfo?.entitlements?.active?.[entitlementId] as any;
+  const entitlement = (activeEntitlement ?? customerInfo?.entitlements?.all?.[entitlementId]) as any;
+  const active = Boolean(activeEntitlement);
+  const productId = String(
+    active
+      ? activeEntitlement?.productIdentifier ??
+        activeEntitlement?.productId ??
+        customerInfo?.activeSubscriptions?.[0] ??
+        ""
+      : ""
+  ).trim();
+  const premiumExpiresAtMs = parseRevenueCatExpiryMs(entitlement);
+
+  useAppStore.getState().setSub({
+    isPremium: active,
+    entitlementId: entitlementId,
+    lastCheckedAt: Date.now(),
+    storeProductId: productId || null,
+    planId: inferPlanId(productId),
+    premiumExpiresAtMs,
+  });
+
+  if (prevPremium && !active) {
+    resetMatchFilterToAllOnServerIfNeeded().catch(() => undefined);
+  }
+}
+
 export async function initPurchases(userIdRaw?: string | null) {
   const key = APP_CONFIG.PURCHASES.revenueCatKey;
   if (!key) return;
@@ -96,6 +142,19 @@ export async function initPurchases(userIdRaw?: string | null) {
       await Purchases.configure(cfg);
       inited = true;
       currentRcAppUserId = userId || null;
+      if (
+        !customerInfoListenerBound &&
+        typeof (Purchases as any).addCustomerInfoUpdateListener === "function"
+      ) {
+        try {
+          (Purchases as any).addCustomerInfoUpdateListener((customerInfo: any) => {
+            applyCustomerInfoToStore(customerInfo);
+          });
+          customerInfoListenerBound = true;
+        } catch {
+          // Ignore listener binding failure.
+        }
+      }
       await refreshSubscription();
     } catch {
       // Ignore init failure.
@@ -129,6 +188,41 @@ export async function purchasePremiumByProductId(productId: string) {
   await Purchases.purchasePackage(target);
 }
 
+async function findOfferingPackageByProductId(productId: string): Promise<any | null> {
+  const pid = String(productId || "").trim();
+  if (!pid) return null;
+
+  try {
+    const offerings: any = await Purchases.getOfferings();
+    const all = offerings?.all && typeof offerings.all === "object" ? offerings.all : {};
+    const seen = new Set<any>();
+    const offeringRows: any[] = [];
+
+    if (offerings?.current) {
+      offeringRows.push(offerings.current);
+      seen.add(offerings.current);
+    }
+
+    for (const key of Object.keys(all)) {
+      const offering = all[key];
+      if (offering && !seen.has(offering)) {
+        offeringRows.push(offering);
+        seen.add(offering);
+      }
+    }
+
+    for (const offering of offeringRows) {
+      const rows = Array.isArray(offering?.availablePackages) ? offering.availablePackages : [];
+      const match = rows.find((row: any) => String(row?.product?.identifier || "").trim() === pid);
+      if (match) return match;
+    }
+  } catch {
+    // Fall back to direct store-product lookup.
+  }
+
+  return null;
+}
+
 async function findStoreProductById(productId: string): Promise<any | null> {
   const pid = String(productId || "").trim();
   if (!pid) return null;
@@ -139,12 +233,20 @@ async function findStoreProductById(productId: string): Promise<any | null> {
     (Purchases as any)?.PRODUCT_CATEGORY?.SUBSCRIPTION,
   ].filter(Boolean);
 
-  for (const type of candidates) {
+  const attempts: Array<() => Promise<any[]>> = [
+    async () => await (Purchases as any).getProducts([pid]),
+    ...candidates.map((type) => async () => await (Purchases as any).getProducts([pid], type)),
+  ];
+
+  for (const run of attempts) {
     try {
-      const rows: any[] = await (Purchases as any).getProducts([pid], type);
-      if (Array.isArray(rows) && rows.length > 0) return rows[0];
+      const rows: any[] = await run();
+      if (!Array.isArray(rows) || rows.length === 0) continue;
+      const match =
+        rows.find((row: any) => String(row?.identifier || row?.productIdentifier || "").trim() === pid) || rows[0];
+      if (match) return match;
     } catch {
-      // Try next category.
+      // Try next lookup strategy.
     }
   }
 
@@ -168,8 +270,9 @@ export async function purchaseOneTimeByProductId(productId: string): Promise<One
 
   try {
     await syncPurchasesAppUser(readStoreUserId());
-    const product = await findStoreProductById(pid);
-    if (!product) {
+    const pkg = await findOfferingPackageByProductId(pid);
+    const product = pkg ? null : await findStoreProductById(pid);
+    if (!pkg && !product) {
       return {
         ok: false,
         cancelled: false,
@@ -182,8 +285,10 @@ export async function purchaseOneTimeByProductId(productId: string): Promise<One
       };
     }
 
-    const out: any = await (Purchases as any).purchaseStoreProduct(product);
-    const boughtProductId = String(out?.productIdentifier || pid).trim() || pid;
+    const out: any = pkg
+      ? await Purchases.purchasePackage(pkg)
+      : await (Purchases as any).purchaseStoreProduct(product);
+    const boughtProductId = String(out?.productIdentifier || pkg?.product?.identifier || product?.identifier || pid).trim() || pid;
     const customerInfo: any = out?.customerInfo ?? null;
     const rcAppUserId = String(customerInfo?.originalAppUserId || (await (Purchases as any).getAppUserID?.()) || "").trim();
 
@@ -235,35 +340,14 @@ export async function purchaseOneTimeByProductId(productId: string): Promise<One
 
 export async function refreshSubscription() {
   if (!inited) return;
-  const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
   try {
-    const prevPremium = Boolean((useAppStore.getState() as any)?.sub?.isPremium);
     const customerInfo = await Purchases.getCustomerInfo();
-    const active = Boolean(customerInfo?.entitlements?.active?.[entitlementId]);
-    const entitlement = customerInfo?.entitlements?.active?.[entitlementId] as any;
-    const productId = String(
-      entitlement?.productIdentifier ??
-        entitlement?.productId ??
-        customerInfo?.activeSubscriptions?.[0] ??
-        ""
-    ).trim();
-
-    useAppStore.getState().setSub({
-      isPremium: active,
-      entitlementId: entitlementId,
-      lastCheckedAt: Date.now(),
-      storeProductId: productId || null,
-      planId: inferPlanId(productId),
-    });
-    if (prevPremium && !active) {
-      await resetMatchFilterToAllOnServerIfNeeded();
-    }
+    applyCustomerInfoToStore(customerInfo);
   } catch {}
 }
 
 export async function purchasePremium() {
   const { t } = useTranslation();
-  const entitlementId = APP_CONFIG.PURCHASES.entitlementId;
   try {
     await initPurchases(readStoreUserId());
     const offerings = await Purchases.getOfferings();
@@ -282,22 +366,7 @@ export async function purchasePremium() {
     await Purchases.purchasePackage(pick);
 
     const customerInfo = await Purchases.getCustomerInfo();
-    const active = Boolean(customerInfo?.entitlements?.active?.[entitlementId]);
-    const entitlement = customerInfo?.entitlements?.active?.[entitlementId] as any;
-    const productId = String(
-      entitlement?.productIdentifier ??
-        entitlement?.productId ??
-        customerInfo?.activeSubscriptions?.[0] ??
-        ""
-    ).trim();
-
-    useAppStore.getState().setSub({
-      isPremium: active,
-      entitlementId: entitlementId,
-      lastCheckedAt: Date.now(),
-      storeProductId: productId || null,
-      planId: inferPlanId(productId),
-    });
+    applyCustomerInfoToStore(customerInfo);
   } catch (e: any) {
     const { t } = useTranslation();
     if (e?.userCancelled) return;

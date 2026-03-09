@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, InteractionManager, Keyboard, Platform, TextInput } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export type ChatMessage = { id: string; mine: boolean; text: string };
+export type ChatMessage = {
+  id: string;
+  mine: boolean;
+  text: string;
+  displayName?: string;
+  avatarUrl?: string | null;
+};
 
 type UseChatSystemArgs = {
   phase: string;
@@ -12,10 +18,15 @@ type UseChatSystemArgs = {
   rtcRef: React.MutableRefObject<any>;
   beforeSendChat?: (text: string) => Promise<boolean> | boolean;
   onSendBlocked?: (reason: string) => void;
+  resolveChatMessageProfile?: (mine: boolean) => { displayName?: string | null; avatarUrl?: string | null } | null | undefined;
 };
 
 const SWIPE_GUIDE_REFRESH_HIDE_COUNT = 2;
 const SWIPE_GUIDE_STORAGE_KEY = "@ranchat/call/swipe-guide-refresh-count-v1";
+const CHAT_FEED_VISIBLE_MS = 7000;
+const CHAT_FEED_MAX_PER_SENDER = 4;
+const CHAT_FEED_MIN_HIDE_MS = 1200;
+const CHAT_FEED_HIDE_MS_PER_ROW = 260;
 
 export default function useChatSystem({
   phase,
@@ -25,6 +36,7 @@ export default function useChatSystem({
   rtcRef,
   beforeSendChat,
   onSendBlocked,
+  resolveChatMessageProfile,
 }: UseChatSystemArgs) {
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -36,7 +48,9 @@ export default function useChatSystem({
   const [swipeGuideStorageReady, setSwipeGuideStorageReady] = useState(false);
 
   const chatSeqRef = useRef(0);
+  const chatMessagesRef = useRef<ChatMessage[]>([]);
   const chatHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatHideTokenRef = useRef(0);
   const chatFeedOpacityRef = useRef(new Animated.Value(0));
   const chatFeedHideProgressRef = useRef(new Animated.Value(0));
   const chatInputRef = useRef<TextInput | null>(null);
@@ -121,6 +135,24 @@ export default function useChatSystem({
     chatFocusTimerRefs.current = [];
   }, []);
 
+  const clampChatMessages = useCallback((rows: ChatMessage[]) => {
+    let mineCount = 0;
+    let peerCount = 0;
+    const kept: ChatMessage[] = [];
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const row = rows[i];
+      if (row.mine) {
+        if (mineCount >= CHAT_FEED_MAX_PER_SENDER) continue;
+        mineCount += 1;
+      } else {
+        if (peerCount >= CHAT_FEED_MAX_PER_SENDER) continue;
+        peerCount += 1;
+      }
+      kept.unshift(row);
+    }
+    return kept;
+  }, []);
+
   const resetChatFeedAnimations = useCallback(() => {
     chatFeedOpacityRef.current.stopAnimation();
     chatFeedHideProgressRef.current.stopAnimation();
@@ -155,6 +187,8 @@ export default function useChatSystem({
   }, []);
 
   const showChatFeedForAWhile = useCallback(() => {
+    chatHideTokenRef.current += 1;
+    const token = chatHideTokenRef.current;
     setChatFeedVisible(true);
     chatFeedHideProgressRef.current.stopAnimation();
     chatFeedHideProgressRef.current.setValue(0);
@@ -162,13 +196,18 @@ export default function useChatSystem({
     clearChatHideTimer();
     chatHideTimerRef.current = setTimeout(() => {
       chatHideTimerRef.current = null;
-      animateChatFeedHideProgress(1, 420, () => {
-        animateChatFeedOpacity(0, 120, () => {
+      if (chatHideTokenRef.current !== token) return;
+      const messageCount = Math.max(1, chatMessagesRef.current.length);
+      const hideDuration = Math.max(CHAT_FEED_MIN_HIDE_MS, messageCount * CHAT_FEED_HIDE_MS_PER_ROW);
+      animateChatFeedHideProgress(1, hideDuration, () => {
+        if (chatHideTokenRef.current !== token) return;
+        animateChatFeedOpacity(0, 180, () => {
+          if (chatHideTokenRef.current !== token) return;
           setChatFeedVisible(false);
           chatFeedHideProgressRef.current.setValue(0);
         });
       });
-    }, 7000);
+    }, CHAT_FEED_VISIBLE_MS);
   }, [animateChatFeedHideProgress, animateChatFeedOpacity, clearChatHideTimer]);
 
   const appendChatMessage = useCallback(
@@ -177,14 +216,21 @@ export default function useChatSystem({
       if (!text) return;
 
       const id = `${Date.now()}_${chatSeqRef.current++}`;
-      setChatMessages((prev) => {
-        const next = [...prev, { id, mine, text }];
-        return next.length > 5 ? next.slice(next.length - 5) : next;
-      });
+      const meta = resolveChatMessageProfile ? resolveChatMessageProfile(mine) : null;
+      const displayName = String(meta?.displayName || "").trim().slice(0, 32);
+      const avatarUrl = String(meta?.avatarUrl || "").trim().slice(0, 420000) || null;
+      const next = [...chatMessagesRef.current, { id, mine, text, displayName: displayName || undefined, avatarUrl }];
+      const trimmed = clampChatMessages(next);
+      chatMessagesRef.current = trimmed;
+      setChatMessages(trimmed);
       showChatFeedForAWhile();
     },
-    [showChatFeedForAWhile]
+    [clampChatMessages, resolveChatMessageProfile, showChatFeedForAWhile]
   );
+
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+  }, [chatMessages]);
 
   const sendChat = useCallback(async () => {
     const text = String(chatInput || "").trim();
@@ -302,8 +348,10 @@ export default function useChatSystem({
   }, []);
 
   const resetChatAndSwipeState = useCallback(() => {
+    chatHideTokenRef.current += 1;
     setChatReady(false);
     setChatInput("");
+    chatMessagesRef.current = [];
     setChatMessages([]);
     setChatFeedVisible(false);
     resetChatFeedAnimations();
@@ -392,6 +440,7 @@ export default function useChatSystem({
 
   useEffect(() => {
     return () => {
+      chatHideTokenRef.current += 1;
       clearChatFocusTimers();
       chatOpenPendingRef.current = false;
       chatComposerOpenRef.current = false;

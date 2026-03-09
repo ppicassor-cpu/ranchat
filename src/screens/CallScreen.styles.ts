@@ -139,6 +139,47 @@ localAreaCalling: {
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.22)",
   },
+  callAiStopBtn: {
+    position: "absolute",
+    zIndex: 145,
+    elevation: 145,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.22)",
+  },
+  callContactsBtn: {
+    position: "absolute",
+    zIndex: 145,
+    elevation: 145,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.22)",
+  },
+  callContactQuickBtn: {
+    position: "absolute",
+    zIndex: 145,
+    elevation: 145,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.22)",
+  },
+  callContactQuickBtnActive: {
+    backgroundColor: "rgba(120,39,74,0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(255,225,236,0.42)",
+  },
+  callAiStopBtnPressed: {
+    opacity: 0.76,
+  },
   callTranslateBtn: {
     position: "absolute",
     zIndex: 145,
@@ -149,8 +190,6 @@ localAreaCalling: {
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(20,20,20,0.34)",
-    borderWidth: 1,
-    borderColor: "rgba(197,201,209,0.36)",
   },
   callTranslateBtnActive: {
     backgroundColor: "rgba(26,108,130,0.34)",
@@ -195,18 +234,64 @@ localAreaCalling: {
   remoteInfoDock: {
     position: "absolute",
     top: 0,
-    right: 22,
-    alignItems: "flex-end",
+    left: 16,
+    right: 16,
+    alignItems: "center",
     justifyContent: "center",
     zIndex: 50,
     elevation: 50,
     gap: 3,
   },
 
+  remoteProfileDock: {
+    position: "absolute",
+    top: 0,
+    right: 4,
+    width: 88,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    zIndex: 50,
+    elevation: 50,
+    gap: 4,
+  },
+
   remoteInfoRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    maxWidth: "100%",
+  },
+  remoteInfoRowAi: {
+    gap: 14,
+  },
+
+  remoteInfoMetaWrap: {
+    flexShrink: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    maxWidth: 280,
+  },
+  remoteInfoMetaWrapAi: {
+    gap: 0,
+  },
+  remoteInfoMetaLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
+    maxWidth: 300,
+  },
+
+  remoteInfoProfileWrap: {
+    width: 88,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 4,
+  },
+  remoteInfoProfileWrapAi: {
+    marginLeft: 4,
   },
 
   aiPeerBadge: {
@@ -230,12 +315,48 @@ localAreaCalling: {
     color: "rgba(255,255,255,0.92)",
     fontSize: 13,
     fontWeight: "700",
+    lineHeight: 16,
+    maxWidth: 286,
+    textAlign: "center",
+  },
+
+  remoteInfoNicknameText: {
+    color: "rgba(255,240,246,0.98)",
+    fontSize: 11,
+    fontWeight: "800",
+    maxWidth: 96,
+    textAlign: "center",
+    lineHeight: 13,
+  },
+
+  remoteInfoAvatarWrap: {
+    width: 50,
+    height: 50,
+    borderRadius: 999,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(74,54,65,0.96)",
+  },
+
+  remoteInfoAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  remoteInfoAvatarFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(86,62,76,0.98)",
   },
 
   remoteInfoSubText: {
     color: "rgba(255, 170, 170, 0.92)",
     fontSize: 11,
     fontWeight: "700",
+    textAlign: "center",
   },
 
   localViewport: {
@@ -268,8 +389,78 @@ localAreaCalling: {
   camOffOverlayFull: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: 34,
     backgroundColor: "#000",
+  },
+  camOffAvatarDock: {
+    marginTop: 36,
+  },
+  camOffAvatarWaveWrap: {
+    width: 148,
+    height: 148,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  stageAvatarWrapLarge: {
+    width: 92,
+    height: 92,
+    borderRadius: 999,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(76,56,68,0.98)",
+  },
+  stageAvatarWrapMuted: {
+    borderWidth: 1.5,
+    borderColor: "rgba(111, 18, 60, 0.92)",
+  },
+  stageAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  stageAvatarFallbackLarge: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(86,62,76,0.98)",
+  },
+  stageAvatarDimOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.34)",
+  },
+  stageAvatarMuteBadge: {
+    position: "absolute",
+    right: 2,
+    bottom: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(91, 16, 56, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 228, 240, 0.34)",
+  },
+  localMicWaveRingPrimary: {
+    position: "absolute",
+    width: 102,
+    height: 102,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: "rgba(235, 195, 226, 0.78)",
+    backgroundColor: "rgba(235, 195, 226, 0.05)",
+  },
+  localMicWaveRingSecondary: {
+    position: "absolute",
+    width: 104,
+    height: 104,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: "rgba(222, 178, 217, 0.62)",
+    backgroundColor: "transparent",
   },
 
   centerOverlay: {
@@ -473,7 +664,7 @@ localAreaCalling: {
   matchingActionsDock: {
     width: "100%",
     alignItems: "center",
-    marginTop: 40,
+    marginTop: 52,
   },
 
   centerText: {
@@ -514,7 +705,7 @@ localAreaCalling: {
   matchingActionRow: {
     width: "100%",
     maxWidth: 360,
-    marginTop: 12,
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "stretch",
     justifyContent: "space-between",
@@ -672,7 +863,7 @@ localAreaCalling: {
     top: 0,
     left: 12,
     right: 12,
-    height: 78,
+    height: 156,
     justifyContent: "flex-end",
     gap: 6,
     overflow: "visible",
@@ -689,19 +880,50 @@ localAreaCalling: {
   chatFeedRowPeer: {
     justifyContent: "flex-start",
   },
+  chatFeedCluster: {
+    maxWidth: "90%",
+    gap: 4,
+  },
+  chatFeedClusterMine: {
+    alignSelf: "flex-end",
+    alignItems: "flex-end",
+  },
+  chatFeedClusterPeer: {
+    alignSelf: "flex-start",
+    alignItems: "flex-start",
+  },
+  chatFeedMessageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    maxWidth: "100%",
+  },
+  chatFeedMessageRowMine: {
+    justifyContent: "flex-end",
+  },
+  chatFeedMessageRowPeer: {
+    justifyContent: "flex-start",
+  },
   chatFeedBubble: {
-    maxWidth: "84%",
+    flexShrink: 1,
+    maxWidth: "100%",
+    minHeight: 38,
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 12,
+    justifyContent: "center",
   },
   chatFeedBubbleMine: {
-    backgroundColor: "rgba(56, 56, 56, 0.72)",
+    backgroundColor: "rgba(79, 51, 64, 0.84)",
     borderTopRightRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 224, 233, 0.2)",
   },
   chatFeedBubblePeer: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(88, 56, 70, 0.78)",
     borderTopLeftRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 226, 235, 0.16)",
   },
   chatFeedBubbleGiftMine: {
     backgroundColor: "rgba(108, 92, 132, 0.64)",
@@ -715,24 +937,26 @@ localAreaCalling: {
   },
   chatFeedText: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
-    fontWeight: "600",
+    fontWeight: "500",
+    includeFontPadding: false,
   },
   chatFeedTextNewest: {
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 19,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   chatFeedTextGift: {
     color: "#F6EEFF",
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   chatFeedTextGiftNewest: {
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 19,
+    fontWeight: "600",
   },
   chatComposerDock: {
     width: "100%",
@@ -777,9 +1001,14 @@ localAreaCalling: {
   },
   chatInput: {
     flex: 1,
-    height: 42,
+    height: 46,
     borderRadius: 12,
     paddingHorizontal: 12,
+    paddingVertical: 0,
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "500",
+    textAlignVertical: "center",
     color: "#fff",
     backgroundColor: "rgba(0, 0, 0, 0.52)",
     borderWidth: StyleSheet.hairlineWidth,
@@ -815,7 +1044,15 @@ localAreaCalling: {
     fontSize: 14,
     color: theme.colors.sub,
     lineHeight: 20,
-    textAlign: "left",
+    textAlign: "center",
+  },
+  callAiStopBtnText: {
+    fontSize: 19,
+    color: "#111111",
+    fontWeight: "900",
+    textAlign: "center",
+    includeFontPadding: false,
+    lineHeight: 20,
   },
   callReportReasonList: {
     width: "100%",
@@ -866,7 +1103,121 @@ localAreaCalling: {
     color: "#5C6375",
     textAlign: "left",
   },
-  modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },
+  callContactsScroll: {
+    width: "100%",
+    maxHeight: 400,
+    marginTop: 6,
+  },
+  callContactsList: {
+    width: "100%",
+    gap: 10,
+    paddingBottom: 4,
+  },
+  callContactRow: {
+    width: "100%",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(191,194,208,0.72)",
+    backgroundColor: "rgba(249,250,255,0.96)",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  callContactRowTop: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  callContactTextWrap: {
+    flex: 1,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 6,
+  },
+  callContactBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  callContactBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(176,30,86,0.24)",
+    backgroundColor: "rgba(255,240,247,0.96)",
+  },
+  callContactBadgeText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
+    color: "#9D174D",
+  },
+  callContactTitle: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "800",
+    color: "#2C2F3A",
+    textAlign: "left",
+  },
+  callContactMeta: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+    color: "#5C6375",
+    textAlign: "left",
+  },
+  callContactStatusWaiting: {
+    color: "#9D174D",
+  },
+  callContactStatusOnline: {
+    color: theme.colors.ok,
+  },
+  callContactStatusOffline: {
+    color: "#7B8190",
+  },
+  callContactActionBtn: {
+    minWidth: 104,
+    height: 44,
+  },
+  callContactActionBtnText: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  callContactEmptyText: {
+    width: "100%",
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.sub,
+    textAlign: "center",
+  },
+  modalText: { width: "100%", fontSize: 14, color: theme.colors.sub, lineHeight: 20, textAlign: "center" },
+  recallAcceptedModalBody: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingVertical: 10,
+  },
+  recallAcceptedHeartWrap: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(247,98,156,0.14)",
+  },
+  recallAcceptedHeartText: {
+    fontSize: 42,
+    fontWeight: "900",
+    color: theme.colors.pinkDeep,
+    lineHeight: 48,
+    textAlign: "center",
+  },
   matchFilterScroll: {
     width: "100%",
     maxHeight: 360,
@@ -896,6 +1247,12 @@ localAreaCalling: {
     justifyContent: "space-between",
     rowGap: 8,
   },
+  matchFilterInterestOptionWrap: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   matchFilterOption: {
     borderRadius: 12,
     borderWidth: 1,
@@ -918,6 +1275,9 @@ localAreaCalling: {
     justifyContent: "center",
     paddingHorizontal: 8,
   },
+  matchFilterInterestOption: {
+    minHeight: 40,
+  },
   matchFilterOptionActive: {
     borderColor: "rgba(176,30,86,0.88)",
     backgroundColor: "rgba(255,240,247,0.96)",
@@ -939,11 +1299,15 @@ localAreaCalling: {
   matchFilterLanguageOptionText: {
     textAlign: "center",
   },
+  matchFilterInterestOptionText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
   matchFilterOptionTextActive: {
     color: "#9D174D",
   },
 
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: theme.colors.text },
+  sectionTitle: { width: "100%", fontSize: 14, fontWeight: "700", color: theme.colors.text, textAlign: "center" },
 
   dropdownBtn: {
     width: "100%",
@@ -997,3 +1361,4 @@ localAreaCalling: {
   countryCode: { fontSize: 12, color: theme.colors.sub, fontWeight: "800" },
   countryCodeActive: { color: theme.colors.pinkDeep },
 });
+

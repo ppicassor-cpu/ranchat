@@ -41,6 +41,10 @@ yarn-error.*
 
 # local env files
 .env*.local
+logs/codex-live-view*
+logs/cloudflared.exe
+logs/manual-remote*
+logs/pinggy-test*
 
 # typescript
 *.tsbuildinfo

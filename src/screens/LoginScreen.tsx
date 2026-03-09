@@ -16,6 +16,7 @@ import {
 } from "../services/auth/NativeSocialLogin";
 import { reportLoginEvent } from "../services/admin/LoginEventReporter";
 import { fetchUnifiedWalletState } from "../services/shop/ShopPurchaseService";
+import { mergeProfileSyncResult, syncProfileToServer } from "../services/profile/ProfileSync";
 
 function toErrMsg(e: unknown): string {
   if (typeof e === "string") return e;
@@ -81,6 +82,7 @@ export default function LoginScreen() {
   const setDeviceKey = useAppStore((s) => s.setDeviceKey);
   const setPopTalk = useAppStore((s) => s.setPopTalk);
   const setAssets = useAppStore((s) => s.setAssets);
+  const setProfile = useAppStore((s: any) => s.setProfile);
   const showGlobalModal = useAppStore((s) => s.showGlobalModal);
 
   const [busyProvider, setBusyProvider] = useState<NativeProvider | null>(null);
@@ -121,9 +123,16 @@ export default function LoginScreen() {
   }, []);
 
   const commitAuth = useCallback(
-    (token: string, userId: string, deviceKey: string) => {
+    (token: string, userId: string, deviceKey: string, email?: string | null) => {
       setDeviceKey(deviceKey);
-      setAuth({ token, userId, deviceKey, verified: true });
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      setAuth({
+        token,
+        userId,
+        deviceKey,
+        verified: true,
+        ...(normalizedEmail ? { email: normalizedEmail } : {}),
+      });
     },
     [setAuth, setDeviceKey]
   );
@@ -134,6 +143,7 @@ export default function LoginScreen() {
     const popTalk = st?.popTalk ?? {};
     const assets = st?.assets ?? {};
     const billing = st?.billing ?? {};
+    const prefs = st?.prefs ?? {};
     const isPremium = Boolean(sub?.isPremium);
 
     return {
@@ -144,6 +154,9 @@ export default function LoginScreen() {
       popTalkCount: Number(popTalk?.balance ?? 0),
       kernelCount: Number(assets?.kernelCount ?? assets?.kernels ?? 0),
       totalPaymentKrw: Number(billing?.totalPaidKrw ?? billing?.totalPaymentKrw ?? 0),
+      country: String(prefs?.country || "").trim().toUpperCase(),
+      language: String(prefs?.language || "").trim().toLowerCase(),
+      gender: String(prefs?.gender || "").trim().toLowerCase(),
     };
   }, []);
 
@@ -156,6 +169,8 @@ export default function LoginScreen() {
       const planId = String(sub?.planId || "").trim();
       const storeProductId = String(sub?.storeProductId || "").trim();
       const isPremium = Boolean(sub?.isPremium);
+      const premiumExpiresRaw = Number(sub?.premiumExpiresAtMs);
+      const premiumExpiresAtMs = Number.isFinite(premiumExpiresRaw) && premiumExpiresRaw > 0 ? Math.trunc(premiumExpiresRaw) : null;
 
       const unified = await fetchUnifiedWalletState({
         token,
@@ -164,6 +179,7 @@ export default function LoginScreen() {
         planId,
         storeProductId,
         isPremium,
+        premiumExpiresAtMs,
       }).catch(() => null);
       if (!unified?.ok) return;
 
@@ -185,6 +201,25 @@ export default function LoginScreen() {
     [setAssets, setPopTalk]
   );
 
+  const hydrateProfileAfterLogin = useCallback(
+    async (token: string, userId: string, deviceKey: string) => {
+      const st: any = useAppStore.getState?.() ?? {};
+      const prefs = st?.prefs ?? {};
+      const out = await syncProfileToServer({
+        token,
+        userId,
+        deviceKey,
+        country: String(prefs?.country || "").trim().toUpperCase() || null,
+        language: String(prefs?.language || "").trim().toLowerCase() || null,
+        gender: String(prefs?.gender || "").trim().toLowerCase() || null,
+      }).catch(() => null);
+      if (!out?.ok) return;
+      const currentProfile = (useAppStore.getState() as any)?.profile;
+      setProfile(mergeProfileSyncResult(currentProfile, out));
+    },
+    [setProfile]
+  );
+
   const onPressGoogle = useCallback(async () => {
     if (busyProvider) return;
     setBusyProvider("google");
@@ -192,8 +227,9 @@ export default function LoginScreen() {
       const deviceKey = await getOrCreateDeviceKey();
       const identity = await getGoogleNativeIdentity();
       const auth = await exchangeGoogleNativeIdentity({ ...identity, deviceKey });
-      commitAuth(auth.token, auth.userId, deviceKey);
+      commitAuth(auth.token, auth.userId, deviceKey, identity.email);
       hydrateWalletAfterLogin(auth.token, auth.userId, deviceKey).catch(() => undefined);
+      hydrateProfileAfterLogin(auth.token, auth.userId, deviceKey).catch(() => undefined);
       reportLoginEvent({
         token: auth.token,
         userId: auth.userId,
@@ -210,7 +246,7 @@ export default function LoginScreen() {
     } finally {
       setBusyProvider(null);
     }
-  }, [busyProvider, commitAuth, hydrateWalletAfterLogin, readLoginMonitorMeta, showGlobalModal, t]);
+  }, [busyProvider, commitAuth, hydrateProfileAfterLogin, hydrateWalletAfterLogin, readLoginMonitorMeta, showGlobalModal, t]);
 
   const onPressApple = useCallback(async () => {
     if (busyProvider) return;
@@ -224,8 +260,9 @@ export default function LoginScreen() {
       const deviceKey = await getOrCreateDeviceKey();
       const identity = await getAppleNativeIdentity();
       const auth = await exchangeAppleNativeIdentity({ ...identity, deviceKey });
-      commitAuth(auth.token, auth.userId, deviceKey);
+      commitAuth(auth.token, auth.userId, deviceKey, identity.email);
       hydrateWalletAfterLogin(auth.token, auth.userId, deviceKey).catch(() => undefined);
+      hydrateProfileAfterLogin(auth.token, auth.userId, deviceKey).catch(() => undefined);
       reportLoginEvent({
         token: auth.token,
         userId: auth.userId,
@@ -242,7 +279,7 @@ export default function LoginScreen() {
     } finally {
       setBusyProvider(null);
     }
-  }, [busyProvider, commitAuth, hydrateWalletAfterLogin, readLoginMonitorMeta, showGlobalModal, t]);
+  }, [busyProvider, commitAuth, hydrateProfileAfterLogin, hydrateWalletAfterLogin, readLoginMonitorMeta, showGlobalModal, t]);
 
   const isLocked = Boolean(busyProvider || updateBusy);
   const statusText = useMemo(() => {

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { getLanguageName } from "../i18n/displayNames";
+import { getCountryName, getLanguageName } from "../i18n/displayNames";
 import { countryCodeToFlagEmoji } from "../utils/countryUtils";
 
 type UsePeerInfoArgs = {
@@ -16,6 +16,11 @@ export default function usePeerInfo({ peerInfo, prefs, t }: UsePeerInfoArgs) {
     const direct = String((peerInfo as any)?.flag ?? "").trim();
     return direct || countryCodeToFlagEmoji(peerCountryRaw);
   }, [peerInfo, peerCountryRaw]);
+  const peerCountryLabel = useMemo(() => {
+    const code = String(peerCountryRaw || "").trim().toUpperCase();
+    if (!code) return "";
+    return getCountryName(t, code);
+  }, [peerCountryRaw, t]);
   const peerLangLabel = useMemo(() => {
     return getLanguageName(t, peerLangRaw);
   }, [peerLangRaw, t]);
@@ -31,15 +36,25 @@ export default function usePeerInfo({ peerInfo, prefs, t }: UsePeerInfoArgs) {
   const peerInfoText = useMemo(() => {
     const parts: string[] = [];
 
-    const countryPart = `${peerFlag ? `${peerFlag} ` : ""}${peerCountryRaw || ""}`;
+    const countryPart = `${peerFlag ? `${peerFlag} ` : ""}${peerCountryLabel || peerCountryRaw || ""}`;
     if (countryPart.trim()) parts.push(countryPart.trim());
 
     if (peerLangLabel) parts.push(peerLangLabel);
 
     if (peerGenderLabel) parts.push(peerGenderLabel);
 
-    return parts.join(" · ");
-  }, [peerLangLabel, peerFlag, peerCountryRaw, peerGenderLabel]);
+    return parts.join(" / ");
+  }, [peerCountryLabel, peerCountryRaw, peerFlag, peerGenderLabel, peerLangLabel]);
+  const peerInfoCompactText = useMemo(() => {
+    const parts: string[] = [];
+
+    const countryPart = `${peerFlag ? `${peerFlag} ` : ""}${peerCountryLabel || peerCountryRaw || ""}`;
+    if (countryPart.trim()) parts.push(countryPart.trim());
+
+    if (peerLangLabel) parts.push(peerLangLabel);
+
+    return parts.join(" / ");
+  }, [peerCountryLabel, peerCountryRaw, peerFlag, peerLangLabel]);
 
   const myCountryRaw = useMemo(() => String((prefs as any)?.country ?? ""), [prefs]);
   const myLangRaw = useMemo(() => String((prefs as any)?.language ?? (prefs as any)?.lang ?? ""), [prefs]);
@@ -49,6 +64,7 @@ export default function usePeerInfo({ peerInfo, prefs, t }: UsePeerInfoArgs) {
   return {
     isAiPeer,
     peerInfoText,
+    peerInfoCompactText,
     myCountryRaw,
     myLangRaw,
     myGenderRaw,

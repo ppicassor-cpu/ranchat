@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type React from "react";
 import { SignalClient } from "../services/signal/SignalClient";
 import { WebRTCSession } from "../services/webrtc/WebRTCSession";
@@ -24,6 +25,7 @@ type UseCallRuntimeArgs = {
   beginCallReqRef: React.MutableRefObject<{ ws: SignalClient; rid: string; caller: boolean; qTok: number } | null>;
   webrtcConnectTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   webrtcConnectedRef: React.MutableRefObject<boolean>;
+  setCallTransportReady: (v: boolean) => void;
   setSignalUnstable: (v: boolean) => void;
   noMatchShownThisCycleRef: React.MutableRefObject<boolean>;
   setFastMatchHint: (v: boolean) => void;
@@ -52,6 +54,7 @@ type UseCallRuntimeArgs = {
   beginCallGuardRef: React.MutableRefObject<boolean>;
   queueTokenRef: React.MutableRefObject<number>;
   phaseRef: React.MutableRefObject<string>;
+  isCallerRef: React.MutableRefObject<boolean>;
   remoteMutedRef: React.MutableRefObject<boolean>;
   setReMatchText: (v: string) => void;
   runMatchRevealTransition: (onDone: () => void) => boolean;
@@ -84,6 +87,7 @@ export default function useCallRuntime({
   beginCallReqRef,
   webrtcConnectTimerRef,
   webrtcConnectedRef,
+  setCallTransportReady,
   setSignalUnstable,
   noMatchShownThisCycleRef,
   setFastMatchHint,
@@ -112,6 +116,7 @@ export default function useCallRuntime({
   beginCallGuardRef,
   queueTokenRef,
   phaseRef,
+  isCallerRef,
   remoteMutedRef,
   setReMatchText,
   runMatchRevealTransition,
@@ -125,6 +130,147 @@ export default function useCallRuntime({
   appendChatMessage,
   t,
 }: UseCallRuntimeArgs) {
+  const connectionRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const iceHealthTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const iceHealthInFlightRef = useRef(false);
+  const connectTimeoutRetryRef = useRef(0);
+  const connectionRecoveryAttemptRef = useRef(0);
+  const lastIceHealthRef = useRef({
+    selectedPairId: "",
+    bytesSent: 0,
+    bytesReceived: 0,
+    at: 0,
+  });
+  const clearConnectionRecoveryTimer = () => {
+    if (connectionRecoveryTimerRef.current) clearTimeout(connectionRecoveryTimerRef.current);
+    connectionRecoveryTimerRef.current = null;
+    connectionRecoveryAttemptRef.current = 0;
+  };
+  const clearIceHealthTimer = () => {
+    if (iceHealthTimerRef.current) clearInterval(iceHealthTimerRef.current);
+    iceHealthTimerRef.current = null;
+    iceHealthInFlightRef.current = false;
+    lastIceHealthRef.current = {
+      selectedPairId: "",
+      bytesSent: 0,
+      bytesReceived: 0,
+      at: 0,
+    };
+  };
+
+  const markTransportHealthy = (qTok: number) => {
+    if (queueTokenRef.current !== qTok) return;
+    webrtcConnectedRef.current = true;
+    connectTimeoutRetryRef.current = 0;
+    connectionRecoveryAttemptRef.current = 0;
+    setCallTransportReady(true);
+    if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
+    webrtcConnectTimerRef.current = null;
+    clearWebrtcDownTimer();
+    clearConnectionRecoveryTimer();
+    setSignalUnstable(false);
+    if ((phaseRef.current === "matched" || phaseRef.current === "calling") && matchedSignalTokenRef.current !== qTok) {
+      matchedSignalTokenRef.current = qTok;
+      try {
+        useAppStore.getState().setCallMatchedSignal(Date.now());
+      } catch {}
+    }
+  };
+
+  const promoteToCalling = (qTok: number) => {
+    if (queueTokenRef.current !== qTok) return;
+    if (phaseRef.current === "calling") return;
+    setReMatchText("");
+    const started = runMatchRevealTransition(() => {
+      if (queueTokenRef.current !== qTok) return;
+      if (phaseRef.current === "calling") return;
+      setPhase("calling");
+    });
+    if (!started && phaseRef.current !== "calling") {
+      setPhase("calling");
+    }
+  };
+
+  const startIceHealthTimer = (rtc: WebRTCSession, qTok: number, tokenNow: number) => {
+    clearIceHealthTimer();
+    iceHealthTimerRef.current = setInterval(() => {
+      if (iceHealthInFlightRef.current) return;
+      if (queueTokenRef.current !== qTok || callStartTokenRef.current !== tokenNow || rtcRef.current !== rtc) {
+        clearIceHealthTimer();
+        return;
+      }
+      if (phaseRef.current !== "matched" && phaseRef.current !== "calling") {
+        clearIceHealthTimer();
+        return;
+      }
+
+      iceHealthInFlightRef.current = true;
+      rtc
+        .getIcePathInfo()
+        .then((info) => {
+          if (queueTokenRef.current !== qTok || callStartTokenRef.current !== tokenNow || rtcRef.current !== rtc) return;
+
+          const selectedPairId = String(info?.selectedPairId || "").trim();
+          const bytesSent = Math.max(0, Number(info?.bytesSent || 0));
+          const bytesReceived = Math.max(0, Number(info?.bytesReceived || 0));
+          const hadTransport =
+            Boolean(selectedPairId) ||
+            bytesSent > 0 ||
+            bytesReceived > 0 ||
+            Boolean(info?.localCandidateType) ||
+            Boolean(info?.remoteCandidateType);
+          if (!hadTransport) return;
+
+          const prev = lastIceHealthRef.current;
+          const trafficAdvanced = bytesSent > prev.bytesSent || bytesReceived > prev.bytesReceived;
+          lastIceHealthRef.current = {
+            selectedPairId,
+            bytesSent,
+            bytesReceived,
+            at: Date.now(),
+          };
+
+          markTransportHealthy(qTok);
+          if (trafficAdvanced || selectedPairId || phaseRef.current === "matched") {
+            promoteToCalling(qTok);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          iceHealthInFlightRef.current = false;
+        });
+    }, 2500);
+  };
+
+  const scheduleConnectionRecovery = (qTok: number, delayMs: number, tokenNow: number) => {
+    clearConnectionRecoveryTimer();
+    const runRecovery = () => {
+      if (queueTokenRef.current !== qTok) return;
+      if (callStartTokenRef.current !== tokenNow) return;
+      if (phaseRef.current !== "matched" && phaseRef.current !== "calling") return;
+
+      const rtc = rtcRef.current;
+      if (!rtc) return;
+
+      connectionRecoveryAttemptRef.current += 1;
+      const attempt = connectionRecoveryAttemptRef.current;
+      if (isCallerRef.current || attempt % 3 === 0) {
+        rtc.restartIce?.().catch?.(() => undefined);
+      }
+      if (attempt % 4 === 0) {
+        rtc
+          .refreshLocalMedia?.({
+            videoEnabled: Boolean(myCamOnRef.current),
+            audioEnabled: Boolean(mySoundOnRef.current),
+          })
+          .catch?.(() => undefined);
+      }
+
+      connectionRecoveryTimerRef.current = setTimeout(runRecovery, 3200);
+    };
+    connectionRecoveryTimerRef.current = setTimeout(runRecovery, Math.max(180, Math.trunc(delayMs)));
+  };
+
   const stopAll = (isUserExit = false, resetMatchingActions = true) => {
     if (isUserExit) {
       manualCloseRef.current = true;
@@ -154,14 +300,19 @@ export default function useCallRuntime({
 
     clearReconnectTimer();
     clearWebrtcDownTimer();
+    clearConnectionRecoveryTimer();
+    clearIceHealthTimer();
 
     if (peerReadyTimerRef.current) clearTimeout(peerReadyTimerRef.current);
     peerReadyTimerRef.current = null;
     beginCallReqRef.current = null;
+    pendingSignalRef.current = [];
 
     if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
     webrtcConnectTimerRef.current = null;
+    connectTimeoutRetryRef.current = 0;
     webrtcConnectedRef.current = false;
+    setCallTransportReady(false);
 
     setSignalUnstable(false);
 
@@ -220,6 +371,7 @@ export default function useCallRuntime({
     }
     setRemoteStreamURL(null);
     resetChatAndSwipeState();
+    roomIdRef.current = null;
     setRoomId(null);
     setPeerInfo(null);
     setRemoteCamOn(true);
@@ -240,13 +392,47 @@ export default function useCallRuntime({
 
     if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
     webrtcConnectTimerRef.current = null;
+    connectTimeoutRetryRef.current = 0;
     webrtcConnectedRef.current = false;
+    setCallTransportReady(false);
 
     if (beginCallGuardRef.current) return;
     beginCallGuardRef.current = true;
 
     const tokenNow = callStartTokenRef.current + 1;
     callStartTokenRef.current = tokenNow;
+
+    const scheduleConnectTimeout = () => {
+      if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
+      webrtcConnectTimerRef.current = setTimeout(() => {
+        if (queueTokenRef.current !== qTok) return;
+        if (callStartTokenRef.current !== tokenNow) return;
+        if (webrtcConnectedRef.current) return;
+        if (phaseRef.current !== "matched" && phaseRef.current !== "calling") return;
+
+        if (connectTimeoutRetryRef.current < 1) {
+          connectTimeoutRetryRef.current += 1;
+          setSignalUnstable(true);
+          if (caller) {
+            rtcRef.current?.restartIce?.().catch?.(() => undefined);
+          }
+          scheduleConnectTimeout();
+          return;
+        }
+
+        if (caller && connectTimeoutRetryRef.current < 3) {
+          connectTimeoutRetryRef.current += 1;
+          setSignalUnstable(true);
+          rtcRef.current?.restartIce?.().catch?.(() => undefined);
+          scheduleConnectTimeout();
+          return;
+        }
+
+        suppressEndRelayRef.current = true;
+        endCallAndRequeueRef.current("disconnect");
+      }, WEBRTC_CONNECT_TIMEOUT_MS);
+    };
+    scheduleConnectTimeout();
 
     try {
       if (!beautyOpenRef.current && !beautyOpeningIntentRef.current) {
@@ -264,6 +450,7 @@ export default function useCallRuntime({
         onRemoteStream: (s) => {
           if (queueTokenRef.current !== qTok) return;
           remoteStreamRef.current = s as any;
+          markTransportHealthy(qTok);
 
           try {
             const tracks = ((s as any)?.getAudioTracks?.() ?? []) as any[];
@@ -273,20 +460,14 @@ export default function useCallRuntime({
           } catch {}
 
           setRemoteStreamURL(s.toURL());
-          if (phaseRef.current !== "calling") {
-            setReMatchText("");
-            runMatchRevealTransition(() => {
-              if (queueTokenRef.current !== qTok) return;
-              if (phaseRef.current === "calling") return;
-              setPhase("calling");
-            });
-          }
+          promoteToCalling(qTok);
         },
         onIceCandidate: (c) => ws.sendIce(rid, c),
         onAnswer: (sdp) => ws.sendAnswer(rid, sdp),
         onOffer: (sdp) => ws.sendOffer(rid, sdp),
         onDataChannelOpen: () => {
           if (queueTokenRef.current !== qTok) return;
+          markTransportHealthy(qTok);
           setChatReady(true);
         },
         onDataChannelClose: () => {
@@ -300,48 +481,41 @@ export default function useCallRuntime({
         onConnectionState: (s) => {
           const st = String(s || "").toLowerCase();
 
-          if (st === "connected") {
+          if (st === "connected" || st === "completed") {
             if (queueTokenRef.current !== qTok) return;
-            webrtcConnectedRef.current = true;
-            if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
-            webrtcConnectTimerRef.current = null;
-            clearWebrtcDownTimer();
-            setSignalUnstable(false);
-            // Fallback: if remote stream callback is delayed/missed, do not stay stuck before call UI.
-            if (phaseRef.current !== "calling") {
-              setReMatchText("");
-              const started = runMatchRevealTransition(() => {
-                if (queueTokenRef.current !== qTok) return;
-                if (phaseRef.current === "calling") return;
-                setPhase("calling");
-              });
-              if (!started && phaseRef.current !== "calling") {
-                setPhase("calling");
-              }
-            }
-            if ((phaseRef.current === "matched" || phaseRef.current === "calling") && matchedSignalTokenRef.current !== qTok) {
-              matchedSignalTokenRef.current = qTok;
-              try {
-                useAppStore.getState().setCallMatchedSignal(Date.now());
-              } catch {}
-            }
+            markTransportHealthy(qTok);
+            promoteToCalling(qTok);
+            return;
+          }
+
+          if (st === "connecting" || st === "checking") {
+            if (queueTokenRef.current !== qTok) return;
+            if (phaseRef.current !== "matched" && phaseRef.current !== "calling") return;
+            setSignalUnstable(true);
             return;
           }
 
           if (st === "failed" || st === "disconnected" || st === "closed") {
+            if (queueTokenRef.current !== qTok) return;
+            if (phaseRef.current !== "matched" && phaseRef.current !== "calling") return;
             setSignalUnstable(true);
-            const tokenNow = webrtcDownTokenRef.current + 1;
-            webrtcDownTokenRef.current = tokenNow;
+            scheduleConnectionRecovery(qTok, st === "disconnected" ? 900 : 180, tokenNow);
+            const downToken = webrtcDownTokenRef.current + 1;
+            webrtcDownTokenRef.current = downToken;
 
-            if (webrtcDownTimerRef.current) clearTimeout(webrtcDownTimerRef.current);
-            webrtcDownTimerRef.current = setTimeout(() => {
-              if (webrtcDownTokenRef.current !== tokenNow) return;
-              if (phaseRef.current !== "calling") return;
-              if (queueTokenRef.current !== qTok) return;
+            if (!webrtcConnectedRef.current) {
+              setCallTransportReady(false);
+              if (webrtcDownTimerRef.current) clearTimeout(webrtcDownTimerRef.current);
+              webrtcDownTimerRef.current = setTimeout(() => {
+                if (webrtcDownTokenRef.current !== downToken) return;
+                if (phaseRef.current !== "matched" && phaseRef.current !== "calling") return;
+                if (queueTokenRef.current !== qTok) return;
+                if (webrtcConnectedRef.current) return;
 
-              suppressEndRelayRef.current = true;
-              endCallAndRequeueRef.current("disconnect");
-            }, WEBRTC_DOWN_GRACE_MS);
+                suppressEndRelayRef.current = true;
+                endCallAndRequeueRef.current("disconnect");
+              }, Math.max(WEBRTC_DOWN_GRACE_MS, st === "disconnected" ? 45000 : 30000));
+            }
 
             return;
           }
@@ -350,17 +524,28 @@ export default function useCallRuntime({
 
       rtcRef.current = rtc;
       await rtc.start({ isCaller: caller });
+      startIceHealthTimer(rtc, qTok, tokenNow);
 
       if (callStartTokenRef.current !== tokenNow) {
         try {
           rtc.stop();
         } catch {}
+        clearIceHealthTimer();
         return;
+      }
+
+      if (phaseRef.current === "matched") {
+        promoteToCalling(qTok);
       }
 
       try {
         const pending = pendingSignalRef.current.splice(0);
-        for (const p of pending) {
+        const orderedPending = [
+          ...pending.filter((p) => p.type === "offer"),
+          ...pending.filter((p) => p.type === "answer"),
+          ...pending.filter((p) => p.type === "ice"),
+        ];
+        for (const p of orderedPending) {
           if (p.type === "offer") {
             await rtcRef.current?.handleRemoteOffer(p.sdp);
           } else if (p.type === "answer") {
@@ -380,23 +565,19 @@ export default function useCallRuntime({
 
       setReMatchText("");
 
-      if (webrtcConnectTimerRef.current) clearTimeout(webrtcConnectTimerRef.current);
-      webrtcConnectTimerRef.current = setTimeout(() => {
-        if (queueTokenRef.current !== qTok) return;
-        if (callStartTokenRef.current !== tokenNow) return;
-        if (webrtcConnectedRef.current) return;
-
-        suppressEndRelayRef.current = true;
-        endCallAndRequeueRef.current("disconnect");
-      }, WEBRTC_CONNECT_TIMEOUT_MS);
-
       try {
         const camEnabled = Boolean(myCamOnRef.current);
         ws.sendCamState(rid, camEnabled);
         ws.relay(rid, { type: "cam", enabled: camEnabled });
       } catch {}
+      try {
+        const micEnabled = Boolean(mySoundOnRef.current);
+        ws.sendMicState(rid, micEnabled);
+        ws.relay(rid, { type: "mic", enabled: micEnabled });
+      } catch {}
 
     } catch {
+      clearIceHealthTimer();
       if (callStartTokenRef.current !== tokenNow) return;
 
       useAppStore.getState().showGlobalModal(t("call.error_title"), t("call.error_start"));

@@ -1,6 +1,7 @@
 ﻿import React, { useMemo } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import AppModal from "../components/AppModal";
+import AppText from "../components/AppText";
 import PrimaryButton from "../components/PrimaryButton";
 import { useAppStore } from "../store/useAppStore";
 import { theme } from "../config/theme";
@@ -20,7 +21,8 @@ export default function GlobalModalHost() {
   const t = useMemo(() => {
     return (key: string, params?: Record<string, any>): string => {
       const dict = (translations as any)[currentLang] || (translations as any).ko || {};
-      let text = String(dict[key] ?? key);
+      const fallbackDict = (translations as any).ko || {};
+      let text = String(dict[key] ?? fallbackDict[key] ?? key);
 
       if (params) {
         Object.keys(params).forEach((k) => {
@@ -45,7 +47,11 @@ export default function GlobalModalHost() {
         </View>
       }
     >
-      <Text style={{ fontSize: 14, color: theme.colors.sub, lineHeight: 20 }}>{m.message}</Text>
+      <AppText
+        style={{ width: "100%", fontSize: 13, fontWeight: "400", color: theme.colors.sub, lineHeight: 18, textAlign: "center" }}
+      >
+        {m.message}
+      </AppText>
     </AppModal>
   );
 }

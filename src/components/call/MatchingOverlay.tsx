@@ -53,6 +53,15 @@ export default function MatchingOverlay({
     }
   }, [matchRevealActive, phase]);
   const hideOrbitSpinner = phase === "matched" && !matchRevealActive && matchedRevealStartedRef.current;
+  const showOrbitSpinner =
+    !hideOrbitSpinner &&
+    (matchRevealActive ||
+      authBooting ||
+      fastMatchHint ||
+      Boolean(reMatchText) ||
+      phase === "connecting" ||
+      phase === "queued" ||
+      phase === "matched");
   const matchingClusterShiftY = 0;
 
   return (
@@ -76,7 +85,7 @@ export default function MatchingOverlay({
         />
       ) : null}
 
-      {!hideOrbitSpinner ? (
+      {showOrbitSpinner ? (
         <View style={{ transform: [{ translateY: matchingClusterShiftY }] }}>
           <OrbitEarthSpinner revealProgress={matchRevealProgress} />
         </View>
@@ -97,12 +106,10 @@ export default function MatchingOverlay({
             <AppText style={styles.centerText}>{t("call.fast_matching")}</AppText>
           ) : phase === "connecting" ? (
             <AppText style={styles.centerText}>{t("call.connecting")}</AppText>
-          ) : phase === "matched" && roomId && peerInfo ? (
+          ) : phase === "matched" ? (
             <AppText style={styles.centerText}>{t("call.matched")}</AppText>
           ) : phase === "queued" ? (
             <AppText style={styles.centerText}>{String(t("call.connecting") || "")}</AppText>
-          ) : phase === "matched" ? (
-            <AppText style={styles.centerText}>{t("call.connecting")}</AppText>
           ) : null}
         </View>
 

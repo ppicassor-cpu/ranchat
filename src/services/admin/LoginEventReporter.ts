@@ -8,6 +8,9 @@ type LoginEventInput = {
   deviceKey?: string | null;
   provider: string;
   loginAccount?: string | null;
+  country?: string | null;
+  language?: string | null;
+  gender?: string | null;
   subscriptionStatus?: string | null;
   isPremium?: boolean | null;
   planId?: string | null;
@@ -59,6 +62,27 @@ function sanitize(v: string | null | undefined, maxLen = 160): string {
   return String(v || "").trim().slice(0, maxLen);
 }
 
+function resolveDeviceLocaleTag(): string {
+  try {
+    const raw = (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().locale) || "";
+    return sanitize(String(raw || ""), 64);
+  } catch {
+    return "";
+  }
+}
+
+function extractLocaleCountry(localeTag: string): string {
+  const m = String(localeTag || "").match(/[-_](\w{2})(?:[-_]|$)/);
+  if (!m || !m[1]) return "";
+  return sanitize(m[1], 8).toUpperCase();
+}
+
+function extractLocaleLanguage(localeTag: string): string {
+  const m = String(localeTag || "").match(/^([A-Za-z]{2,3})(?:[-_]|$)/);
+  if (!m || !m[1]) return "";
+  return sanitize(m[1], 16).toLowerCase();
+}
+
 function appVersion(): string {
   const direct = sanitize((Constants.expoConfig as any)?.version, 64);
   if (direct) return direct;
@@ -99,11 +123,20 @@ export async function reportLoginEvent(input: LoginEventInput): Promise<LoginEve
   if (!bases.length) return LOGIN_EVENT_RESULT_NONE;
 
   const paths = [normalizePath("/api/admin/login-events"), normalizePath("/admin/login-events")];
+  const localeTag = resolveDeviceLocaleTag();
+  const localeCountry = extractLocaleCountry(localeTag);
+  const localeLanguage = extractLocaleLanguage(localeTag);
+  const finalCountry = sanitize(input.country, 8).toUpperCase() || localeCountry;
+  const finalLanguage = sanitize(input.language, 16).toLowerCase() || localeLanguage;
+
   const payload = {
     userId,
     deviceKey: sanitize(input.deviceKey, 256),
     provider: sanitize(input.provider, 32) || "unknown",
     loginAccount: sanitize(input.loginAccount, 240),
+    country: finalCountry,
+    language: finalLanguage,
+    gender: sanitize(input.gender, 16).toLowerCase(),
     subscriptionStatus: sanitize(input.subscriptionStatus, 24),
     isPremium: input.isPremium === true ? true : input.isPremium === false ? false : null,
     planId: sanitize(input.planId, 64),
@@ -122,6 +155,8 @@ export async function reportLoginEvent(input: LoginEventInput): Promise<LoginEve
     Authorization: `Bearer ${token}`,
     "X-User-Id": userId,
     "X-Device-Key": sanitize(input.deviceKey, 256),
+    ...(localeTag ? { "Accept-Language": localeTag } : {}),
+    ...(finalCountry ? { "X-Country-Code": finalCountry } : {}),
   };
 
   for (const base of bases) {

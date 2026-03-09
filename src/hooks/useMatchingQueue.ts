@@ -61,7 +61,7 @@ export default function useMatchingQueue({
   }, []);
 
   const startMatchingActionsTimer = useCallback(
-    (forceReset = false) => {
+    (forceReset = false, delayOverrideMs?: number) => {
       if (forceReset) {
         clearMatchingActionsTimer(true);
         setMatchingActionsVisible(false);
@@ -93,7 +93,12 @@ export default function useMatchingQueue({
       if (!matchingActionsStartedAtRef.current) {
         matchingActionsStartedAtRef.current = Date.now();
       }
-      const deadlineMs = matchingActionsStartedAtRef.current + Math.max(0, Math.trunc(Number(matchingActionsDelayMs) || 0));
+      const delayMsRaw =
+        delayOverrideMs == null || !Number.isFinite(Number(delayOverrideMs))
+          ? matchingActionsDelayMs
+          : Number(delayOverrideMs);
+      const delayMs = Math.max(0, Math.trunc(Number(delayMsRaw) || 0));
+      const deadlineMs = matchingActionsStartedAtRef.current + delayMs;
       matchingActionsDeadlineRef.current = deadlineMs;
       const waitMs = Math.max(0, deadlineMs - Date.now());
       if (waitMs <= 0) {
@@ -160,11 +165,12 @@ export default function useMatchingQueue({
   const startNoMatchTimer = useCallback(() => {
     if (!queueRunningRef.current) return;
     if (noMatchShownThisCycleRef.current) return;
-    if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
+    if (noMatchTimerRef.current) return;
 
     noMatchTimerRef.current = setTimeout(() => {
+      noMatchTimerRef.current = null;
       if (!queueRunningRef.current) return;
-      if (!enqueuedRef.current) return;
+      if (!isScreenFocusedRef.current || beautyOpenRef.current) return;
       if (phaseRef.current !== "connecting" && phaseRef.current !== "queued") return;
       if (noMatchShownThisCycleRef.current) return;
       noMatchShownThisCycleRef.current = true;
@@ -217,6 +223,17 @@ export default function useMatchingQueue({
     wsRef,
   ]);
 
+  const resetNoMatchTimer = useCallback(() => {
+    noMatchShownThisCycleRef.current = false;
+    if (noMatchTimerRef.current) {
+      clearTimeout(noMatchTimerRef.current);
+      noMatchTimerRef.current = null;
+    }
+    if (!queueRunningRef.current) return;
+    if (phaseRef.current !== "connecting" && phaseRef.current !== "queued") return;
+    startNoMatchTimer();
+  }, [phaseRef, queueRunningRef, startNoMatchTimer]);
+
   const clearNoMatchTimer = useCallback(() => {
     if (noMatchTimerRef.current) clearTimeout(noMatchTimerRef.current);
     noMatchTimerRef.current = null;
@@ -229,12 +246,14 @@ export default function useMatchingQueue({
     if (premiumNoMatchAutoCloseRef.current) clearTimeout(premiumNoMatchAutoCloseRef.current);
     premiumNoMatchAutoCloseRef.current = null;
     setNoMatchModal(false);
-    if (!queueRunningRef.current) return;
     if (!isScreenFocusedRef.current) return;
     if (beautyOpenRef.current) return;
-    if (phaseRef.current !== "connecting" && phaseRef.current !== "queued" && phaseRef.current !== "ended") return;
-    startMatchingActionsTimer(false);
-  }, [beautyOpenRef, isScreenFocusedRef, phaseRef, queueRunningRef, setNoMatchModal, startMatchingActionsTimer]);
+    if (phaseRef.current === "calling" || phaseRef.current === "matched") return;
+    setMatchingActionsVisible(true);
+    if (queueRunningRef.current) {
+      startMatchingActionsTimer(false);
+    }
+  }, [beautyOpenRef, isScreenFocusedRef, phaseRef, queueRunningRef, setMatchingActionsVisible, setNoMatchModal, startMatchingActionsTimer]);
 
   return {
     isScreenFocusedRef,
@@ -246,6 +265,7 @@ export default function useMatchingQueue({
     clearMatchingActionsTimer,
     startMatchingActionsTimer,
     startNoMatchTimer,
+    resetNoMatchTimer,
     clearNoMatchTimer,
     dismissNoMatch,
   };

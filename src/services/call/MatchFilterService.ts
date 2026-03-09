@@ -3,11 +3,29 @@ import { COUNTRY_CODES, LANGUAGE_CODES, normalizeLanguageCode } from "../../i18n
 
 export const MATCH_FILTER_ALL = "ALL" as const;
 export type MatchFilterGender = "male" | "female" | "all";
+export const MATCH_INTEREST_IDS = [
+  "movies",
+  "music",
+  "travel",
+  "food",
+  "games",
+  "fitness",
+  "fashion",
+  "pets",
+  "books",
+  "daily",
+] as const;
+export type MatchInterestId = (typeof MATCH_INTEREST_IDS)[number];
+export const MATCH_INTEREST_OPTIONS: ReadonlyArray<{ id: MatchInterestId; labelKey: string }> = MATCH_INTEREST_IDS.map((id) => ({
+  id,
+  labelKey: `interest.${id}`,
+}));
 
 export type MatchFilter = {
   countries: string[];
   languages: string[];
   gender: MatchFilterGender;
+  interests: string[];
   updatedAt?: number | null;
 };
 
@@ -38,6 +56,7 @@ export type SaveMatchFilterResult = {
 
 const COUNTRY_CODE_SET = new Set(COUNTRY_CODES.map((v) => String(v || "").trim().toUpperCase()));
 const LANGUAGE_CODE_SET = new Set(LANGUAGE_CODES.map((v) => String(v || "").trim().toLowerCase()));
+const INTEREST_ID_SET = new Set<string>(MATCH_INTEREST_IDS);
 
 function asText(v: unknown, maxLen = 320): string {
   return String(v ?? "").trim().slice(0, maxLen);
@@ -136,11 +155,28 @@ function normalizeGender(raw: unknown): MatchFilterGender {
   return "all";
 }
 
+export function normalizeMatchInterests(raw: unknown, options?: { allowAll?: boolean; fallbackToAll?: boolean }): string[] {
+  const allowAll = options?.allowAll !== false;
+  const fallbackToAll = options?.fallbackToAll !== false;
+  const arr = toArray(raw);
+  const out: string[] = [];
+  for (const value of arr) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) continue;
+    if (allowAll && normalized.toUpperCase() === MATCH_FILTER_ALL) return [MATCH_FILTER_ALL];
+    if (!INTEREST_ID_SET.has(normalized)) continue;
+    if (!out.includes(normalized)) out.push(normalized);
+  }
+  if (out.length > 0) return out;
+  return fallbackToAll && allowAll ? [MATCH_FILTER_ALL] : [];
+}
+
 export function createDefaultMatchFilter(): MatchFilter {
   return {
     countries: [MATCH_FILTER_ALL],
     languages: [MATCH_FILTER_ALL],
     gender: "all",
+    interests: [MATCH_FILTER_ALL],
     updatedAt: null,
   };
 }
@@ -151,6 +187,7 @@ export function normalizeMatchFilter(raw: Partial<MatchFilter> | MatchFilter | n
     countries: normalizeCountries((base as any).countries),
     languages: normalizeLanguages((base as any).languages),
     gender: normalizeGender((base as any).gender),
+    interests: normalizeMatchInterests((base as any).interests ?? (base as any).interestCodes ?? (base as any).interestFilter),
     updatedAt: Number.isFinite(Number((base as any).updatedAt)) ? Math.trunc(Number((base as any).updatedAt)) : null,
   };
 }
@@ -179,6 +216,11 @@ function parseMatchFilterFromJson(json: any): { filter: MatchFilter; filterFound
       payload?.gender ??
       payload?.genderFilter ??
       undefined,
+    interests:
+      payload?.interests ??
+      payload?.interestCodes ??
+      payload?.interestFilter ??
+      undefined,
     updatedAt: payload?.updatedAt ?? payload?.savedAt ?? undefined,
   });
   const filterFound =
@@ -186,6 +228,8 @@ function parseMatchFilterFromJson(json: any): { filter: MatchFilter; filterFound
     Array.isArray(payload?.countryCodes) ||
     Array.isArray(payload?.languages) ||
     Array.isArray(payload?.languageCodes) ||
+    Array.isArray(payload?.interests) ||
+    Array.isArray(payload?.interestCodes) ||
     typeof payload?.gender === "string" ||
     typeof payload?.genderFilter === "string";
 
@@ -320,6 +364,7 @@ export async function saveMatchFilterOnServer(input: SaveMatchFilterInput): Prom
             countries: normalized.countries,
             languages: normalized.languages,
             gender: normalized.gender,
+            interests: normalized.interests,
             userId,
             deviceKey,
             sessionId: deviceKey,

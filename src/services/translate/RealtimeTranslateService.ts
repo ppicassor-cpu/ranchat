@@ -18,6 +18,9 @@ export type TranslatePeerChatResult = {
   detectedSourceLang?: string;
 };
 
+const DEFAULT_TRANSLATE_TIMEOUT_MS = 4500;
+const DEFAULT_TRANSLATE_RETRY_COUNT = 2;
+
 function asText(v: unknown, maxLen = 300): string {
   return String(v ?? "").trim().slice(0, maxLen);
 }
@@ -97,6 +100,31 @@ function parseSuccess(json: any): { translatedText: string; detectedSourceLang?:
   };
 }
 
+async function postJsonWithTimeout(url: string, payload: unknown, headers: Record<string, string>, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const textBody = await res.text().catch(() => "");
+    let json: any = {};
+    try {
+      json = textBody ? JSON.parse(textBody) : {};
+    } catch {
+      json = {};
+    }
+
+    return { res, json };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function translatePeerChatOnServer(input: TranslatePeerChatInput): Promise<TranslatePeerChatResult> {
   const token = asText(input.token, 1000);
   const userId = asText(input.userId, 180);
@@ -127,67 +155,67 @@ export async function translatePeerChatOnServer(input: TranslatePeerChatInput): 
 
   const paths = resolvePaths();
   let lastFail: TranslatePeerChatResult | null = null;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    "x-user-id": userId,
+    "x-device-key": deviceKey,
+  };
+  const timeoutMs = DEFAULT_TRANSLATE_TIMEOUT_MS;
+  const sourceLangCandidates = sourceLang ? [sourceLang, ""] : [""];
 
-  for (const base of bases) {
-    for (const path of paths) {
-      try {
-        const res = await fetch(`${base}${path}`, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            "x-user-id": userId,
-            "x-device-key": deviceKey,
-          },
-          body: JSON.stringify({
-            text,
-            sourceLang: sourceLang || undefined,
-            targetLang,
-            roomId: roomId || undefined,
-            userId,
-            deviceKey,
-            sessionId: deviceKey,
-            scene: "call_chat_realtime",
-          }),
-        });
+  for (const sourceCandidate of sourceLangCandidates) {
+    for (let attempt = 0; attempt < DEFAULT_TRANSLATE_RETRY_COUNT; attempt += 1) {
+      for (const base of bases) {
+        for (const path of paths) {
+          try {
+            const { res, json } = await postJsonWithTimeout(
+              `${base}${path}`,
+              {
+                text,
+                sourceLang: sourceCandidate || undefined,
+                targetLang,
+                roomId: roomId || undefined,
+                userId,
+                deviceKey,
+                sessionId: deviceKey,
+                scene: "call_chat_realtime",
+              },
+              headers,
+              timeoutMs
+            );
 
-        const textBody = await res.text().catch(() => "");
-        let json: any = {};
-        try {
-          json = textBody ? JSON.parse(textBody) : {};
-        } catch {
-          json = {};
+            if (res.status === 404) continue;
+
+            const ok = Boolean(res.ok && json && json.ok !== false);
+            const parsed = parseSuccess(json);
+            if (ok && parsed.translatedText) {
+              return {
+                ok: true,
+                errorCode: "",
+                errorMessage: "",
+                translatedText: parsed.translatedText,
+                detectedSourceLang: parsed.detectedSourceLang,
+              };
+            }
+
+            lastFail = {
+              ok: false,
+              errorCode: asText(json?.errorCode || json?.error || `HTTP_${res.status}`, 120) || `HTTP_${res.status}`,
+              errorMessage: asText(json?.errorMessage || json?.message || json?.error || `HTTP_${res.status}`, 240) || `HTTP_${res.status}`,
+              translatedText: parsed.translatedText || "",
+              detectedSourceLang: parsed.detectedSourceLang,
+            };
+          } catch {
+            lastFail = {
+              ok: false,
+              errorCode: "NETWORK_ERROR",
+              errorMessage: "NETWORK_ERROR",
+              translatedText: "",
+            };
+          }
         }
-
-        if (res.status === 404) continue;
-
-        const ok = Boolean(res.ok && json && json.ok !== false);
-        const parsed = parseSuccess(json);
-        if (ok && parsed.translatedText) {
-          return {
-            ok: true,
-            errorCode: "",
-            errorMessage: "",
-            translatedText: parsed.translatedText,
-            detectedSourceLang: parsed.detectedSourceLang,
-          };
-        }
-
-        lastFail = {
-          ok: false,
-          errorCode: asText(json?.errorCode || json?.error || `HTTP_${res.status}`, 120) || `HTTP_${res.status}`,
-          errorMessage: asText(json?.errorMessage || json?.message || json?.error || `HTTP_${res.status}`, 240) || `HTTP_${res.status}`,
-          translatedText: parsed.translatedText || "",
-          detectedSourceLang: parsed.detectedSourceLang,
-        };
-      } catch {
-        lastFail = {
-          ok: false,
-          errorCode: "NETWORK_ERROR",
-          errorMessage: "NETWORK_ERROR",
-          translatedText: "",
-        };
       }
     }
   }

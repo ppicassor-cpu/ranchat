@@ -21,6 +21,7 @@ import {
   type NativeScrollEvent,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useNavigation } from "@react-navigation/native";
@@ -41,7 +42,7 @@ import {
 } from "../services/shop/ShopPurchaseService";
 import { GIFT_CATALOG, getGiftDisplayName, type GiftItem } from "../constants/giftCatalog";
 
-type PopcornPack = {
+type PopTalkPack = {
   id: string;
   amount: number;
   priceKrw: number;
@@ -125,7 +126,7 @@ const GIFT_IMAGE_BY_ID: Record<string, ImageSourcePropType> = {
   seal_stamp: GIFT_IMG_SEAL_STAMP,
 };
 
-const POPCORN_PACKS: PopcornPack[] = [
+const POPTALK_PACKS: PopTalkPack[] = [
   { id: "once_2000", amount: 2000, priceKrw: 2400, image: POP_IMG_1, sparkleLevel: 3 },
   { id: "once_5000", amount: 5000, priceKrw: 5400, image: POP_IMG_2, sparkleLevel: 4 },
   { id: "once_10000", amount: 10000, priceKrw: 9600, image: POP_IMG_3, sparkleLevel: 5 },
@@ -156,24 +157,80 @@ const KERNEL_PACKS: KernelPack[] = [
   { id: "kernel_50000", amount: 50000, priceKrw: 65000, image: SHOP_IMG_6, sparkleLevel: 8, imageScale: 1.02, vip: true },
 ];
 
-const POPCORN_PRODUCT_IDS: Record<string, string> = {
-  once_2000: String(process.env.EXPO_PUBLIC_SHOP_POPCORN_2000_PRODUCT_ID || "").trim(),
-  once_5000: String(process.env.EXPO_PUBLIC_SHOP_POPCORN_5000_PRODUCT_ID || "").trim(),
-  once_10000: String(process.env.EXPO_PUBLIC_SHOP_POPCORN_10000_PRODUCT_ID || "").trim(),
-  once_20000: String(process.env.EXPO_PUBLIC_SHOP_POPCORN_20000_PRODUCT_ID || "").trim(),
-  once_30000: String(process.env.EXPO_PUBLIC_SHOP_POPCORN_30000_PRODUCT_ID || "").trim(),
-  once_50000: String(process.env.EXPO_PUBLIC_SHOP_POPCORN_50000_PRODUCT_ID || "").trim(),
-  once_100000: String(process.env.EXPO_PUBLIC_SHOP_POPCORN_100000_PRODUCT_ID || "").trim(),
-  once_unlimited_1m: String(process.env.EXPO_PUBLIC_SHOP_POPCORN_UNLIMITED_1M_PRODUCT_ID || "ranchat.popcorn.free").trim(),
+const SHOP_ENV = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
+
+const DEFAULT_POPTALK_PRODUCT_IDS: Record<string, string> = {
+  once_2000: "ranchat.popcorn.2000",
+  once_5000: "ranchat.popcorn.5000",
+  once_10000: "ranchat.popcorn.10000",
+  once_20000: "ranchat.popcorn.20000",
+  once_30000: "ranchat.popcorn.30000",
+  once_50000: "ranchat.popcorn.50000",
+  once_100000: "ranchat.popcorn.100000",
+  once_unlimited_1m: "ranchat.popcorn.free",
+};
+
+const DEFAULT_KERNEL_PRODUCT_IDS: Record<string, string> = {
+  kernel_500: "ranchat.kernel.500",
+  kernel_2000: "ranchat.kernel.2000",
+  kernel_5000: "ranchat.kernel.5000",
+  kernel_10000: "ranchat.kernel.10000",
+  kernel_25000: "ranchat.kernel.25000",
+  kernel_50000: "ranchat.kernel.50000",
+};
+
+function readShopProductId(keys: string[], fallback = ""): string {
+  for (const key of keys) {
+    const envValue = (process.env as Record<string, string | undefined> | undefined)?.[key];
+    if (typeof envValue === "string" && envValue.trim()) return envValue.trim();
+    const extraValue = SHOP_ENV[key];
+    if (typeof extraValue === "string" && extraValue.trim()) return extraValue.trim();
+  }
+  return String(fallback || "").trim();
+}
+
+const POPTALK_PRODUCT_IDS: Record<string, string> = {
+  once_2000: readShopProductId(
+    ["EXPO_PUBLIC_SHOP_POPTALK_2000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_2000_PRODUCT_ID"],
+    DEFAULT_POPTALK_PRODUCT_IDS.once_2000
+  ),
+  once_5000: readShopProductId(
+    ["EXPO_PUBLIC_SHOP_POPTALK_5000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_5000_PRODUCT_ID"],
+    DEFAULT_POPTALK_PRODUCT_IDS.once_5000
+  ),
+  once_10000: readShopProductId(
+    ["EXPO_PUBLIC_SHOP_POPTALK_10000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_10000_PRODUCT_ID"],
+    DEFAULT_POPTALK_PRODUCT_IDS.once_10000
+  ),
+  once_20000: readShopProductId(
+    ["EXPO_PUBLIC_SHOP_POPTALK_20000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_20000_PRODUCT_ID"],
+    DEFAULT_POPTALK_PRODUCT_IDS.once_20000
+  ),
+  once_30000: readShopProductId(
+    ["EXPO_PUBLIC_SHOP_POPTALK_30000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_30000_PRODUCT_ID"],
+    DEFAULT_POPTALK_PRODUCT_IDS.once_30000
+  ),
+  once_50000: readShopProductId(
+    ["EXPO_PUBLIC_SHOP_POPTALK_50000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_50000_PRODUCT_ID"],
+    DEFAULT_POPTALK_PRODUCT_IDS.once_50000
+  ),
+  once_100000: readShopProductId(
+    ["EXPO_PUBLIC_SHOP_POPTALK_100000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_100000_PRODUCT_ID"],
+    DEFAULT_POPTALK_PRODUCT_IDS.once_100000
+  ),
+  once_unlimited_1m: readShopProductId([
+    "EXPO_PUBLIC_SHOP_POPTALK_UNLIMITED_1M_PRODUCT_ID",
+    "EXPO_PUBLIC_SHOP_POPCORN_UNLIMITED_1M_PRODUCT_ID",
+  ], DEFAULT_POPTALK_PRODUCT_IDS.once_unlimited_1m),
 };
 
 const KERNEL_PRODUCT_IDS: Record<string, string> = {
-  kernel_500: String(process.env.EXPO_PUBLIC_SHOP_KERNEL_500_PRODUCT_ID || "").trim(),
-  kernel_2000: String(process.env.EXPO_PUBLIC_SHOP_KERNEL_2000_PRODUCT_ID || "").trim(),
-  kernel_5000: String(process.env.EXPO_PUBLIC_SHOP_KERNEL_5000_PRODUCT_ID || "").trim(),
-  kernel_10000: String(process.env.EXPO_PUBLIC_SHOP_KERNEL_10000_PRODUCT_ID || "").trim(),
-  kernel_25000: String(process.env.EXPO_PUBLIC_SHOP_KERNEL_25000_PRODUCT_ID || "").trim(),
-  kernel_50000: String(process.env.EXPO_PUBLIC_SHOP_KERNEL_50000_PRODUCT_ID || "").trim(),
+  kernel_500: readShopProductId(["EXPO_PUBLIC_SHOP_KERNEL_500_PRODUCT_ID"], DEFAULT_KERNEL_PRODUCT_IDS.kernel_500),
+  kernel_2000: readShopProductId(["EXPO_PUBLIC_SHOP_KERNEL_2000_PRODUCT_ID"], DEFAULT_KERNEL_PRODUCT_IDS.kernel_2000),
+  kernel_5000: readShopProductId(["EXPO_PUBLIC_SHOP_KERNEL_5000_PRODUCT_ID"], DEFAULT_KERNEL_PRODUCT_IDS.kernel_5000),
+  kernel_10000: readShopProductId(["EXPO_PUBLIC_SHOP_KERNEL_10000_PRODUCT_ID"], DEFAULT_KERNEL_PRODUCT_IDS.kernel_10000),
+  kernel_25000: readShopProductId(["EXPO_PUBLIC_SHOP_KERNEL_25000_PRODUCT_ID"], DEFAULT_KERNEL_PRODUCT_IDS.kernel_25000),
+  kernel_50000: readShopProductId(["EXPO_PUBLIC_SHOP_KERNEL_50000_PRODUCT_ID"], DEFAULT_KERNEL_PRODUCT_IDS.kernel_50000),
 };
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -292,7 +349,7 @@ function FirstPurchaseBadge({ label }: { label: string }) {
   );
 }
 
-function PopcornArt({
+function PopTalkArt({
   image,
   sparkleLevel,
   showX2,
@@ -569,42 +626,50 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
     setSelectedReceivedGiftCountMap({});
   }, [activeTab]);
 
-  const popcornItems = useMemo(
+  const popTalkItems = useMemo(
     () =>
-      POPCORN_PACKS.map((item) => {
-        const isUnlimitedPlan = Boolean(item.planOverride && item.planDurationDays);
-        const basePrice = isUnlimitedPlan ? item.priceKrw : Math.round((item.amount / 1000) * POP_BASE_UNIT_PER_1000);
-        const discountRate = basePrice > 0 ? Math.max(0, Math.round((1 - item.priceKrw / basePrice) * 100)) : 0;
-        const canFirstPurchaseBonus = item.allowFirstPurchaseBonus !== false && !isUnlimitedPlan;
-        const localizedOverlayBadge =
-          item.id === "once_unlimited_1m" ? t("shop.pack.month_1") : item.overlayBadge;
-        const localizedAmountLabel =
-          item.id === "once_unlimited_1m" ? t("shop.pack.month_1_unlimited") : item.displayAmountLabel;
-        return {
-          ...item,
-          overlayBadge: localizedOverlayBadge,
-          displayAmountLabel: localizedAmountLabel,
-          basePrice,
-          discountRate,
-          bonusAmount: canFirstPurchaseBonus ? item.amount : 0,
-          isUnlimitedPlan,
-        };
-      }),
+      POPTALK_PACKS
+        .map((item) => {
+          const productId = String(POPTALK_PRODUCT_IDS[item.id] || "").trim();
+          const isUnlimitedPlan = Boolean(item.planOverride && item.planDurationDays);
+          const basePrice = isUnlimitedPlan ? item.priceKrw : Math.round((item.amount / 1000) * POP_BASE_UNIT_PER_1000);
+          const discountRate = basePrice > 0 ? Math.max(0, Math.round((1 - item.priceKrw / basePrice) * 100)) : 0;
+          const canFirstPurchaseBonus = item.allowFirstPurchaseBonus !== false && !isUnlimitedPlan;
+          const localizedOverlayBadge =
+            item.id === "once_unlimited_1m" ? t("shop.pack.month_1") : item.overlayBadge;
+          const localizedAmountLabel =
+            item.id === "once_unlimited_1m" ? t("shop.pack.month_1_unlimited") : item.displayAmountLabel;
+          return {
+            ...item,
+            productId,
+            overlayBadge: localizedOverlayBadge,
+            displayAmountLabel: localizedAmountLabel,
+            basePrice,
+            discountRate,
+            bonusAmount: canFirstPurchaseBonus ? item.amount : 0,
+            isUnlimitedPlan,
+          };
+        })
+        .filter((item) => item.productId.length > 0),
     [t]
   );
 
   const kernelItems = useMemo(
     () =>
-      KERNEL_PACKS.map((item) => {
-        const basePrice = Math.round((item.amount / 1000) * KERNEL_BASE_UNIT_PER_1000);
-        const discountRate = Math.max(0, Math.round((1 - item.priceKrw / basePrice) * 100));
-        return {
-          ...item,
-          basePrice,
-          discountRate,
-          bonusAmount: 0,
-        };
-      }),
+      KERNEL_PACKS
+        .map((item) => {
+          const productId = String(KERNEL_PRODUCT_IDS[item.id] || "").trim();
+          const basePrice = Math.round((item.amount / 1000) * KERNEL_BASE_UNIT_PER_1000);
+          const discountRate = Math.max(0, Math.round((1 - item.priceKrw / basePrice) * 100));
+          return {
+            ...item,
+            productId,
+            basePrice,
+            discountRate,
+            bonusAmount: 0,
+          };
+        })
+        .filter((item) => item.productId.length > 0),
     []
   );
 
@@ -647,13 +712,7 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
     return receivedGiftList.every((row) => asCount(selectedReceivedGiftCountMap[row.gift.id]) >= row.count);
   }, [receivedGiftList, selectedReceivedGiftCountMap]);
 
-  const allShopPackIds = useMemo(() => [...POPCORN_PACKS, ...KERNEL_PACKS].map((p) => p.id), []);
-  const allClaimedFallback = useMemo(() => {
-    const out: Record<string, boolean> = {};
-    for (const id of allShopPackIds) out[id] = true;
-    return out;
-  }, [allShopPackIds]);
-
+  const allShopPackIds = useMemo(() => [...POPTALK_PACKS, ...KERNEL_PACKS].map((p) => p.id), []);
   useEffect(() => {
     let closed = false;
     const token = String(auth?.token || "").trim();
@@ -662,9 +721,9 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
 
     if (!token || !userId) {
       setShop({
-        firstPurchaseClaimed: allClaimedFallback,
+        firstPurchaseClaimed: {},
       });
-      setFirstPurchaseSynced(true);
+      setFirstPurchaseSynced(false);
       return () => {
         closed = true;
       };
@@ -689,24 +748,18 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
         return;
       }
 
-      setShop({
-        firstPurchaseClaimed: allClaimedFallback,
-      });
-      setFirstPurchaseSynced(true);
+      setFirstPurchaseSynced(false);
     };
 
     syncClaims().catch(() => {
       if (closed) return;
-      setShop({
-        firstPurchaseClaimed: allClaimedFallback,
-      });
-      setFirstPurchaseSynced(true);
+      setFirstPurchaseSynced(false);
     });
 
     return () => {
       closed = true;
     };
-  }, [allClaimedFallback, allShopPackIds, auth?.deviceKey, auth?.token, auth?.userId, setShop]);
+  }, [allShopPackIds, auth?.deviceKey, auth?.token, auth?.userId, setShop]);
 
   useEffect(() => {
     let closed = false;
@@ -954,7 +1007,7 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
 
   const onPressCard = useCallback(
     async (
-      kind: "popcorn" | "kernel",
+      kind: "poptalk" | "kernel",
       id: string,
       amount: number,
       priceKrw: number,
@@ -962,10 +1015,10 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
       opts?: { planOverride?: "monthly"; planDurationDays?: number; isUnlimitedPlan?: boolean }
     ) => {
       if (buyingPackId || purchaseConfirming) return;
-      const productId = kind === "popcorn" ? POPCORN_PRODUCT_IDS[id] || "" : KERNEL_PRODUCT_IDS[id] || "";
+      const productId = kind === "poptalk" ? POPTALK_PRODUCT_IDS[id] || "" : KERNEL_PRODUCT_IDS[id] || "";
 
-      const unit = kind === "kernel" ? t("shop.unit.kernel") : t("shop.unit.pop");
-      const title = kind === "kernel" ? t("shop.title_kernel") : t("shop.title_pop");
+      const unit = kind === "kernel" ? t("shop.unit.kernel") : t("shop.unit.poptalk");
+      const title = kind === "kernel" ? t("shop.title_kernel") : t("shop.title_poptalk");
       if (!productId) {
         showGlobalModal(title, t("shop.error.product_id_missing"));
         return;
@@ -1009,14 +1062,14 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
             return;
           }
 
-          if (kind === "popcorn" && bonusAmount > 0 && !opts?.isUnlimitedPlan) {
+          if (kind === "poptalk" && bonusAmount > 0 && !opts?.isUnlimitedPlan) {
             markFirstPurchaseClaimed(id);
           }
           const currentBalance = Number((useAppStore.getState() as any)?.popTalk?.balance ?? popTalk?.balance ?? 0);
           const currentCap = Number((useAppStore.getState() as any)?.popTalk?.cap ?? popTalk?.cap ?? 0);
           const hasServerPopTalk = Number.isFinite(Number(confirmed.popTalkBalance));
           const grantedAmount = Math.max(0, Math.trunc(Number(confirmed.grantedAmount ?? 0)));
-          const localGrantedDelta = kind === "popcorn" ? grantedAmount : 0;
+          const localGrantedDelta = kind === "poptalk" ? grantedAmount : 0;
           const nextPopTalkBalance = hasServerPopTalk
             ? Number(confirmed.popTalkBalance ?? 0)
             : Math.max(0, currentBalance + localGrantedDelta);
@@ -1449,13 +1502,13 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
   }, [auth?.deviceKey, auth?.token, auth?.userId, giftExchanging, selectedExchangeKernel, selectedReceivedGiftRows, setAssets, setShop, showGlobalModal, t]);
 
   const renderPage = useCallback(
-    (kind: "popcorn" | "kernel") => {
-      const isPop = kind === "popcorn";
-      const items = isPop ? popcornItems : kernelItems;
-      const balanceIcon = isPop ? POPTALK_BALANCE_ICON : KERNEL_BALANCE_ICON;
-      const balanceLabel = isPop ? t("shop.balance_pop") : t("shop.balance_kernel");
+    (kind: "poptalk" | "kernel") => {
+      const isPopTalk = kind === "poptalk";
+      const items = isPopTalk ? popTalkItems : kernelItems;
+      const balanceIcon = isPopTalk ? POPTALK_BALANCE_ICON : KERNEL_BALANCE_ICON;
+      const balanceLabel = isPopTalk ? t("shop.balance_poptalk") : t("shop.balance_kernel");
       const popTalkUnlimited = isPopTalkUnlimited(popTalk);
-      const balanceText = isPop
+      const balanceText = isPopTalk
         ? popTalkUnlimited
           ? t("poptalk.unlimited_short")
           : formatPopTalkCount(popTalk?.balance ?? 0)
@@ -1489,21 +1542,21 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
 
           <View style={styles.grid}>
             {items.map((item) => {
-              const canFirstPurchaseBonus = isPop && (item as any).allowFirstPurchaseBonus !== false && !(item as any).isUnlimitedPlan;
+              const canFirstPurchaseBonus = isPopTalk && (item as any).allowFirstPurchaseBonus !== false && !(item as any).isUnlimitedPlan;
               const claimed = canFirstPurchaseBonus ? Boolean(firstPurchaseClaimed[item.id]) : true;
-              const useTightAmountSpacing = isPop && !claimed && item.amount >= 100000;
-              const useCompactAmount = isPop && !claimed && item.amount >= 100000;
+              const useTightAmountSpacing = isPopTalk && !claimed && item.amount >= 100000;
+              const useCompactAmount = isPopTalk && !claimed && item.amount >= 100000;
               return (
                 <Pressable
                   key={item.id}
                   disabled={Boolean(buyingPackId)}
                   onPress={() =>
                     onPressCard(kind, item.id, item.amount, item.priceKrw, item.bonusAmount, {
-                      planOverride: isPop ? (item as any).planOverride : undefined,
-                      planDurationDays: isPop ? (item as any).planDurationDays : undefined,
-                      isUnlimitedPlan: Boolean((item as any).isUnlimitedPlan),
-                    })
-                  }
+                       planOverride: isPopTalk ? (item as any).planOverride : undefined,
+                       planDurationDays: isPopTalk ? (item as any).planDurationDays : undefined,
+                       isUnlimitedPlan: Boolean((item as any).isUnlimitedPlan),
+                     })
+                   }
                   style={({ pressed }) => [styles.cardShell, (pressed || Boolean(buyingPackId)) ? styles.cardPressed : null]}
                 >
                   <LinearGradient
@@ -1512,8 +1565,8 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
                     end={{ x: 1, y: 1 }}
                     style={styles.card}
                   >
-                    {isPop ? (
-                      <PopcornArt
+                    {isPopTalk ? (
+                      <PopTalkArt
                         image={(item as any).image}
                         sparkleLevel={(item as any).sparkleLevel}
                         overlayBadge={(item as any).overlayBadge}
@@ -1601,7 +1654,7 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
         </ScrollView>
       );
     },
-    [firstPurchaseClaimed, firstPurchaseSynced, insets.bottom, kernelBalance, kernelItems, onPressCard, popTalk?.balance, popTalk?.cap, popTalk?.plan, popcornItems, t]
+    [firstPurchaseClaimed, firstPurchaseSynced, insets.bottom, kernelBalance, kernelItems, onPressCard, popTalk?.balance, popTalk?.cap, popTalk?.plan, popTalkItems, t]
   );
 
   const renderPopmPage = useCallback(() => {
@@ -1638,7 +1691,7 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
                   <AppText style={styles.popmBalanceValue}>{formatNumber(kernelBalance)}</AppText>
                 </View>
                 <View style={styles.popmBalanceRow}>
-                  <AppText style={styles.popmBalanceLabel}>{t("shop.balance_pop")}</AppText>
+                  <AppText style={styles.popmBalanceLabel}>{t("shop.balance_poptalk")}</AppText>
                   <AppText style={styles.popmBalanceValue}>
                     {isPopTalkUnlimited(popTalk) ? t("poptalk.unlimited_short") : formatPopTalkCount(popTalk?.balance ?? 0)}
                   </AppText>
@@ -2068,7 +2121,7 @@ export default function ShopScreen({ route }: { route?: { params?: { initialTab?
         snapToInterval={SCREEN_WIDTH}
         snapToAlignment="start"
       >
-        <View style={styles.page}>{renderPage("popcorn")}</View>
+        <View style={styles.page}>{renderPage("poptalk")}</View>
         <View style={styles.page}>{renderPage("kernel")}</View>
         <View style={styles.page}>{renderGiftPage()}</View>
         <View style={styles.page}>{renderGiftBoxPage()}</View>
@@ -2531,8 +2584,8 @@ const styles = StyleSheet.create({
   },
   x2BadgeOverlay: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: -4,
+    right: -4,
     width: 52,
     height: 52,
     alignItems: "center",

@@ -6,11 +6,18 @@ import { LinearGradient } from "expo-linear-gradient";
 import { VideoView } from "expo-video";
 import AppText from "../AppText";
 
-type ChatMessage = { id: string; mine: boolean; text: string };
+type ChatMessage = {
+  id: string;
+  mine: boolean;
+  text: string;
+  displayName?: string;
+  avatarUrl?: string | null;
+};
 
 type VideoStageProps = {
   styles: any;
   phase: string;
+  mediaSurfaceEpoch?: number;
   stageH: number;
   onStageLayout: (height: number) => void;
   swipePanHandlers?: any;
@@ -20,6 +27,12 @@ type VideoStageProps = {
   beautyOpen: boolean;
   localStreamURL: string | null;
   myCamOn: boolean;
+  mySoundOn: boolean;
+  localMicLevelAnim: Animated.Value;
+  peerSoundOn: boolean;
+  remoteMicLevelAnim: Animated.Value;
+  myDisplayName?: string;
+  myAvatarUrl?: string | null;
   localVideoZOrder: number;
   localAreaTop: number;
   chatFeedVisible: boolean;
@@ -29,6 +42,8 @@ type VideoStageProps = {
   remoteBottom: string | number;
   remoteStreamURL: string | null;
   remoteCamOn: boolean;
+  peerDisplayName?: string;
+  peerAvatarUrl?: string | null;
   remoteVideoZOrder: number;
   peerInfoText: string;
   showAiBadge?: boolean;
@@ -41,11 +56,13 @@ type VideoStageProps = {
   overlayLocalHeightCalling: string | number;
   aiCallActive?: boolean;
   aiRemoteVideoPlayer?: any | null;
+  swipeGuideAvoidTopRight?: boolean;
 };
 
 export default function VideoStage({
   styles,
   phase,
+  mediaSurfaceEpoch = 0,
   stageH,
   onStageLayout,
   swipePanHandlers,
@@ -55,6 +72,12 @@ export default function VideoStage({
   beautyOpen,
   localStreamURL,
   myCamOn,
+  mySoundOn,
+  localMicLevelAnim,
+  peerSoundOn,
+  remoteMicLevelAnim,
+  myDisplayName = "",
+  myAvatarUrl = null,
   localVideoZOrder,
   localAreaTop,
   chatFeedVisible,
@@ -64,6 +87,8 @@ export default function VideoStage({
   remoteBottom,
   remoteStreamURL,
   remoteCamOn,
+  peerDisplayName = "",
+  peerAvatarUrl = null,
   remoteVideoZOrder,
   peerInfoText,
   showAiBadge = false,
@@ -76,7 +101,103 @@ export default function VideoStage({
   overlayLocalHeightCalling,
   aiCallActive = false,
   aiRemoteVideoPlayer = null,
+  swipeGuideAvoidTopRight = false,
 }: VideoStageProps) {
+  const canShowAiRemoteVideo = (phase === "matched" || phase === "calling") && aiCallActive;
+  const buildMicRingStyle = (soundOn: boolean, micLevelAnim: Animated.Value, variant: "primary" | "secondary") => ({
+    opacity: soundOn
+      ? micLevelAnim.interpolate({
+          inputRange: variant === "primary" ? [0, 0.08, 0.4, 1] : [0, 0.12, 0.45, 1],
+          outputRange: variant === "primary" ? [0, 0.08, 0.24, 0.48] : [0, 0.04, 0.14, 0.28],
+          extrapolate: "clamp",
+        })
+      : 0,
+    transform: [
+      {
+        scale: soundOn
+          ? micLevelAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: variant === "primary" ? [1.02, 1.36] : [1.04, 1.58],
+              extrapolate: "clamp",
+            })
+          : variant === "primary"
+          ? 1.02
+          : 1.04,
+      },
+    ],
+  });
+  const renderAvatar = (
+    avatarUrl: string | null | undefined,
+    containerStyle: any,
+    imageStyle: any,
+    fallbackStyle: any,
+    iconSize: number,
+    overlayStyle?: any,
+    fallbackIconName: any = "person-outline",
+    overlayNode?: React.ReactNode
+  ) => (
+    <View style={containerStyle}>
+      {avatarUrl ? (
+        <Image source={{ uri: avatarUrl }} style={imageStyle} />
+      ) : (
+        <View style={fallbackStyle}>
+          <Ionicons name={fallbackIconName} size={iconSize} color="rgba(255,255,255,0.92)" />
+        </View>
+      )}
+      {overlayStyle ? <View pointerEvents="none" style={overlayStyle} /> : null}
+      {overlayNode}
+    </View>
+  );
+  const renderCamOffAvatarStage = (
+    avatarUrl: string | null | undefined,
+    soundOn: boolean,
+    micLevelAnim: Animated.Value,
+    avatarDockStyle?: any
+  ) => (
+    <View style={styles.camOffOverlayFull}>
+      <View style={[styles.camOffAvatarDock, avatarDockStyle]}>
+        <View style={styles.camOffAvatarWaveWrap}>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.localMicWaveRingPrimary, buildMicRingStyle(soundOn, micLevelAnim, "primary")]}
+          />
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.localMicWaveRingSecondary, buildMicRingStyle(soundOn, micLevelAnim, "secondary")]}
+          />
+          {renderAvatar(
+            avatarUrl,
+            [styles.stageAvatarWrapLarge, !soundOn ? styles.stageAvatarWrapMuted : null],
+            styles.stageAvatarImage,
+            styles.stageAvatarFallbackLarge,
+            34,
+            styles.stageAvatarDimOverlay,
+            !soundOn ? "mic-off" : "person-outline",
+            soundOn || !avatarUrl ? null : (
+              <View pointerEvents="none" style={styles.stageAvatarMuteBadge}>
+                <Ionicons name="mic-off" size={16} color="#FFF7FB" />
+              </View>
+            ),
+          )}
+        </View>
+      </View>
+    </View>
+  );
+  const swipeGuideAvoidStyle =
+    swipeGuideAvoidTopRight && phase === "calling"
+      ? {
+          top: Math.max(Math.round(stageH * 0.5 + 45), Math.round(insetsTop + 350)),
+          transform: [{ translateY: 0 }],
+        }
+      : null;
+  const remoteCamOffAvatarDockStyle =
+    stageH > 0
+      ? {
+          marginTop: Math.max(90, Math.round(stageH * 0.14)),
+        }
+      : {
+          marginTop: 90,
+        };
   return (
     <View style={styles.stage} onLayout={(e) => onStageLayout(Math.round(e.nativeEvent.layout.height))}>
       <Animated.View
@@ -96,9 +217,10 @@ export default function VideoStage({
               <View style={styles.localArea}>
                 {localStreamURL && (phase === "calling" || beautyOpen) ? (
                   myCamOn ? (
-                    <View style={styles.localViewport} collapsable={false}>
+                    <View key={`local-surface-${mediaSurfaceEpoch}`} style={styles.localViewport} collapsable={false}>
                       <View style={styles.localVideoMover} collapsable={false}>
                         <RTCView
+                          key={`local-rtc-${mediaSurfaceEpoch}-${localStreamURL || "none"}`}
                           streamURL={localStreamURL}
                           style={styles.localVideoFull}
                           objectFit="cover"
@@ -115,9 +237,7 @@ export default function VideoStage({
                 )}
 
                 {!myCamOn ? (
-                  <View style={styles.camOffOverlayFull}>
-                    <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
-                  </View>
+                  renderCamOffAvatarStage(myAvatarUrl, mySoundOn, localMicLevelAnim)
                 ) : null}
               </View>
             </View>
@@ -127,7 +247,7 @@ export default function VideoStage({
                 pointerEvents="none"
                 style={[
                   styles.chatFeedUnderShadow,
-                  { top: localAreaTop + 8, opacity: chatFeedOpacity },
+                  { top: Math.max(0, localAreaTop - 10), opacity: chatFeedOpacity },
                 ]}
               >
                 {chatMessages.map((item, idx) => {
@@ -136,16 +256,18 @@ export default function VideoStage({
                   const isGiftSystemMessage = /^\[GIFT\]\s*/.test(String(item.text || ""));
                   const messageText = isGiftSystemMessage ? String(item.text || "").replace(/^\[GIFT\]\s*/, "") : item.text;
                   const baseOpacity = distanceFromNewest === 0 ? 1 : Math.max(0.26, 0.82 - distanceFromNewest * 0.2);
-                  const hideStart = Math.min(0.62, distanceFromNewest * 0.16);
-                  const hideEnd = Math.min(0.96, hideStart + 0.34);
-                  const hideOpacity = chatFeedHideProgress.interpolate({
+                  const messageCount = Math.max(1, chatMessages.length);
+                  const slot = 1 / messageCount;
+                  // Hide animation starts from oldest row and moves downward in order.
+                  const hideStart = Math.min(0.99, idx * slot);
+                  const hideEnd = Math.min(1, hideStart + slot * 0.9);
+                  const rowOpacity = chatFeedHideProgress.interpolate({
                     inputRange: [0, hideStart, hideEnd, 1],
-                    outputRange: [1, 1, 0, 0],
+                    outputRange: [baseOpacity, baseOpacity, 0, 0],
                     extrapolate: "clamp",
                   });
-                  const rowOpacity = Animated.multiply(chatFeedOpacity, Animated.multiply(hideOpacity as any, baseOpacity as any));
                   return (
-                    <View
+                    <Animated.View
                       key={item.id}
                       style={[
                         styles.chatFeedRow,
@@ -153,29 +275,38 @@ export default function VideoStage({
                         { opacity: rowOpacity },
                       ]}
                     >
-                      <View
-                        style={[
-                          styles.chatFeedBubble,
-                          item.mine ? styles.chatFeedBubbleMine : styles.chatFeedBubblePeer,
-                          isGiftSystemMessage
-                            ? item.mine
-                              ? styles.chatFeedBubbleGiftMine
-                              : styles.chatFeedBubbleGiftPeer
-                            : null,
-                        ]}
-                      >
-                        <AppText
+                      <View style={[styles.chatFeedCluster, item.mine ? styles.chatFeedClusterMine : styles.chatFeedClusterPeer]}>
+                        <View
                           style={[
-                            styles.chatFeedText,
-                            isNewest ? styles.chatFeedTextNewest : null,
-                            isGiftSystemMessage ? styles.chatFeedTextGift : null,
-                            isGiftSystemMessage && isNewest ? styles.chatFeedTextGiftNewest : null,
+                            styles.chatFeedMessageRow,
+                            item.mine ? styles.chatFeedMessageRowMine : styles.chatFeedMessageRowPeer,
                           ]}
                         >
-                          {messageText}
-                        </AppText>
+                          <View
+                            style={[
+                              styles.chatFeedBubble,
+                              item.mine ? styles.chatFeedBubbleMine : styles.chatFeedBubblePeer,
+                              isGiftSystemMessage
+                                ? item.mine
+                                  ? styles.chatFeedBubbleGiftMine
+                                  : styles.chatFeedBubbleGiftPeer
+                                : null,
+                            ]}
+                          >
+                            <AppText
+                              style={[
+                                styles.chatFeedText,
+                                isNewest ? styles.chatFeedTextNewest : null,
+                                isGiftSystemMessage ? styles.chatFeedTextGift : null,
+                                isGiftSystemMessage && isNewest ? styles.chatFeedTextGiftNewest : null,
+                              ]}
+                            >
+                              {messageText}
+                            </AppText>
+                          </View>
+                        </View>
                       </View>
-                    </View>
+                    </Animated.View>
                   );
                 })}
               </Animated.View>
@@ -198,8 +329,9 @@ export default function VideoStage({
         {!beautyOpen ? (
           <View style={styles.remoteLayer} pointerEvents="none">
             <View style={[styles.remoteArea, showLocalOverlay ? (stageH > 0 ? { bottom: remoteBottom } : { bottom: overlayLocalHeightCalling }) : { bottom: 0 }]}>
-              {aiCallActive && aiRemoteVideoPlayer && remoteCamOn ? (
+              {canShowAiRemoteVideo && aiRemoteVideoPlayer && remoteCamOn ? (
                 <VideoView
+                  key={`remote-ai-${mediaSurfaceEpoch}`}
                   player={aiRemoteVideoPlayer}
                   style={styles.remoteVideo}
                   contentFit="cover"
@@ -207,6 +339,7 @@ export default function VideoStage({
                 />
               ) : remoteStreamURL && remoteCamOn ? (
                 <RTCView
+                  key={`remote-rtc-${mediaSurfaceEpoch}-${remoteStreamURL || "none"}`}
                   streamURL={remoteStreamURL}
                   style={styles.remoteVideo}
                   objectFit="cover"
@@ -215,25 +348,41 @@ export default function VideoStage({
                 />
               ) : (
                 <View style={styles.placeholder}>
-                  {phase === "calling" && !remoteCamOn ? (
-                    <Ionicons name="videocam-off" size={54} color="rgba(255, 255, 255, 0.92)" />
-                  ) : null}
+                  {phase === "calling" && !remoteCamOn
+                    ? renderCamOffAvatarStage(peerAvatarUrl, peerSoundOn, remoteMicLevelAnim, remoteCamOffAvatarDockStyle)
+                    : null}
                 </View>
               )}
 
               {phase === "calling" && (peerInfoText || signalUnstable) ? (
-                <View pointerEvents="none" style={[styles.remoteInfoDock, { top: insetsTop + 10 }]}>
-                  {peerInfoText ? (
-                    <View style={styles.remoteInfoRow}>
-                      {showAiBadge ? (
-                        <View style={styles.aiPeerBadge}>
-                          <AppText style={styles.aiPeerBadgeText}>AI</AppText>
-                        </View>
+                <View pointerEvents="none" style={[styles.remoteInfoDock, { top: insetsTop + 2 }]}>
+                  {showAiBadge ? (
+                    <View style={styles.remoteInfoMetaLine}>
+                      <View style={styles.aiPeerBadge}>
+                        <AppText style={styles.aiPeerBadgeText}>AI</AppText>
+                      </View>
+                      {peerInfoText ? (
+                        <AppText style={styles.remoteInfoText} numberOfLines={2}>
+                          {peerInfoText}
+                        </AppText>
                       ) : null}
-                      <AppText style={styles.remoteInfoText}>{peerInfoText}</AppText>
                     </View>
+                  ) : peerInfoText ? (
+                    <AppText style={styles.remoteInfoText} numberOfLines={2}>
+                      {peerInfoText}
+                    </AppText>
                   ) : null}
                   {signalUnstable ? <AppText style={styles.remoteInfoSubText}>{t("call.network_unstable")}</AppText> : null}
+                </View>
+              ) : null}
+              {phase === "calling" && (peerDisplayName || peerAvatarUrl) ? (
+                <View pointerEvents="none" style={[styles.remoteProfileDock, { top: insetsTop + 10 }]}>
+                  {renderAvatar(peerAvatarUrl, styles.remoteInfoAvatarWrap, styles.remoteInfoAvatarImage, styles.remoteInfoAvatarFallback, 20)}
+                  {peerDisplayName ? (
+                    <AppText style={styles.remoteInfoNicknameText} numberOfLines={1}>
+                      {peerDisplayName}
+                    </AppText>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -242,7 +391,7 @@ export default function VideoStage({
       </Animated.View>
 
       {showSwipeGuide && phase === "calling" ? (
-        <View pointerEvents="none" style={styles.swipeGuideDock}>
+        <View pointerEvents="none" style={[styles.swipeGuideDock, swipeGuideAvoidStyle]}>
           <View style={styles.swipeGuideTextWrap}>
             <AppText ignoreUiScale style={styles.swipeGuideTextBottom}>
               {t("call.swipe_guide_line1")}

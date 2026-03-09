@@ -237,6 +237,16 @@ export async function getGoogleNativeIdentity(): Promise<GoogleNativeIdentity> {
   }
 }
 
+export async function getCurrentGoogleNativeEmail(): Promise<string> {
+  try {
+    await configureGoogleNativeSdk();
+    const currentUser: any = GoogleSignin.getCurrentUser?.() || null;
+    return toText(currentUser?.user?.email || currentUser?.email, 240).toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
 export async function getAppleNativeIdentity(): Promise<AppleNativeIdentity> {
   if (Platform.OS !== "ios") {
     throw new Error("APPLE_LOGIN_IOS_ONLY");

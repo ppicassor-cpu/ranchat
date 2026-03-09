@@ -3,6 +3,7 @@ import { AdEventType, RewardedAdEventType } from "react-native-google-mobile-ads
 import { createRewarded, createRewardedInterstitial, initAds } from "../services/ads/AdManager";
 import { consumePopTalk, PopTalkMutationResult, PopTalkSnapshot, rewardPopTalk } from "../services/poptalk/PopTalkService";
 import { fetchUnifiedWalletState } from "../services/shop/ShopPurchaseService";
+import { refreshSubscription } from "../services/purchases/PurchaseManager";
 import { useAppStore } from "../store/useAppStore";
 
 type RewardFlowResult = {
@@ -37,18 +38,33 @@ export default function usePopTalk() {
     [setPopTalk]
   );
 
+  const readSubscriptionState = useCallback(() => {
+    const subState = (useAppStore.getState() as any)?.sub || {};
+    const premiumExpiresRaw = Number(subState.premiumExpiresAtMs);
+    return {
+      isPremium: Boolean(subState.isPremium),
+      planId: String(subState.planId || "").trim(),
+      storeProductId: String(subState.storeProductId || "").trim(),
+      premiumExpiresAtMs: Number.isFinite(premiumExpiresRaw) && premiumExpiresRaw > 0 ? Math.trunc(premiumExpiresRaw) : null,
+    };
+  }, []);
+
   const refreshPopTalk = useCallback(async () => {
     const token = String(auth?.token || "").trim();
     const userId = String(auth?.userId || "").trim();
     if (!token || !userId) return null;
 
+    await refreshSubscription().catch(() => undefined);
+    const subscriptionState = readSubscriptionState();
+
     const out = await fetchUnifiedWalletState({
       token,
       userId,
       deviceKey: auth?.deviceKey,
-      planId: sub?.planId,
-      storeProductId: sub?.storeProductId,
-      isPremium: sub?.isPremium,
+      planId: subscriptionState.planId,
+      storeProductId: subscriptionState.storeProductId,
+      isPremium: subscriptionState.isPremium,
+      premiumExpiresAtMs: subscriptionState.premiumExpiresAtMs,
     }).catch(() => null);
 
     if (!out?.ok) return null;
@@ -63,18 +79,20 @@ export default function usePopTalk() {
       syncedAtMs: Date.now(),
     });
     return out;
-  }, [auth?.deviceKey, auth?.token, auth?.userId, setPopTalk, sub?.isPremium, sub?.planId, sub?.storeProductId]);
+  }, [auth?.deviceKey, auth?.token, auth?.userId, readSubscriptionState, setPopTalk]);
 
   const consume = useCallback(
     async (amount: number, reason: string, idempotencyKey?: string | null): Promise<PopTalkMutationResult> => {
       const token = String(auth?.token || "").trim();
+      const subscriptionState = readSubscriptionState();
       const res = await consumePopTalk({
         token,
         userId: auth?.userId,
         deviceKey: auth?.deviceKey,
-        planId: sub?.planId,
-        storeProductId: sub?.storeProductId,
-        isPremium: sub?.isPremium,
+        planId: subscriptionState.planId,
+        storeProductId: subscriptionState.storeProductId,
+        isPremium: subscriptionState.isPremium,
+        premiumExpiresAtMs: subscriptionState.premiumExpiresAtMs,
         amount,
         reason,
         idempotencyKey,
@@ -84,19 +102,22 @@ export default function usePopTalk() {
       }
       return res;
     },
-    [applySnapshot, auth?.deviceKey, auth?.token, auth?.userId, sub?.isPremium, sub?.planId, sub?.storeProductId]
+    [applySnapshot, auth?.deviceKey, auth?.token, auth?.userId, readSubscriptionState]
   );
 
   const reward = useCallback(
     async (amount: number, reason: string, idempotencyKey?: string | null): Promise<PopTalkMutationResult> => {
       const token = String(auth?.token || "").trim();
+      await refreshSubscription().catch(() => undefined);
+      const subscriptionState = readSubscriptionState();
       const res = await rewardPopTalk({
         token,
         userId: auth?.userId,
         deviceKey: auth?.deviceKey,
-        planId: sub?.planId,
-        storeProductId: sub?.storeProductId,
-        isPremium: sub?.isPremium,
+        planId: subscriptionState.planId,
+        storeProductId: subscriptionState.storeProductId,
+        isPremium: subscriptionState.isPremium,
+        premiumExpiresAtMs: subscriptionState.premiumExpiresAtMs,
         amount,
         reason,
         idempotencyKey,
@@ -106,7 +127,7 @@ export default function usePopTalk() {
       }
       return res;
     },
-    [applySnapshot, auth?.deviceKey, auth?.token, auth?.userId, sub?.isPremium, sub?.planId, sub?.storeProductId]
+    [applySnapshot, auth?.deviceKey, auth?.token, auth?.userId, readSubscriptionState]
   );
 
   const watchRewardedAdAndReward = useCallback(

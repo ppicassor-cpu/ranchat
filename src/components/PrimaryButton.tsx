@@ -1,6 +1,6 @@
 ﻿//C:\ranchat\src\components\PrimaryButton.tsx
 import React from "react";
-import { Pressable, StyleProp, StyleSheet, TextStyle, View, ViewStyle } from "react-native";
+import { Pressable, StyleProp, StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
 import { theme } from "../config/theme";
 import AppText from "./AppText";
 
@@ -12,9 +12,19 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   leftIcon?: React.ReactNode;
+  useSystemFont?: boolean;
 };
 
-export default function PrimaryButton({ title, onPress, disabled, variant = "primary", style, textStyle, leftIcon }: Props) {
+export default function PrimaryButton({
+  title,
+  onPress,
+  disabled,
+  variant = "primary",
+  style,
+  textStyle,
+  leftIcon,
+  useSystemFont = false,
+}: Props) {
   const bg =
     variant === "primary" ? theme.colors.pinkDeep : variant === "danger" ? theme.colors.danger : "transparent";
   const border = variant === "ghost" ? theme.colors.line : "transparent";
@@ -24,15 +34,24 @@ export default function PrimaryButton({ title, onPress, disabled, variant = "pri
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[
+      style={({ pressed }) => [
         styles.btn,
-        { backgroundColor: bg, borderColor: border, opacity: disabled ? 0.5 : 1 },
+        {
+          backgroundColor: bg,
+          borderColor: border,
+          opacity: disabled ? 0.5 : pressed ? 0.9 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
+        },
         style,
       ]}
     >
       <View style={styles.content}>
         {leftIcon ? <View style={styles.leftIconWrap}>{leftIcon}</View> : null}
-        <AppText style={[styles.txt, { color: text }, textStyle]}>{title}</AppText>
+        {useSystemFont ? (
+          <Text style={[styles.txt, { color: text }, textStyle]}>{title}</Text>
+        ) : (
+          <AppText style={[styles.txt, { color: text }, textStyle]}>{title}</AppText>
+        )}
       </View>
     </Pressable>
   );

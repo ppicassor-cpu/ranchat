@@ -1,6 +1,6 @@
 ﻿// FILE: C:\ranchat\src\screens\HomeScreen.tsx
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, Dimensions, Easing, Pressable, StyleSheet, View, ScrollView, FlatList, ImageBackground, Image, Platform } from "react-native";
+import { Animated, Dimensions, Easing, Pressable, StyleSheet, View, ScrollView, FlatList, ImageBackground, Image, InteractionManager, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import Constants from "expo-constants";
@@ -24,6 +24,7 @@ import { fetchUnifiedWalletState } from "../services/shop/ShopPurchaseService";
 import { refreshSubscription } from "../services/purchases/PurchaseManager";
 import {
   fetchCallContactsOnServer,
+  fetchCallFollowersOnServer,
   fetchPendingRecallInviteOnServer,
   respondRecallInviteOnServer,
   setCallFriendOnServer,
@@ -39,6 +40,7 @@ const HOME_LOGO = require("../../assets/ranchat_logo.png");
 const HOME_EMPTY_SAD = require("../../assets/sad.png");
 const HOME_WALLET_POLL_INTERVAL_MS = 60000;
 const SAVED_CONTACT_CARD_WIDTH = Math.min(320, Math.max(252, Math.round((Dimensions.get("window").width || 360) - 116)));
+type SavedContactsMode = "follow" | "follower";
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
@@ -68,6 +70,8 @@ export default function HomeScreen({ navigation }: any) {
   const [matchBlockedModal, setMatchBlockedModal] = useState(false);
   const [rewardAdFailModal, setRewardAdFailModal] = useState(false);
   const [rewardAdFailCount, setRewardAdFailCount] = useState(0);
+  const [rewardAdBusy, setRewardAdBusy] = useState(false);
+  const [matchBlockedModalSuppressUntil, setMatchBlockedModalSuppressUntil] = useState(0);
   const [updateModal, setUpdateModal] = useState(false);
   const [updateBusy, setUpdateBusy] = useState(false);
   const [savedContactsVisible, setSavedContactsVisible] = useState(false);
@@ -75,6 +79,9 @@ export default function HomeScreen({ navigation }: any) {
   const [savedContactsLaunching, setSavedContactsLaunching] = useState(false);
   const [savedContactsDeletingKey, setSavedContactsDeletingKey] = useState("");
   const [savedContacts, setSavedContacts] = useState<CallContactItem[]>([]);
+  const [savedContactsMode, setSavedContactsMode] = useState<SavedContactsMode>("follow");
+  const [followerContactsLoading, setFollowerContactsLoading] = useState(false);
+  const [followerContacts, setFollowerContacts] = useState<CallContactItem[]>([]);
   const [incomingRecallInvite, setIncomingRecallInvite] = useState<PendingRecallInvite | null>(null);
   const [incomingRecallBusy, setIncomingRecallBusy] = useState<"" | "accept" | "decline" | "block">("");
 
@@ -136,6 +143,34 @@ export default function HomeScreen({ navigation }: any) {
       cap: Number(popTalk?.cap ?? 0),
     });
   }, [popTalk?.balance, popTalk?.cap, popTalk?.plan, t]);
+  const matchBlockedModalSuppressed = rewardAdBusy || matchBlockedModalSuppressUntil > Date.now();
+
+  const extendMatchBlockedModalSuppression = useCallback((durationMs: number) => {
+    const nextUntil = Date.now() + Math.max(0, Math.trunc(durationMs));
+    setMatchBlockedModalSuppressUntil((prev) => Math.max(prev, nextUntil));
+  }, []);
+
+  const waitForMatchBlockedModalDismiss = useCallback(async () => {
+    await new Promise<void>((resolve) => {
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(resolve, 90);
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (matchBlockedModalSuppressUntil <= 0) return;
+    const remaining = matchBlockedModalSuppressUntil - Date.now();
+    if (remaining <= 0) {
+      setMatchBlockedModalSuppressUntil(0);
+      return;
+    }
+    const targetUntil = matchBlockedModalSuppressUntil;
+    const tm = setTimeout(() => {
+      setMatchBlockedModalSuppressUntil((prev) => (prev === targetUntil ? 0 : prev));
+    }, remaining + 32);
+    return () => clearTimeout(tm);
+  }, [matchBlockedModalSuppressUntil]);
 
   const kernelBalance = useMemo(() => {
     return Math.max(0, Math.trunc(Number(assets?.kernelCount ?? 0)));
@@ -286,6 +321,9 @@ export default function HomeScreen({ navigation }: any) {
     [t]
   );
 
+  const displayedSavedContacts = savedContactsMode === "follow" ? savedContacts : followerContacts;
+  const displayedSavedContactsLoading = savedContactsMode === "follow" ? savedContactsLoading : followerContactsLoading;
+
   const loadSavedContacts = useCallback(
     async (showSpinner = true) => {
       const token = String(auth?.token || "").trim();
@@ -323,6 +361,43 @@ export default function HomeScreen({ navigation }: any) {
     [auth?.deviceKey, auth?.token, auth?.userId, showGlobalModal, t]
   );
 
+  const loadFollowerContacts = useCallback(
+    async (showSpinner = true) => {
+      const token = String(auth?.token || "").trim();
+      const userId = String(auth?.userId || "").trim();
+      const deviceKey = String(auth?.deviceKey || "").trim();
+      if (!token || !userId || !deviceKey) {
+        setFollowerContacts([]);
+        showGlobalModal(t("call.contact.title"), t("common.auth_expired"));
+        return false;
+      }
+
+      if (showSpinner) setFollowerContactsLoading(true);
+      try {
+        const out = await fetchCallFollowersOnServer({
+          token,
+          userId,
+          deviceKey,
+          limit: 200,
+        });
+        if (!out.ok) {
+          const errCode = String(out.errorCode || "").toUpperCase();
+          if (errCode === "CALL_FOLLOWER_LIST_ROUTE_NOT_FOUND") {
+            showGlobalModal(t("call.contact.title"), t("call.contact.follower_route_missing"));
+          } else {
+            showGlobalModal(t("call.contact.title"), out.errorMessage || out.errorCode || t("common.error_occurred"));
+          }
+          return false;
+        }
+        setFollowerContacts(out.contacts.filter((item) => item.isFriend));
+        return true;
+      } finally {
+        if (showSpinner) setFollowerContactsLoading(false);
+      }
+    },
+    [auth?.deviceKey, auth?.token, auth?.userId, showGlobalModal, t]
+  );
+
   const refreshSavedContactsSilently = useCallback(async () => {
     const token = String(auth?.token || "").trim();
     const userId = String(auth?.userId || "").trim();
@@ -340,9 +415,27 @@ export default function HomeScreen({ navigation }: any) {
   }, [auth?.deviceKey, auth?.token, auth?.userId]);
 
   const openSavedContacts = useCallback(() => {
+    setSavedContactsMode("follow");
     setSavedContactsVisible(true);
     void loadSavedContacts(true);
   }, [loadSavedContacts]);
+
+  const onPressSavedContactsMode = useCallback(
+    (nextMode: SavedContactsMode) => {
+      if (savedContactsLaunching) return;
+      setSavedContactsMode(nextMode);
+      if (nextMode === "follow") {
+        if (!savedContactsLoading && savedContacts.length <= 0) {
+          void loadSavedContacts(true);
+        }
+        return;
+      }
+      if (!followerContactsLoading && followerContacts.length <= 0) {
+        void loadFollowerContacts(true);
+      }
+    },
+    [followerContacts.length, followerContactsLoading, loadFollowerContacts, loadSavedContacts, savedContacts.length, savedContactsLoading, savedContactsLaunching]
+  );
 
   useEffect(() => {
     void refreshSavedContactsSilently();
@@ -975,20 +1068,33 @@ useEffect(() => {
   );
 
   const onPressRewardAd = useCallback(async () => {
-    const out = await watchRewardedAdAndReward(POPTALK_REWARDED_AMOUNT, "match_block_rewarded");
-    if (out.ok) {
-      setRewardAdFailModal(false);
-      setRewardAdFailCount(0);
-      setMatchBlockedModal(false);
-      return;
-    }
+    if (rewardAdBusy) return;
+    setRewardAdBusy(true);
+    extendMatchBlockedModalSuppression(90 * 1000);
+    setRewardAdFailModal(false);
+    setMatchBlockedModal(false);
+    try {
+      await waitForMatchBlockedModalDismiss();
+      const out = await watchRewardedAdAndReward(POPTALK_REWARDED_AMOUNT, "match_block_rewarded");
+      if (out.ok) {
+        setRewardAdFailModal(false);
+        setRewardAdFailCount(0);
+        setMatchBlockedModal(false);
+        extendMatchBlockedModalSuppression(2500);
+        return;
+      }
 
-    setRewardAdFailCount((prev) => {
-      const next = prev + 1;
-      setRewardAdFailModal(true);
-      return next;
-    });
-  }, [watchRewardedAdAndReward]);
+      extendMatchBlockedModalSuppression(2500);
+      setRewardAdFailCount((prev) => {
+        const next = prev + 1;
+        setRewardAdFailModal(true);
+        return next;
+      });
+    } finally {
+      setMatchBlockedModal(false);
+      setRewardAdBusy(false);
+    }
+  }, [extendMatchBlockedModalSuppression, rewardAdBusy, waitForMatchBlockedModalDismiss, watchRewardedAdAndReward]);
 
   const doApplyUpdate = useCallback(async () => {
     if (updateBusy) return;
@@ -1145,6 +1251,11 @@ useEffect(() => {
             <PrimaryButton title={t("home.match_button")} onPress={onPressMatch} disabled={matchBusy} />
           </View>
           <AppText style={styles.runtime}>{`Runtime ${runtimeLabel}`}</AppText>
+          {updateModal ? (
+            <View style={styles.updateInlineBadge}>
+              <AppText style={styles.updateInlineText}>{t("home.update_inline_notice")}</AppText>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -1160,15 +1271,6 @@ useEffect(() => {
           ]}
         >
           <BannerBar onAdLoaded={onBannerLoaded} onAdFailedToLoad={onBannerFailed} />
-        </View>
-      ) : null}
-
-      {updateModal ? (
-        <View pointerEvents="none" style={styles.updateToastLayer}>
-          <View style={styles.updateToastBox}>
-            <AppText style={styles.updateToastTitle}>New UPDATE</AppText>
-            <AppText style={styles.updateToastBody}>자동으로 업데이트 됩니다</AppText>
-          </View>
         </View>
       ) : null}
 
@@ -1327,7 +1429,7 @@ useEffect(() => {
       </AppModal>
 
       <AppModal
-        visible={matchBlockedModal}
+        visible={!matchBlockedModalSuppressed && matchBlockedModal}
         title={t("poptalk.match_block_title")}
         dismissible={false}
         onClose={() => setMatchBlockedModal(false)}
@@ -1336,9 +1438,9 @@ useEffect(() => {
               <PrimaryButton title={t("poptalk.charge")} onPress={() => {
                 setMatchBlockedModal(false);
                 navigation.navigate("Shop");
-              }} />
-            <PrimaryButton title={t("poptalk.watch_ad")} onPress={onPressRewardAd} />
-            <PrimaryButton title={t("poptalk.wait_recharge")} variant="ghost" onPress={() => setMatchBlockedModal(false)} />
+              }} disabled={rewardAdBusy} />
+            <PrimaryButton title={t("poptalk.watch_ad")} disabled={rewardAdBusy} onPress={onPressRewardAd} />
+            <PrimaryButton title={t("poptalk.wait_recharge")} variant="ghost" disabled={rewardAdBusy} onPress={() => setMatchBlockedModal(false)} />
           </View>
         }
       >
@@ -1361,13 +1463,13 @@ useEffect(() => {
                 setRewardAdFailModal(false);
                 setMatchBlockedModal(false);
                 navigation.navigate("Shop");
-              }} />
-              <PrimaryButton title={t("common.close")} variant="ghost" onPress={() => setRewardAdFailModal(false)} />
+              }} disabled={rewardAdBusy} />
+              <PrimaryButton title={t("common.close")} variant="ghost" disabled={rewardAdBusy} onPress={() => setRewardAdFailModal(false)} />
             </View>
           ) : (
             <View style={{ gap: 10 }}>
-              <PrimaryButton title={t("poptalk.retry_ad")} onPress={onPressRewardAd} />
-              <PrimaryButton title={t("common.close")} variant="ghost" onPress={() => setRewardAdFailModal(false)} />
+              <PrimaryButton title={t("poptalk.retry_ad")} disabled={rewardAdBusy} onPress={onPressRewardAd} />
+              <PrimaryButton title={t("common.close")} variant="ghost" disabled={rewardAdBusy} onPress={() => setRewardAdFailModal(false)} />
             </View>
           )
         }
@@ -1497,140 +1599,182 @@ useEffect(() => {
         }}
       >
         <View style={styles.savedContactsHeader}>
-          <Pressable
-            hitSlop={10}
-            disabled={savedContactsLaunching}
-            onPress={() => setSavedContactsVisible(false)}
-            style={({ pressed }) => [
-              styles.savedContactsCloseBadge,
-              savedContactsLaunching ? { opacity: 0.45 } : null,
-              pressed ? { opacity: 0.74 } : null,
-            ]}
-          >
-            <Ionicons name="close" size={13} color="#7F3552" />
-            <AppText style={styles.savedContactsCloseBadgeText}>{t("common.close")}</AppText>
-          </Pressable>
-          <AppText style={styles.savedContactsHeaderTitle}>친구 목록</AppText>
-          <View style={styles.savedContactsHeaderSpacer} />
-        </View>
-        {savedContactsLoading ? <AppText style={styles.modalText}>{t("common.loading")}</AppText> : null}
-        {!savedContactsLoading && savedContacts.length <= 0 ? (
-          <View style={styles.savedContactsEmptyWrap}>
-            <Image source={HOME_EMPTY_SAD} style={styles.savedContactsEmptyImage} resizeMode="contain" />
-            <AppText style={styles.savedContactsEmptyTitle}>친구가 한명도 없어요~</AppText>
-            <AppText style={styles.savedContactsEmptyText}>친구를 추가해보세요</AppText>
+          <View style={[styles.savedContactsHeaderSide, styles.savedContactsHeaderSideLeft]}>
+            <Pressable
+              hitSlop={10}
+              disabled={savedContactsLaunching}
+              onPress={() => setSavedContactsVisible(false)}
+              style={({ pressed }) => [
+                styles.savedContactsCloseBadge,
+                savedContactsLaunching ? { opacity: 0.45 } : null,
+                pressed ? { opacity: 0.74 } : null,
+              ]}
+            >
+              <Ionicons name="close" size={13} color="#7F3552" />
+              <AppText style={styles.savedContactsCloseBadgeText}>{t("common.close")}</AppText>
+            </Pressable>
           </View>
-        ) : null}
-        {savedContacts.length > 0 ? (
-          <FlatList
-            data={savedContacts}
-            keyExtractor={(item) => String(item.contactKey || item.peerSessionId || item.peerProfileId || item.peerUserId || "contact")}
-            horizontal
-            style={styles.savedContactsScroll}
-            contentContainerStyle={[styles.savedContactsList, savedContacts.length === 1 ? styles.savedContactsListSingle : null]}
-            showsHorizontalScrollIndicator={false}
-            nestedScrollEnabled={false}
-            keyboardShouldPersistTaps="handled"
-            scrollEventThrottle={16}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            disableIntervalMomentum
-            snapToInterval={SAVED_CONTACT_CARD_WIDTH + 14}
-            ItemSeparatorComponent={() => <View style={styles.savedContactSpacer} />}
-            renderItem={({ item }) => {
-              const displayName = getSavedContactName(item);
-              const avatarUrl = String(item.peerAvatarUrl || "").trim();
-              const lastCallLabel = formatSavedContactTime(item.lastCallAtMs);
-              const interestLabels = getSavedContactInterestLabels(item);
-              const isOnline = Boolean(item.isOnline);
-              const statusText = getSavedContactStatusText(item);
-              const statusStyle = isOnline ? styles.savedContactStatusOnline : styles.savedContactStatusOffline;
-              const recallEnabled = Boolean(item.canRecall || item.isOnline);
-              return (
-                <View key={item.contactKey || item.peerSessionId || item.peerProfileId} style={styles.savedContactCard}>
-                  <View style={styles.savedContactHeroRow}>
-                    <View style={styles.savedContactAvatarFallback}>
-                      {avatarUrl ? (
-                        <Image source={{ uri: avatarUrl }} style={styles.savedContactAvatarImage} />
-                      ) : (
-                        <Ionicons name="person" size={28} color="#B25278" />
-                      )}
-                    </View>
-                    <View style={styles.savedContactTextWrap}>
-                      <View style={styles.savedContactTitleRow}>
-                        <AppText style={styles.savedContactTitle} numberOfLines={1}>
-                          {displayName}
+          <AppText style={styles.savedContactsHeaderTitle} numberOfLines={1}>
+            {savedContactsMode === "follow" ? t("call.contact.follow_list_title") : t("call.contact.follower_list_title")}
+          </AppText>
+          <View style={[styles.savedContactsHeaderSide, styles.savedContactsHeaderSideRight]}>
+            <Pressable
+              hitSlop={10}
+              disabled={savedContactsLaunching}
+              onPress={() => onPressSavedContactsMode(savedContactsMode === "follow" ? "follower" : "follow")}
+              style={({ pressed }) => [
+                styles.savedContactsModeBadge,
+                savedContactsLaunching ? { opacity: 0.45 } : null,
+                pressed ? { opacity: 0.74 } : null,
+              ]}
+            >
+              <AppText style={styles.savedContactsModeBadgeText}>
+                {savedContactsMode === "follow" ? t("call.contact.follower_tab") : t("call.contact.follow_tab")}
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+        <View style={styles.savedContactsViewport}>
+          {displayedSavedContactsLoading ? <AppText style={styles.modalText}>{t("common.loading")}</AppText> : null}
+          {!displayedSavedContactsLoading && displayedSavedContacts.length <= 0 ? (
+            <View style={styles.savedContactsEmptyWrap}>
+              <Image source={HOME_EMPTY_SAD} style={styles.savedContactsEmptyImage} resizeMode="contain" />
+              <AppText style={styles.savedContactsEmptyTitle}>
+                {savedContactsMode === "follow" ? t("call.contact.follow_empty_title") : t("call.contact.follower_empty_title")}
+              </AppText>
+              <AppText style={styles.savedContactsEmptyText}>
+                {savedContactsMode === "follow" ? t("call.contact.follow_empty_text") : t("call.contact.follower_empty_text")}
+              </AppText>
+            </View>
+          ) : null}
+          {displayedSavedContacts.length > 0 ? (
+            <FlatList
+              key={savedContactsMode}
+              data={displayedSavedContacts}
+              keyExtractor={(item) => String(item.contactKey || item.peerSessionId || item.peerProfileId || item.peerUserId || "contact")}
+              horizontal
+              style={styles.savedContactsScroll}
+              contentContainerStyle={[styles.savedContactsList, displayedSavedContacts.length === 1 ? styles.savedContactsListSingle : null]}
+              showsHorizontalScrollIndicator={false}
+              nestedScrollEnabled={false}
+              keyboardShouldPersistTaps="handled"
+              scrollEventThrottle={16}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
+              snapToInterval={SAVED_CONTACT_CARD_WIDTH + 14}
+              ItemSeparatorComponent={() => <View style={styles.savedContactSpacer} />}
+              renderItem={({ item }) => {
+                const displayName = getSavedContactName(item);
+                const avatarUrl = String(item.peerAvatarUrl || "").trim();
+                const lastCallLabel = formatSavedContactTime(item.lastCallAtMs);
+                const interestLabels = getSavedContactInterestLabels(item);
+                const isOnline = Boolean(item.isOnline);
+                const statusText = getSavedContactStatusText(item);
+                const statusStyle = isOnline ? styles.savedContactStatusOnline : styles.savedContactStatusOffline;
+                const recallEnabled = Boolean(item.canRecall || item.isOnline);
+                const isFollowerMode = savedContactsMode === "follower";
+                return (
+                  <View
+                    key={item.contactKey || item.peerSessionId || item.peerProfileId}
+                    style={[styles.savedContactCard, isFollowerMode ? styles.savedContactCardFollower : null]}
+                  >
+                    <View style={styles.savedContactHeroRow}>
+                      <View style={[styles.savedContactAvatarFallback, isFollowerMode ? styles.savedContactAvatarFallbackFollower : null]}>
+                        {avatarUrl ? (
+                          <Image source={{ uri: avatarUrl }} style={styles.savedContactAvatarImage} />
+                        ) : (
+                          <Ionicons name="person" size={28} color={isFollowerMode ? "#5E86B3" : "#B25278"} />
+                        )}
+                      </View>
+                      <View style={styles.savedContactTextWrap}>
+                        <View style={styles.savedContactTitleRow}>
+                          <AppText style={styles.savedContactTitle} numberOfLines={1}>
+                            {displayName}
+                          </AppText>
+                          {item.isMutualFriend ? (
+                            <View style={styles.savedContactMutualBadge}>
+                              <Ionicons name="swap-horizontal" size={12} color="#5B4AA2" />
+                            </View>
+                          ) : null}
+                          <View
+                            style={[
+                              styles.savedContactStatusChip,
+                              isOnline ? styles.savedContactStatusChipOnline : null,
+                            ]}
+                          >
+                            <AppText style={[styles.savedContactStatusChipText, statusStyle]}>{statusText}</AppText>
+                          </View>
+                        </View>
+                        <AppText style={styles.savedContactMeta} numberOfLines={1}>
+                          {getSavedContactMeta(item)}
                         </AppText>
-                        {item.isMutualFriend ? (
-                          <View style={styles.savedContactMutualBadge}>
-                            <Ionicons name="swap-horizontal" size={12} color="#5B4AA2" />
+                        {interestLabels.length > 0 ? (
+                          <View style={styles.savedContactInterestRow}>
+                            {interestLabels.map((label) => (
+                              <View key={`${item.contactKey}_${label}`} style={styles.savedContactInterestChip}>
+                                <AppText style={styles.savedContactInterestText} numberOfLines={2} ellipsizeMode="tail">
+                                  {label}
+                                </AppText>
+                              </View>
+                            ))}
                           </View>
                         ) : null}
-                        <View
-                          style={[
-                            styles.savedContactStatusChip,
-                            isOnline ? styles.savedContactStatusChipOnline : null,
-                          ]}
-                        >
-                          <AppText style={[styles.savedContactStatusChipText, statusStyle]}>{statusText}</AppText>
-                        </View>
                       </View>
-                      <AppText style={styles.savedContactMeta} numberOfLines={1}>
-                        {getSavedContactMeta(item)}
-                      </AppText>
-                      {interestLabels.length > 0 ? (
-                        <View style={styles.savedContactInterestRow}>
-                          {interestLabels.map((label) => (
-                            <View key={`${item.contactKey}_${label}`} style={styles.savedContactInterestChip}>
-                              <AppText style={styles.savedContactInterestText} numberOfLines={2} ellipsizeMode="tail">
-                                {label}
-                              </AppText>
-                            </View>
-                          ))}
-                        </View>
-                      ) : null}
+                    </View>
+
+                    <View style={styles.savedContactInfoPanel}>
+                      <View style={styles.savedContactInfoTextWrap}>
+                        <AppText style={styles.savedContactInfoLabel} numberOfLines={1}>
+                          {lastCallLabel ? t("call.contact.last_call_at", { time: lastCallLabel }) : t("call.contact.last_call_empty")}
+                        </AppText>
+                      </View>
+                      <View style={styles.savedContactInfoActionSlot}>
+                        {savedContactsMode === "follow" ? (
+                          <Pressable
+                            hitSlop={10}
+                            disabled={Boolean(savedContactsDeletingKey)}
+                            onPress={() => {
+                              void onPressDeleteSavedContact(item);
+                            }}
+                            style={({ pressed }) => [
+                              styles.savedContactDeleteBtn,
+                              savedContactsDeletingKey && savedContactsDeletingKey === String(item.contactKey || item.peerSessionId || item.peerProfileId || "").trim()
+                                ? { opacity: 0.45 }
+                                : null,
+                              pressed ? { opacity: 0.72 } : null,
+                            ]}
+                          >
+                            <Ionicons name="trash-outline" size={16} color="#C24164" />
+                          </Pressable>
+                        ) : (
+                          <View style={styles.savedContactDeleteBtnPlaceholder} />
+                        )}
+                      </View>
+                    </View>
+
+                    <View style={styles.savedContactActionWrap}>
+                      <PrimaryButton
+                        title={recallEnabled ? t("call.contact.recall") : t("call.contact.recall_unavailable")}
+                        variant={recallEnabled ? "primary" : "ghost"}
+                        style={[
+                          styles.savedContactActionBtn,
+                          isFollowerMode ? (recallEnabled ? styles.savedContactActionBtnFollower : styles.savedContactActionBtnFollowerGhost) : null,
+                        ]}
+                        textStyle={[
+                          styles.savedContactActionBtnText,
+                          isFollowerMode ? (recallEnabled ? styles.savedContactActionBtnFollowerText : styles.savedContactActionBtnFollowerGhostText) : null,
+                        ]}
+                        disabled={!recallEnabled || savedContactsLaunching || Boolean(savedContactsDeletingKey)}
+                        onPress={() => onPressSavedContactRecall(item)}
+                      />
                     </View>
                   </View>
-
-                  <View style={styles.savedContactInfoPanel}>
-                    <View style={styles.savedContactInfoTextWrap}>
-                      <AppText style={styles.savedContactInfoLabel} numberOfLines={1}>
-                        {lastCallLabel ? t("call.contact.last_call_at", { time: lastCallLabel }) : "최근 통화 기록이 아직 없어요"}
-                      </AppText>
-                    </View>
-                    <Pressable
-                      hitSlop={10}
-                      disabled={Boolean(savedContactsDeletingKey)}
-                      onPress={() => {
-                        void onPressDeleteSavedContact(item);
-                      }}
-                      style={({ pressed }) => [
-                        styles.savedContactDeleteBtn,
-                        savedContactsDeletingKey && savedContactsDeletingKey === String(item.contactKey || item.peerSessionId || item.peerProfileId || "").trim()
-                          ? { opacity: 0.45 }
-                          : null,
-                        pressed ? { opacity: 0.72 } : null,
-                      ]}
-                    >
-                      <Ionicons name="trash-outline" size={16} color="#C24164" />
-                    </Pressable>
-                  </View>
-
-                  <View style={styles.savedContactActionWrap}>
-                    <PrimaryButton
-                      title={recallEnabled ? t("call.contact.recall") : t("call.contact.recall_unavailable")}
-                      variant={recallEnabled ? "primary" : "ghost"}
-                      style={styles.savedContactActionBtn}
-                      textStyle={styles.savedContactActionBtnText}
-                      disabled={!recallEnabled || savedContactsLaunching || Boolean(savedContactsDeletingKey)}
-                      onPress={() => onPressSavedContactRecall(item)}
-                    />
-                  </View>
-                </View>
-              );
-            }}
-          />
-        ) : null}
+                );
+              }}
+            />
+          ) : null}
+        </View>
       </AppModal>
     </View>
   );
@@ -1657,37 +1801,25 @@ const styles = StyleSheet.create({
   sub: { fontSize: 14, color: theme.colors.sub, textAlign: "center", lineHeight: 20, maxWidth: 460 },
   runtime: { fontSize: 12, color: theme.colors.sub, textAlign: "center", lineHeight: 18, opacity: 0.6, marginTop: 4 },
   matchBtnWrap: { width: "100%", maxWidth: 420 },
-  updateToastLayer: {
-    ...StyleSheet.absoluteFillObject,
+  updateInlineBadge: {
+    marginTop: 8,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  updateToastBox: {
-    minWidth: 220,
-    maxWidth: 320,
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(74, 26, 92, 0.78)",
+    backgroundColor: "rgba(74, 26, 92, 0.68)",
     borderWidth: 1,
-    borderColor: "rgba(255, 164, 214, 0.22)",
+    borderColor: "rgba(255, 164, 214, 0.18)",
+    maxWidth: 340,
   },
-  updateToastTitle: {
-    fontSize: 15,
-    fontWeight: "700",
+  updateInlineText: {
+    fontSize: 11,
+    fontWeight: "600",
     color: "#FFFFFF",
-    letterSpacing: 0.3,
     textAlign: "center",
-  },
-  updateToastBody: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: "rgba(255,255,255,0.9)",
-    textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 15,
+    opacity: 0.96,
   },
 
   banner: {
@@ -1737,7 +1869,7 @@ const styles = StyleSheet.create({
   },
   savedContactsList: {
     paddingHorizontal: 4,
-    paddingBottom: 4,
+    paddingBottom: 0,
   },
   savedContactsListSingle: {
     flexGrow: 1,
@@ -1747,9 +1879,22 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 12,
     gap: 10,
+  },
+  savedContactsViewport: {
+    width: "100%",
+  },
+  savedContactsHeaderSide: {
+    width: 78,
+    minHeight: 28,
+    justifyContent: "center",
+  },
+  savedContactsHeaderSideLeft: {
+    alignItems: "flex-start",
+  },
+  savedContactsHeaderSideRight: {
+    alignItems: "flex-end",
   },
   savedContactsCloseBadge: {
     minHeight: 28,
@@ -1778,8 +1923,22 @@ const styles = StyleSheet.create({
     color: "#55263A",
     textAlign: "center",
   },
-  savedContactsHeaderSpacer: {
-    width: 56,
+  savedContactsModeBadge: {
+    minHeight: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: "rgba(91,74,162,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(91,74,162,0.18)",
+  },
+  savedContactsModeBadgeText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
+    color: "#5B4AA2",
+    textAlign: "center",
   },
   savedContactsEmptyWrap: {
     width: "100%",
@@ -1819,9 +1978,10 @@ const styles = StyleSheet.create({
   savedContactCard: {
     width: SAVED_CONTACT_CARD_WIDTH,
     alignItems: "stretch",
-    gap: 12,
+    gap: 8,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 11,
+    paddingBottom: 8,
     borderRadius: 24,
     backgroundColor: "rgba(255,245,248,0.98)",
     borderWidth: 1,
@@ -1831,6 +1991,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowRadius: 18,
     elevation: 4,
+  },
+  savedContactCardFollower: {
+    backgroundColor: "rgba(246,250,255,0.98)",
+    borderColor: "rgba(147,180,219,0.42)",
+    shadowColor: "#6B8DB5",
   },
   savedContactStatusChip: {
     minHeight: 24,
@@ -1868,14 +2033,18 @@ const styles = StyleSheet.create({
     borderColor: "rgba(209,114,153,0.18)",
     flexShrink: 0,
   },
+  savedContactAvatarFallbackFollower: {
+    backgroundColor: "rgba(218,233,250,0.98)",
+    borderColor: "rgba(116,153,194,0.26)",
+  },
   savedContactAvatarImage: {
     width: "100%",
     height: "100%",
   },
   savedContactTextWrap: {
     flex: 1,
-    gap: 6,
-    minHeight: 72,
+    gap: 5,
+    minHeight: 68,
     justifyContent: "center",
   },
   savedContactTitleRow: {
@@ -1933,10 +2102,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   savedContactInfoPanel: {
-    minHeight: 44,
+    minHeight: 38,
     borderRadius: 16,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     backgroundColor: "rgba(255,255,255,0.68)",
     borderWidth: 1,
     borderColor: "rgba(225,162,190,0.18)",
@@ -1947,6 +2116,13 @@ const styles = StyleSheet.create({
   savedContactInfoTextWrap: {
     flex: 1,
     minWidth: 0,
+  },
+  savedContactInfoActionSlot: {
+    width: 30,
+    height: 30,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   savedContactInfoLabel: {
     fontSize: 12,
@@ -1972,11 +2148,25 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 38,
   },
+  savedContactActionBtnFollower: {
+    backgroundColor: "#6F98C8",
+    borderColor: "#6F98C8",
+  },
+  savedContactActionBtnFollowerGhost: {
+    backgroundColor: "rgba(232,241,251,0.96)",
+    borderColor: "rgba(120,156,198,0.48)",
+  },
   savedContactActionBtnText: {
     fontSize: 12,
     lineHeight: 14,
     fontWeight: "800",
     textAlign: "center",
+  },
+  savedContactActionBtnFollowerText: {
+    color: "#FFFFFF",
+  },
+  savedContactActionBtnFollowerGhostText: {
+    color: "#5D7FA7",
   },
   savedContactDeleteBtn: {
     width: 30,
@@ -1985,6 +2175,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(194,65,100,0.08)",
+  },
+  savedContactDeleteBtnPlaceholder: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    opacity: 0,
   },
   incomingRecallBody: {
     width: "100%",

@@ -93,6 +93,8 @@ export class WebRTCSession {
   private remoteStream: MediaStream | null = null;
   private dataChannel: any = null;
   private pendingDataMessages: string[] = [];
+  private pendingRemoteCandidates: any[] = [];
+  private signalTask: Promise<unknown> = Promise.resolve();
   private cb: Callbacks;
   private inCallStarted: boolean = false;
   private audioDeviceSub: any = null;
@@ -100,11 +102,17 @@ export class WebRTCSession {
   private lastAvailableAudioDevices: string[] = [];
   private lastAppliedRoute: string | null = null;
   private lastApplyAtMs: number = 0;
+  private lastNotifiedConnectionState: string = "";
+  private lastLocalAudioEnergy: number | null = null;
+  private lastLocalAudioDuration: number | null = null;
+  private lastRemoteAudioEnergy: number | null = null;
+  private lastRemoteAudioDuration: number | null = null;
 
   constructor(cb: Callbacks) {
     this.cb = cb;
 
     const turn = APP_CONFIG.TURN;
+    const iceTransportPolicy = (APP_CONFIG as any)?.ICE?.transportPolicy === "relay" ? "relay" : "all";
 
     const stunUrls = (APP_CONFIG as any)?.ICE?.stunUrls ?? [];
     const stunServer =
@@ -112,9 +120,15 @@ export class WebRTCSession {
         ? { urls: stunUrls }
         : { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] };
 
-    const turnUrls = [`turn:${turn.host}:${turn.port}?transport=udp`];
-    if ((turn as any).tcpEnabled === true) {
-      turnUrls.push(`turn:${turn.host}:${turn.port}?transport=tcp`);
+    const turnUrls: string[] = [];
+    if (turn.host && turn.port) {
+      turnUrls.push(`turn:${turn.host}:${turn.port}?transport=udp`);
+      if ((turn as any).tcpEnabled === true) {
+        turnUrls.push(`turn:${turn.host}:${turn.port}?transport=tcp`);
+      }
+    }
+    if (turn.host && (turn as any).tlsEnabled === true && (turn as any).tlsPort) {
+      turnUrls.push(`turns:${turn.host}:${(turn as any).tlsPort}?transport=tcp`);
     }
 
     const iceServers = [
@@ -129,6 +143,7 @@ export class WebRTCSession {
     this.pc = new RTCPeerConnection(
       {
         iceServers,
+        iceTransportPolicy,
         bundlePolicy: "max-bundle",
         rtcpMuxPolicy: "require",
         iceCandidatePoolSize: 2,
@@ -142,7 +157,11 @@ export class WebRTCSession {
     };
 
     pcAny.onconnectionstatechange = () => {
-      this.cb.onConnectionState?.(pcAny.connectionState);
+      this.notifyConnectionState(pcAny.connectionState || pcAny.iceConnectionState);
+    };
+
+    pcAny.oniceconnectionstatechange = () => {
+      this.notifyConnectionState(pcAny.iceConnectionState || pcAny.connectionState);
     };
 
     pcAny.ontrack = (e: any) => {
@@ -158,6 +177,48 @@ export class WebRTCSession {
       if (!channel) return;
       this.bindDataChannel(channel);
     };
+  }
+
+  private notifyConnectionState(state: unknown) {
+    const normalized = String(state || "").trim().toLowerCase();
+    if (!normalized) return;
+    if (this.lastNotifiedConnectionState === normalized) return;
+    this.lastNotifiedConnectionState = normalized;
+    this.cb.onConnectionState?.(normalized);
+  }
+
+  private hasRemoteDescription() {
+    const pcAny: any = this.pc as any;
+    const remote = pcAny?.remoteDescription;
+    return Boolean(remote && String(remote.type || "").trim().length > 0);
+  }
+
+  private getSignalingState() {
+    const pcAny: any = this.pc as any;
+    return String(pcAny?.signalingState || "").trim().toLowerCase();
+  }
+
+  private enqueueSignalTask<T>(task: () => Promise<T>) {
+    const run = this.signalTask.then(task, task);
+    this.signalTask = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
+  }
+
+  private async flushPendingRemoteCandidates() {
+    if (!this.hasRemoteDescription()) return;
+    if (!this.pendingRemoteCandidates.length) return;
+
+    const pending = this.pendingRemoteCandidates.splice(0);
+    for (const candidate of pending) {
+      try {
+        await (this.pc as any).addIceCandidate(new RTCIceCandidate(candidate));
+      } catch {
+        this.pendingRemoteCandidates.push(candidate);
+      }
+    }
   }
 
   private normalizeDataMessage(data: any) {
@@ -322,6 +383,155 @@ export class WebRTCSession {
     } catch {
       return {};
     }
+  }
+
+  async getLocalAudioLevel(): Promise<number> {
+    try {
+      const report = await this.getAudioStatsReport("local");
+      return this.extractAudioLevelFromReport(report, "local");
+    } catch {
+      return 0;
+    }
+  }
+
+  async getRemoteAudioLevel(): Promise<number> {
+    try {
+      const report = await this.getAudioStatsReport("remote");
+      return this.extractAudioLevelFromReport(report, "remote");
+    } catch {
+      return 0;
+    }
+  }
+
+  private async getAudioStatsReport(direction: "local" | "remote") {
+    const pcAny: any = this.pc as any;
+    const list = direction === "local" ? pcAny.getSenders?.() : pcAny.getReceivers?.();
+    if (Array.isArray(list)) {
+      const audioEntry = list.find((item: any) => String(item?.track?.kind || "").trim().toLowerCase() === "audio");
+      if (audioEntry && typeof audioEntry.getStats === "function") {
+        try {
+          return await audioEntry.getStats();
+        } catch {}
+      }
+    }
+    if (typeof pcAny.getStats === "function") {
+      return await pcAny.getStats();
+    }
+    return null;
+  }
+
+  private extractAudioLevelFromReport(report: any, direction: "local" | "remote"): number {
+    if (!report) return 0;
+
+    let detectedLevel = 0;
+    let energyLevel = 0;
+
+    const normalizeLevel = (raw: unknown) => {
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0) return 0;
+      if (value <= 1) return Math.max(0, Math.min(1, value));
+      if (value <= 32767) return Math.max(0, Math.min(1, value / 32767));
+      return 1;
+    };
+
+    const readBooleanActivity = (raw: unknown) => {
+      if (raw === true) return 0.32;
+      const text = String(raw ?? "").trim().toLowerCase();
+      if (text === "true" || text === "1" || text === "yes") return 0.32;
+      return 0;
+    };
+
+    const isLikelyAudioRow = (row: any) => {
+      const hints = [
+        row?.kind,
+        row?.mediaType,
+        row?.trackKind,
+        row?.trackIdentifier,
+        row?.mediaSourceId,
+        row?.trackId,
+        row?.id,
+        row?.type,
+      ]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter((value) => value.length > 0);
+
+      if (hints.some((value) => value.includes("audio"))) return true;
+      return (
+        "audioLevel" in row ||
+        "audio_level" in row ||
+        "voiceActivityLevel" in row ||
+        "voiceActivityFlag" in row ||
+        "audioInputLevel" in row ||
+        "audioOutputLevel" in row ||
+        "totalAudioEnergy" in row ||
+        "totalSamplesDuration" in row
+      );
+    };
+
+    forEachStat(report, (stat) => {
+      const row = stat && typeof stat === "object" ? stat : null;
+      if (!row || !isLikelyAudioRow(row)) return;
+
+      const directCandidates = [
+        (row as any).audioLevel,
+        (row as any).audio_level,
+        (row as any).voiceActivityLevel,
+        (row as any).audioInputLevel,
+        (row as any).audioOutputLevel,
+      ];
+
+      directCandidates.forEach((candidate) => {
+        const level = normalizeLevel(candidate);
+        if (level > detectedLevel) {
+          detectedLevel = level;
+        }
+      });
+
+      const booleanCandidates = [
+        (row as any).voiceActivityFlag,
+        (row as any).voiceActivityDetected,
+        (row as any).speechDetected,
+        (row as any).speechActivity,
+      ];
+      booleanCandidates.forEach((candidate) => {
+        const level = readBooleanActivity(candidate);
+        if (level > detectedLevel) {
+          detectedLevel = level;
+        }
+      });
+
+      const totalAudioEnergy = Number((row as any).totalAudioEnergy);
+      const totalSamplesDuration = Number((row as any).totalSamplesDuration);
+      const prevEnergy = direction === "local" ? this.lastLocalAudioEnergy : this.lastRemoteAudioEnergy;
+      const prevDuration = direction === "local" ? this.lastLocalAudioDuration : this.lastRemoteAudioDuration;
+
+      if (
+        Number.isFinite(totalAudioEnergy) &&
+        Number.isFinite(totalSamplesDuration) &&
+        totalAudioEnergy >= 0 &&
+        totalSamplesDuration > 0 &&
+        prevEnergy != null &&
+        prevDuration != null
+      ) {
+        const energyDelta = totalAudioEnergy - prevEnergy;
+        const durationDelta = totalSamplesDuration - prevDuration;
+        if (energyDelta > 0 && durationDelta > 0) {
+          const rmsLevel = Math.sqrt(Math.max(0, energyDelta) / durationDelta);
+          energyLevel = Math.max(energyLevel, normalizeLevel(rmsLevel));
+        }
+      }
+
+      if (Number.isFinite(totalAudioEnergy) && totalAudioEnergy >= 0) {
+        if (direction === "local") this.lastLocalAudioEnergy = totalAudioEnergy;
+        else this.lastRemoteAudioEnergy = totalAudioEnergy;
+      }
+      if (Number.isFinite(totalSamplesDuration) && totalSamplesDuration >= 0) {
+        if (direction === "local") this.lastLocalAudioDuration = totalSamplesDuration;
+        else this.lastRemoteAudioDuration = totalSamplesDuration;
+      }
+    });
+
+    return Math.max(0, Math.min(1, Math.max(detectedLevel, energyLevel)));
   }
 
   private startSpeakerphone() {
@@ -511,11 +721,7 @@ export class WebRTCSession {
     } catch {}
   }
 
-  async startLocal() {
-    await this.ensurePermissions();
-
-    this.startSpeakerphone();
-
+  private async openLocalMediaStream() {
     let stream: any = null;
 
     try {
@@ -540,12 +746,102 @@ export class WebRTCSession {
       } as any);
     }
 
+    return stream as MediaStream;
+  }
+
+  private resolveTrackEnabledState(tracks: any[] | undefined, fallback: boolean) {
+    if (!Array.isArray(tracks) || tracks.length === 0) return fallback;
+    return tracks.some((track: any) => Boolean(track?.enabled));
+  }
+
+  private applyLocalTrackEnabledState(stream: MediaStream, videoEnabled: boolean, audioEnabled: boolean) {
+    try {
+      (stream as any)?.getVideoTracks?.()?.forEach((track: any) => {
+        track.enabled = videoEnabled;
+      });
+    } catch {}
+
+    try {
+      (stream as any)?.getAudioTracks?.()?.forEach((track: any) => {
+        track.enabled = audioEnabled;
+      });
+    } catch {}
+  }
+
+  private stopMediaStream(stream: MediaStream | null | undefined) {
+    try {
+      (stream as any)?.getTracks?.()?.forEach((track: any) => track?.stop?.());
+    } catch {}
+  }
+
+  async startLocal() {
+    await this.ensurePermissions();
+
+    this.startSpeakerphone();
+
+    const stream = await this.openLocalMediaStream();
+
     this.localStream = stream as any;
     (stream as any).getTracks().forEach((t: any) => (this.pc as any).addTrack(t, stream));
 
     await this.tuneSenders();
 
     this.cb.onLocalStream?.(stream as any);
+  }
+
+  async refreshLocalMedia(opts?: { videoEnabled?: boolean; audioEnabled?: boolean }) {
+    await this.ensurePermissions();
+
+    this.startSpeakerphone();
+
+    const previousStream = this.localStream;
+    let nextStream: MediaStream;
+    try {
+      nextStream = await this.openLocalMediaStream();
+    } catch (firstError) {
+      if (!previousStream) throw firstError;
+      this.stopMediaStream(previousStream);
+      nextStream = await this.openLocalMediaStream();
+    }
+    const videoEnabled =
+      typeof opts?.videoEnabled === "boolean"
+        ? opts.videoEnabled
+        : this.resolveTrackEnabledState((previousStream as any)?.getVideoTracks?.(), true);
+    const audioEnabled =
+      typeof opts?.audioEnabled === "boolean"
+        ? opts.audioEnabled
+        : this.resolveTrackEnabledState((previousStream as any)?.getAudioTracks?.(), true);
+
+    this.applyLocalTrackEnabledState(nextStream, videoEnabled, audioEnabled);
+
+    const senders: any[] = ((this.pc as any)?.getSenders?.() ?? []) as any[];
+    const nextTracks = ((nextStream as any)?.getTracks?.() ?? []) as any[];
+    for (const track of nextTracks) {
+      const kind = String(track?.kind || "").toLowerCase();
+      const sender = senders.find((candidate) => String(candidate?.track?.kind || "").toLowerCase() === kind);
+      if (sender && typeof sender.replaceTrack === "function") {
+        try {
+          await sender.replaceTrack(track);
+          continue;
+        } catch {}
+      }
+
+      try {
+        (this.pc as any).addTrack(track, nextStream);
+      } catch {}
+    }
+
+    this.localStream = nextStream;
+
+    await this.tuneSenders();
+
+    this.cb.onLocalStream?.(nextStream);
+
+    if (previousStream && previousStream !== nextStream) {
+      this.stopMediaStream(previousStream);
+    }
+
+    return nextStream;
   }
 
   async createOffer() {
@@ -560,7 +856,16 @@ export class WebRTCSession {
   }
 
   async acceptOfferAndCreateAnswer(offer: any) {
+    const pcAny: any = this.pc as any;
+    const signalingState = this.getSignalingState();
+    if (signalingState && signalingState !== "stable") {
+      try {
+        await pcAny.setLocalDescription({ type: "rollback" });
+      } catch {}
+    }
+
     await (this.pc as any).setRemoteDescription(new RTCSessionDescription(offer));
+    await this.flushPendingRemoteCandidates();
     const ans = await (this.pc as any).createAnswer();
 
     if (ans?.sdp) {
@@ -572,13 +877,28 @@ export class WebRTCSession {
   }
 
   async acceptAnswer(answer: any) {
+    const signalingState = this.getSignalingState();
+    if (signalingState === "stable" && this.hasRemoteDescription()) {
+      return;
+    }
+    if (signalingState && signalingState !== "have-local-offer") {
+      return;
+    }
     await (this.pc as any).setRemoteDescription(new RTCSessionDescription(answer));
+    await this.flushPendingRemoteCandidates();
   }
 
   async addCandidate(candidate: any) {
+    if (!candidate) return;
+    if (!this.hasRemoteDescription()) {
+      this.pendingRemoteCandidates.push(candidate);
+      return;
+    }
     try {
       await (this.pc as any).addIceCandidate(new RTCIceCandidate(candidate));
-    } catch {}
+    } catch {
+      this.pendingRemoteCandidates.push(candidate);
+    }
   }
 
   async start({ isCaller }: { isCaller: boolean }) {
@@ -592,17 +912,56 @@ export class WebRTCSession {
   }
 
   async handleRemoteOffer(offer: any) {
-    const ans = await this.acceptOfferAndCreateAnswer(offer);
-    this.cb.onAnswer?.(ans);
-    return ans;
+    return this.enqueueSignalTask(async () => {
+      const ans = await this.acceptOfferAndCreateAnswer(offer);
+      this.cb.onAnswer?.(ans);
+      return ans;
+    });
   }
 
   async handleRemoteAnswer(answer: any) {
-    await this.acceptAnswer(answer);
+    return this.enqueueSignalTask(async () => {
+      await this.acceptAnswer(answer);
+    });
   }
 
   async handleRemoteIce(candidate: any) {
-    await this.addCandidate(candidate);
+    return this.enqueueSignalTask(async () => {
+      await this.addCandidate(candidate);
+    });
+  }
+
+  async restartIce() {
+    return this.enqueueSignalTask(async () => {
+      try {
+        const pcAny: any = this.pc as any;
+        const signalingState = this.getSignalingState();
+        if (signalingState && signalingState !== "stable") {
+          return false;
+        }
+        if (typeof pcAny.restartIce === "function") {
+          try {
+            pcAny.restartIce();
+          } catch {}
+        }
+
+        const offer = await pcAny.createOffer({
+          iceRestart: true,
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
+        });
+
+        if (offer?.sdp) {
+          offer.sdp = preferH264InSdp(offer.sdp);
+        }
+
+        await pcAny.setLocalDescription(offer);
+        this.cb.onOffer?.(offer);
+        return true;
+      } catch {
+        return false;
+      }
+    });
   }
 
   setLocalVideoEnabled(on: boolean) {
@@ -618,9 +977,7 @@ export class WebRTCSession {
   stop() {
     this.stopSpeakerphone();
 
-    try {
-      (this.localStream as any)?.getTracks?.()?.forEach((t: any) => t.stop?.());
-    } catch {}
+    this.stopMediaStream(this.localStream);
     try {
       (this.dataChannel as any)?.close?.();
     } catch {}
@@ -631,5 +988,10 @@ export class WebRTCSession {
     this.remoteStream = null;
     this.dataChannel = null;
     this.pendingDataMessages = [];
+    this.pendingRemoteCandidates = [];
+    this.signalTask = Promise.resolve();
+    this.lastNotifiedConnectionState = "";
+    this.lastLocalAudioEnergy = null;
+    this.lastLocalAudioDuration = null;
   }
 }

@@ -15,6 +15,7 @@ let _initPromise: Promise<boolean> | null = null;
 let _adsReady = false;
 
 let _interstitialShowing = false;
+let _lastInterstitialShownAtMs = 0;
 
 type ReadyListener = (ready: boolean) => void;
 const _readyListeners = new Set<ReadyListener>();
@@ -38,6 +39,26 @@ export function onAdsReady(cb: ReadyListener) {
   return () => {
     _readyListeners.delete(cb);
   };
+}
+
+export function getLastInterstitialShownAtMs() {
+  return _lastInterstitialShownAtMs;
+}
+
+export function recordInterstitialShown(atMs = Date.now()) {
+  const ts = Number(atMs);
+  if (!Number.isFinite(ts)) return;
+  if (ts > _lastInterstitialShownAtMs) {
+    _lastInterstitialShownAtMs = Math.trunc(ts);
+  }
+}
+
+export function isInterstitialCooldownPassed(cooldownMs: number, nowMs = Date.now()) {
+  const cd = Number(cooldownMs);
+  if (!Number.isFinite(cd) || cd <= 0) return true;
+  const now = Number(nowMs);
+  const safeNow = Number.isFinite(now) ? now : Date.now();
+  return safeNow - _lastInterstitialShownAtMs >= Math.trunc(cd);
 }
 
 function notifyReady(v: boolean) {
@@ -120,7 +141,9 @@ export function createInterstitial() {
         if (_interstitialShowing) return;
         _interstitialShowing = true;
         try {
-          return await origShow(...args);
+          const out = await origShow(...args);
+          recordInterstitialShown(Date.now());
+          return out;
         } catch (e) {
           _interstitialShowing = false;
           throw e;
@@ -160,4 +183,15 @@ export function BannerBar({ onAdLoaded, onAdFailedToLoad }: BannerBarProps = {})
   );
 }
 
-export default { initAds, createInterstitial, createRewarded, createRewardedInterstitial, BannerBar, isAdsReady, onAdsReady };
+export default {
+  initAds,
+  createInterstitial,
+  createRewarded,
+  createRewardedInterstitial,
+  BannerBar,
+  isAdsReady,
+  onAdsReady,
+  getLastInterstitialShownAtMs,
+  recordInterstitialShown,
+  isInterstitialCooldownPassed,
+};

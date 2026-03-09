@@ -12,6 +12,12 @@ type UseLocalPreviewArgs = {
   t: (key: string, params?: any) => string;
 };
 
+type EnsureLocalPreviewOptions = {
+  allowWhileCalling?: boolean;
+  forceRefresh?: boolean;
+  silent?: boolean;
+};
+
 export default function useLocalPreview({
   previewStreamRef,
   localStreamRef,
@@ -47,11 +53,15 @@ export default function useLocalPreview({
     }
   }, []);
 
-  const ensureLocalPreviewStream = useCallback(async () => {
-    if (phaseRef.current === "calling") return true;
+  const ensureLocalPreviewStream = useCallback(async (options: EnsureLocalPreviewOptions = {}) => {
+    const allowWhileCalling = options.allowWhileCalling === true;
+    const forceRefresh = options.forceRefresh === true;
+    const silent = options.silent === true;
+
+    if (phaseRef.current === "calling" && !allowWhileCalling) return true;
 
     const existing = previewStreamRef.current;
-    if (existing && hasLiveVideoTrack(existing)) {
+    if (!forceRefresh && existing && hasLiveVideoTrack(existing)) {
       localStreamRef.current = existing;
       try {
         setLocalStreamURL(existing.toURL());
@@ -109,16 +119,29 @@ export default function useLocalPreview({
       setLocalStreamURL(stream.toURL());
       return true;
     } catch {
-      showGlobalModal(t("common.error_occurred"), t("call.camera_preview_failed"));
+      if (!silent) {
+        showGlobalModal(t("common.error_occurred"), t("call.camera_preview_failed"));
+      }
       return false;
     } finally {
       previewOpeningRef.current = false;
     }
   }, [hasLiveVideoTrack, localStreamRef, phaseRef, previewOpeningRef, previewStreamRef, setLocalStreamURL, showGlobalModal, t]);
 
+  const refreshLocalPreviewStream = useCallback(
+    async () =>
+      ensureLocalPreviewStream({
+        allowWhileCalling: true,
+        forceRefresh: true,
+        silent: true,
+      }),
+    [ensureLocalPreviewStream]
+  );
+
   return {
     clearLocalPreviewStream,
     hasLiveVideoTrack,
     ensureLocalPreviewStream,
+    refreshLocalPreviewStream,
   };
 }

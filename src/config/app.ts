@@ -1,5 +1,6 @@
 ﻿// FILE: C:\ranchat\src\config\app.ts
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 const env = (Constants.expoConfig?.extra ?? {}) as Record<string, any>;
 
@@ -28,6 +29,12 @@ const readBool = (k: string, fallback: boolean): boolean => {
   if (raw === "1" || raw === "true" || raw === "yes" || raw === "y" || raw === "on") return true;
   if (raw === "0" || raw === "false" || raw === "no" || raw === "n" || raw === "off") return false;
   return fallback;
+};
+
+const readIceTransportPolicy = (k: string, fallback: "all" | "relay"): "all" | "relay" => {
+  const raw = read(k, fallback).trim().toLowerCase();
+  if (raw === "relay") return "relay";
+  return "all";
 };
 
 const readList = (k: string): string[] => {
@@ -85,6 +92,11 @@ function normalizeCallbackPath(v: string, fallback: string): string {
 }
 
 const freeRemoteVideoSeconds = readNumber("EXPO_PUBLIC_FREE_REMOTE_VIDEO_SECONDS", 3000);
+const revenueCatDefaultKey = read("EXPO_PUBLIC_REVENUECAT_PUBLIC_SDK_KEY", "goog_uUnNMCAjkegLjEYuqDCYwvwPTGX");
+const revenueCatPlatformKey =
+  Platform.OS === "ios"
+    ? read("EXPO_PUBLIC_REVENUECAT_IOS_KEY", revenueCatDefaultKey)
+    : read("EXPO_PUBLIC_REVENUECAT_ANDROID_KEY", revenueCatDefaultKey);
 
 const stunUrlsRaw = readList("EXPO_PUBLIC_STUN_URLS")
   .map((u) => normalizeIceUrl(u, "stun"))
@@ -100,6 +112,7 @@ export const APP_CONFIG = {
 
   ICE: {
     stunUrls,
+    transportPolicy: readIceTransportPolicy("EXPO_PUBLIC_ICE_TRANSPORT_POLICY", "relay"),
   },
 
   TURN: {
@@ -107,7 +120,9 @@ export const APP_CONFIG = {
     port: readPort("EXPO_PUBLIC_TURN_PORT", 3478),
     username: read("EXPO_PUBLIC_TURN_USERNAME", "testuser"),
     password: read("EXPO_PUBLIC_TURN_PASSWORD", "testpass"),
-    tcpEnabled: readBool("EXPO_PUBLIC_TURN_TCP_ENABLED", false),
+    tcpEnabled: readBool("EXPO_PUBLIC_TURN_TCP_ENABLED", true),
+    tlsEnabled: readBool("EXPO_PUBLIC_TURN_TLS_ENABLED", false),
+    tlsPort: readPort("EXPO_PUBLIC_TURN_TLS_PORT", 5349),
   },
 
   AUTH_HTTP_BASE_URL: normalizeHttpsBase(read("EXPO_PUBLIC_AUTH_HTTP_BASE_URL", "https://comspc.duckdns.org")),
@@ -136,7 +151,6 @@ export const APP_CONFIG = {
   },
 
   ACTIVE_USERS_PATH: normalizePath(read("EXPO_PUBLIC_ACTIVE_USERS_PATH", "/api/active-users"), "/api/active-users"),
-
   ADS: {
     bannerAndroid: read("EXPO_PUBLIC_AD_UNIT_BANNER_ANDROID", ""),
     bannerIos: read("EXPO_PUBLIC_AD_UNIT_BANNER_IOS", ""),
@@ -158,10 +172,7 @@ export const APP_CONFIG = {
   },
 
   PURCHASES: {
-    revenueCatKey: read(
-      "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY",
-      read("EXPO_PUBLIC_REVENUECAT_PUBLIC_SDK_KEY", "goog_uUnNMCAjkegLjEYuqDCYwvwPTGX")
-    ),
+    revenueCatKey: revenueCatPlatformKey,
     entitlementId: read("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID", "ranchat_premium"),
   },
 
@@ -169,7 +180,10 @@ export const APP_CONFIG = {
     privacyUrl: read("EXPO_PUBLIC_PRIVACY_POLICY_URL", ""),
   },
 
-  MATCH_TIMEOUT_MS: readNumber("EXPO_PUBLIC_MATCH_TIMEOUT_MS", 1200000),
+  MATCH_TIMEOUT_MS: readNumber("EXPO_PUBLIC_MATCH_TIMEOUT_MS", 30000),
+  PEER_INFO_WAIT_TIMEOUT_MS: readNumber("EXPO_PUBLIC_PEER_INFO_WAIT_TIMEOUT_MS", 2200),
+  WEBRTC_CONNECT_TIMEOUT_MS: readNumber("EXPO_PUBLIC_WEBRTC_CONNECT_TIMEOUT_MS", 20000),
+  WEBRTC_DOWN_GRACE_MS: readNumber("EXPO_PUBLIC_WEBRTC_DOWN_GRACE_MS", 12000),
   FREE_CALL_LIMIT_MS: readNumber("EXPO_PUBLIC_FREE_CALL_LIMIT_MS", freeRemoteVideoSeconds * 1000),
 
   FREE_LIMITS: {

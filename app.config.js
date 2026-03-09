@@ -1,5 +1,45 @@
 const base = require("./app.base.json");
 
+const SHOP_EXTRA_KEYS = [
+  "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY",
+  "EXPO_PUBLIC_REVENUECAT_IOS_KEY",
+  "EXPO_PUBLIC_REVENUECAT_PUBLIC_SDK_KEY",
+  "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID",
+  "EXPO_PUBLIC_SHOP_POPTALK_2000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPTALK_5000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPTALK_10000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPTALK_20000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPTALK_30000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPTALK_50000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPTALK_100000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPTALK_UNLIMITED_1M_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPCORN_2000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPCORN_5000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPCORN_10000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPCORN_20000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPCORN_30000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPCORN_50000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPCORN_100000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_POPCORN_UNLIMITED_1M_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_KERNEL_500_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_KERNEL_2000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_KERNEL_5000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_KERNEL_10000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_KERNEL_25000_PRODUCT_ID",
+  "EXPO_PUBLIC_SHOP_KERNEL_50000_PRODUCT_ID",
+];
+
+const SHOP_ALIAS_KEYS = [
+  ["EXPO_PUBLIC_SHOP_POPTALK_2000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_2000_PRODUCT_ID"],
+  ["EXPO_PUBLIC_SHOP_POPTALK_5000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_5000_PRODUCT_ID"],
+  ["EXPO_PUBLIC_SHOP_POPTALK_10000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_10000_PRODUCT_ID"],
+  ["EXPO_PUBLIC_SHOP_POPTALK_20000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_20000_PRODUCT_ID"],
+  ["EXPO_PUBLIC_SHOP_POPTALK_30000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_30000_PRODUCT_ID"],
+  ["EXPO_PUBLIC_SHOP_POPTALK_50000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_50000_PRODUCT_ID"],
+  ["EXPO_PUBLIC_SHOP_POPTALK_100000_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_100000_PRODUCT_ID"],
+  ["EXPO_PUBLIC_SHOP_POPTALK_UNLIMITED_1M_PRODUCT_ID", "EXPO_PUBLIC_SHOP_POPCORN_UNLIMITED_1M_PRODUCT_ID"],
+];
+
 function toText(v) {
   return String(v ?? "").trim();
 }
@@ -47,6 +87,25 @@ function withGooglePlugin(plugins, iosUrlScheme) {
   return next;
 }
 
+function withShopExtra(expo) {
+  const extra = { ...((expo && expo.extra && typeof expo.extra === "object" ? expo.extra : {}) || {}) };
+
+  for (const key of SHOP_EXTRA_KEYS) {
+    const value = toText(process.env[key] ?? extra[key]);
+    if (value) extra[key] = value;
+  }
+
+  for (const [targetKey, sourceKey] of SHOP_ALIAS_KEYS) {
+    const targetValue = toText(extra[targetKey]);
+    const sourceValue = toText(extra[sourceKey]);
+    if (!targetValue && sourceValue) extra[targetKey] = sourceValue;
+    if (!sourceValue && targetValue) extra[sourceKey] = targetValue;
+  }
+
+  expo.extra = extra;
+  return expo;
+}
+
 module.exports = ({ config }) => {
   // Start from Expo incoming config, then override with base.expo.
   // This keeps dynamic defaults but ensures app.base.json stays authoritative.
@@ -57,5 +116,5 @@ module.exports = ({ config }) => {
   const expo = JSON.parse(JSON.stringify(merged));
   const googleIosUrlScheme = deriveGoogleIosUrlScheme();
   expo.plugins = withGooglePlugin(expo.plugins, googleIosUrlScheme);
-  return expo;
+  return withShopExtra(expo);
 };

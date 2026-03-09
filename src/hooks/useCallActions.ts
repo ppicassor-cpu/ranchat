@@ -13,6 +13,7 @@ const SWIPE_REFRESH_COMMIT_DELAY_MS = 140;
 const SWIPE_REFRESH_UNLOCK_DELAY_MS = 1250;
 const SWIPE_REFRESH_UNLOCK_POLL_MS = 110;
 const SWIPE_REFRESH_MAX_LOCK_MS = 8000;
+const MATCHING_ACTIONS_RESHOW_DELAY_MS = 20000;
 
 type UseCallActionsArgs = {
   stopAll: (isUserExit?: boolean, resetMatchingActions?: boolean) => void;
@@ -26,7 +27,8 @@ type UseCallActionsArgs = {
   isScreenFocusedRef: React.MutableRefObject<boolean>;
   beautyOpenRef: React.MutableRefObject<boolean>;
   phaseRef: React.MutableRefObject<string>;
-  startMatchingActionsTimer: (forceReset?: boolean) => void;
+  startMatchingActionsTimer: (forceReset?: boolean, delayOverrideMs?: number) => void;
+  resetNoMatchTimer: () => void;
   clearMatchingActionsTimer: (resetDeadline?: boolean) => void;
   setMyCamOn: (v: boolean) => void;
   beautyOpeningIntentRef: React.MutableRefObject<boolean>;
@@ -53,6 +55,7 @@ export default function useCallActions({
   beautyOpenRef,
   phaseRef,
   startMatchingActionsTimer,
+  resetNoMatchTimer,
   clearMatchingActionsTimer,
   setMyCamOn,
   beautyOpeningIntentRef,
@@ -170,12 +173,13 @@ export default function useCallActions({
     setMatchingActionsVisible(false);
     if (!isScreenFocusedRef.current) return;
     if (!beautyOpenRef.current && (phaseRef.current === "connecting" || phaseRef.current === "queued" || phaseRef.current === "ended")) {
-      startMatchingActionsTimer(true);
+      startMatchingActionsTimer(true, MATCHING_ACTIONS_RESHOW_DELAY_MS);
     }
   }, [beautyOpenRef, isScreenFocusedRef, phaseRef, setMatchingActionsVisible, startMatchingActionsTimer]);
 
   const onPressMatchingBeauty = useCallback(async () => {
-    clearMatchingActionsTimer();
+    resetNoMatchTimer();
+    clearMatchingActionsTimer(false);
     setMatchingActionsVisible(false);
     setMyCamOn(true);
     beautyOpeningIntentRef.current = true;
@@ -186,19 +190,23 @@ export default function useCallActions({
       setBeautyOpen(false);
       return;
     }
-  }, [beautyOpeningIntentRef, clearMatchingActionsTimer, ensureLocalPreviewStream, openBeauty, setBeautyOpen, setMatchingActionsVisible, setMyCamOn]);
+  }, [beautyOpeningIntentRef, clearMatchingActionsTimer, ensureLocalPreviewStream, openBeauty, resetNoMatchTimer, setBeautyOpen, setMatchingActionsVisible, setMyCamOn]);
 
   const onPressMatchingFortune = useCallback(() => {
+    resetNoMatchTimer();
+    clearMatchingActionsTimer(false);
     onOpenMatchingMiniScreen?.();
     setMatchingActionsVisible(false);
     navigation.navigate("Fortune");
-  }, [navigation, onOpenMatchingMiniScreen, setMatchingActionsVisible]);
+  }, [clearMatchingActionsTimer, navigation, onOpenMatchingMiniScreen, resetNoMatchTimer, setMatchingActionsVisible]);
 
   const onPressMatchingGame = useCallback(() => {
+    resetNoMatchTimer();
+    clearMatchingActionsTimer(false);
     onOpenMatchingMiniScreen?.();
     setMatchingActionsVisible(false);
     navigation.navigate("Dino");
-  }, [navigation, onOpenMatchingMiniScreen, setMatchingActionsVisible]);
+  }, [clearMatchingActionsTimer, navigation, onOpenMatchingMiniScreen, resetNoMatchTimer, setMatchingActionsVisible]);
 
   const onPressFindOther = useCallback(() => {
     adAllowedRef.current = true;

@@ -2,22 +2,22 @@ import { APP_CONFIG } from "../config/app";
 
 export const MATCH_TIMEOUT_MS = (() => {
   const v = Number((APP_CONFIG as any)?.MATCH_TIMEOUT_MS);
-  return Number.isFinite(v) ? v : 60000;
+  return Number.isFinite(v) ? v : 30000;
 })();
 
 export const PEER_INFO_WAIT_TIMEOUT_MS = (() => {
   const v = Number((APP_CONFIG as any)?.PEER_INFO_WAIT_TIMEOUT_MS);
-  return Number.isFinite(v) ? v : 6000;
+  return Number.isFinite(v) ? v : 2200;
 })();
 
 export const WEBRTC_CONNECT_TIMEOUT_MS = (() => {
   const v = Number((APP_CONFIG as any)?.WEBRTC_CONNECT_TIMEOUT_MS);
-  return Number.isFinite(v) ? v : 12000;
+  return Number.isFinite(v) ? v : 20000;
 })();
 
 export const WEBRTC_DOWN_GRACE_MS = (() => {
   const v = Number((APP_CONFIG as any)?.WEBRTC_DOWN_GRACE_MS);
-  return Number.isFinite(v) ? v : 5000;
+  return Number.isFinite(v) ? v : 12000;
 })();
 
 export const FREE_CALL_LIMIT_MS = (() => {

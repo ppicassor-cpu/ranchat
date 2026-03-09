@@ -499,6 +499,32 @@ index 0000000..8f349f1
 +        return clamp255((int) (vv + 0.5f));
 +    }
 +
++    private static int mosaicBlockSize(int w, int h) {
++        int minSide = Math.min(w, h);
++        if (minSide <= 240) return 10;
++        if (minSide <= 480) return 12;
++        if (minSide <= 720) return 16;
++        return 20;
++    }
++
++    private static void pixelatePlane(byte[] plane, int w, int h, int block) {
++        if (plane == null || block <= 1 || w <= 0 || h <= 0) return;
++
++        for (int by = 0; by < h; by += block) {
++            int yEnd = Math.min(h, by + block);
++            for (int bx = 0; bx < w; bx += block) {
++                int xEnd = Math.min(w, bx + block);
++                byte sample = plane[(by * w) + bx];
++                for (int yy = by; yy < yEnd; yy++) {
++                    int row = yy * w;
++                    for (int xx = bx; xx < xEnd; xx++) {
++                        plane[row + xx] = sample;
++                    }
++                }
++            }
++        }
++    }
++
 +    @Override
 +    public VideoFrame process(VideoFrame frame, SurfaceTextureHelper textureHelper) {
 +        BeautyConfigStore.Config cfg = store.get(trackId);
@@ -578,6 +604,7 @@ index 0000000..8f349f1
 +            }
 +
 +            boolean mono = "mono".equals(preset);
++            boolean mosaic = "mosaic".equals(preset);
 +
 +            float s = 0.2f + 1.6f * sat;
 +
@@ -608,6 +635,14 @@ index 0000000..8f349f1
 +                    outU[i] = (byte) u1;
 +                    outV[i] = (byte) v1;
 +                }
++            }
++
++            if (mosaic) {
++                int mosaicBlock = mosaicBlockSize(w, h);
++                pixelatePlane(outY, w, h, mosaicBlock);
++                int chromaBlock = Math.max(2, mosaicBlock / 2);
++                pixelatePlane(outU, w / 2, h / 2, chromaBlock);
++                pixelatePlane(outV, w / 2, h / 2, chromaBlock);
 +            }
 +
 +            JavaI420Buffer out = JavaI420Buffer.allocate(w, h);

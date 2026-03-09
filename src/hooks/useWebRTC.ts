@@ -57,6 +57,13 @@ export default function useWebRTC({
     const next = !mySoundOn;
     setMySoundOn(next);
     rtcRef.current?.setLocalAudioEnabled(next);
+
+    try {
+      if (roomId) {
+        wsRef.current?.sendMicState(roomId, next);
+        wsRef.current?.relay(roomId, { type: "mic", enabled: next });
+      }
+    } catch {}
   }, [mySoundOn, rtcRef, setMySoundOn]);
 
   const toggleRemoteMute = useCallback(() => {

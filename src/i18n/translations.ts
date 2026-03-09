@@ -1382,6 +1382,7 @@ const missingEn: Record<string, string> = {
   "call.translate.premium_title": "Real-time Translation",
   "call.translate.premium_desc": "Real-time chat translation is available for Premium members.",
   "call.translate.premium_action": "Go Premium",
+  "call.translate.same_language_notice": "You and the other side are using the same language, so translation is not needed.",
   "call.match_filter_missing": "Please set country/language/gender before matching.",
   "call.match_title": "Matching Setup Required",
   "call.waiting_actions_filter": "Matching Filter",
@@ -1397,6 +1398,60 @@ const missingEn: Record<string, string> = {
   "call.match_filter.premium_action": "Go Premium",
   "call.match_filter.route_missing": "Match filter API route is not available on the server.",
   "call.match_filter.change_conditions": "Change Match Conditions",
+  "call.contact.title": "Saved Contacts",
+  "call.contact.empty": "No saved contacts yet.",
+  "call.contact.friend_add": "Follow",
+  "call.contact.friend_remove": "Unfollow",
+  "call.contact.favorite_add": "Favorite",
+  "call.contact.favorite_remove": "Unfavorite",
+  "call.contact.recall": "Direct Call",
+  "call.contact.recall_unavailable": "Direct Call Unavailable",
+  "call.contact.recall_waiting_only": "Direct Call is available while waiting for a match.",
+  "call.contact.require_active_call": "This feature is available during an active call.",
+  "call.contact.route_missing": "Contact API route is not available on the server.",
+  "call.contact.save_failed": "Could not save the contact setting.",
+  "call.contact.recall_failed": "Could not start Direct Call.",
+  "call.contact.remove_failed": "Could not remove the follow.",
+  "call.contact.status_waiting": "Waiting now",
+  "call.contact.status_online": "Online",
+  "call.contact.status_offline": "Offline",
+  "call.contact.friend_badge": "Follow",
+  "call.contact.favorite_badge": "Favorite",
+  "call.contact.last_call_at": "Last call {time}",
+  "call.contact.unknown_peer": "Saved contact",
+  "call.contact.ai_unavailable": "This feature is not available for AI.",
+  "call.contact.incoming_title": "A Direct Call Is Coming In",
+  "call.contact.incoming_body": "{name} is sending you a Direct Call request.",
+  "call.contact.incoming_accept": "Accept",
+  "call.contact.incoming_decline": "Decline",
+  "call.contact.incoming_block": "Block Calls",
+  "call.contact.incoming_block_done": "You will no longer receive Direct Call requests from this user.",
+  "call.contact.incoming_expired": "The incoming call request has expired.",
+  "call.contact.waiting_accept": "Waiting for the other person to accept.",
+  "call.contact.outgoing_wait_title": "Reply Delayed",
+  "call.contact.outgoing_wait_body": "The other person has not replied yet. You can send another Direct Call request or close this one.",
+  "call.contact.outgoing_wait_continue": "Keep Waiting",
+  "call.contact.outgoing_wait_retry": "Request Again",
+  "call.contact.outgoing_wait_close": "Close",
+  "call.contact.outgoing_declined_title": "They seem busy right now",
+  "call.contact.outgoing_declined_body": "The other person declined your Direct Call for now. Please try again a little later.",
+  "call.contact.outgoing_blocked_title": "Direct Calls are turned off",
+  "call.contact.outgoing_blocked_body": "The other person has turned off Direct Calls from you for now.",
+  "call.contact.outgoing_expired_title": "Direct Call Expired",
+  "call.contact.outgoing_expired_body": "The other person did not respond in time.",
+  "call.contact.outgoing_unavailable_title": "Direct Call Unavailable",
+  "call.contact.outgoing_unavailable_body": "The other person cannot receive a Direct Call right now.",
+  "call.contact.accepted_title": "Call Accepted",
+  "call.contact.accepted_body": "The user you follow accepted the call. Connecting in a moment.",
+  "call.contact.follow_list_title": "Follow List",
+  "call.contact.follower_list_title": "Follower List",
+  "call.contact.follow_tab": "Follow",
+  "call.contact.follower_tab": "Follower",
+  "call.contact.follow_empty_title": "You are not following anyone yet.",
+  "call.contact.follow_empty_text": "Try following someone during a call.",
+  "call.contact.follower_empty_title": "No followers yet.",
+  "call.contact.follower_empty_text": "People who follow you will appear here.",
+  "call.contact.follower_route_missing": "Follower API route is not available on the server.",
   "common.ad": "Ad",
   "common.exit": "Exit",
   "common.retry": "Retry",
@@ -1519,7 +1574,8 @@ const missingEn: Record<string, string> = {
   "poptalk.ad_loading_desc": "Ad is preparing. Please try again.",
   "poptalk.ad_fail_title": "Sorry",
   "poptalk.ad_fail_desc": "Ad failed 3 times. Please recharge and try again.",
-  "poptalk.sync_failed": "Could not verify PopTalk with server. Please try again.",
+  "poptalk.sync_failed_title": "Just a sec",
+  "poptalk.sync_failed": "Oops! The connection dropped for a moment. Please reconnect.",
 };
 
 const missingKo: Record<string, string> = {
@@ -1536,6 +1592,7 @@ const missingKo: Record<string, string> = {
   "call.translate.premium_title": "실시간 번역",
   "call.translate.premium_desc": "통화 중 채팅 실시간 번역은 프리미엄 회원만 사용할 수 있어요.",
   "call.translate.premium_action": "프리미엄 신청하기",
+  "call.translate.same_language_notice": "상대와 같은 언어를 사용 중이라 번역이 필요하지 않아요.",
   "call.match_filter_missing": "매칭을 위해 나라/언어/성별을 먼저 설정해 주세요.",
   "call.match_title": "매칭 설정 필요",
   "call.waiting_actions_filter": "매칭 필터",
@@ -1551,6 +1608,60 @@ const missingKo: Record<string, string> = {
   "call.match_filter.premium_action": "프리미엄 신청하기",
   "call.match_filter.route_missing": "서버에 매칭 필터 API 경로가 아직 등록되지 않았습니다.",
   "call.match_filter.change_conditions": "매칭조건 변경",
+  "call.contact.title": "저장된 상대",
+  "call.contact.empty": "저장된 상대가 아직 없어요.",
+  "call.contact.friend_add": "팔로우",
+  "call.contact.friend_remove": "언팔로우",
+  "call.contact.favorite_add": "즐겨찾기",
+  "call.contact.favorite_remove": "즐겨찾기 해제",
+  "call.contact.recall": "Direct Call",
+  "call.contact.recall_unavailable": "Direct Call 불가",
+  "call.contact.recall_waiting_only": "Direct Call은 매칭 대기 중일 때 사용할 수 있어요.",
+  "call.contact.require_active_call": "이 기능은 통화 중에만 사용할 수 있어요.",
+  "call.contact.route_missing": "서버에 연락처 API 경로가 아직 등록되지 않았습니다.",
+  "call.contact.save_failed": "저장 처리에 실패했습니다.",
+  "call.contact.recall_failed": "Direct Call을 시작하지 못했습니다.",
+  "call.contact.remove_failed": "팔로우를 해제하지 못했습니다.",
+  "call.contact.status_waiting": "대기 중",
+  "call.contact.status_online": "온라인",
+  "call.contact.status_offline": "오프라인",
+  "call.contact.friend_badge": "팔로우",
+  "call.contact.favorite_badge": "즐겨찾기",
+  "call.contact.last_call_at": "최근 통화 {time}",
+  "call.contact.unknown_peer": "저장된 상대",
+  "call.contact.ai_unavailable": "AI에게는 사용할 수 없는 기능입니다.",
+  "call.contact.incoming_title": "다이렉트 콜이 들어왔어요",
+  "call.contact.incoming_body": "{name}님이 Direct Call을 요청했어요.",
+  "call.contact.incoming_accept": "확인",
+  "call.contact.incoming_decline": "거절",
+  "call.contact.incoming_block": "수신 거부",
+  "call.contact.incoming_block_done": "이제 이 사용자에게서 Direct Call 요청을 받지 않아요.",
+  "call.contact.incoming_expired": "수신 콜 요청이 만료되었어요.",
+  "call.contact.waiting_accept": "상대가 수락할 때까지 기다리는 중입니다.",
+  "call.contact.outgoing_wait_title": "응답이 지연되고 있어요",
+  "call.contact.outgoing_wait_body": "상대 응답이 아직 없어요. 다시 요청하거나 이번 요청을 닫을 수 있어요.",
+  "call.contact.outgoing_wait_continue": "계속 기다리기",
+  "call.contact.outgoing_wait_retry": "다시 요청하기",
+  "call.contact.outgoing_wait_close": "닫기",
+  "call.contact.outgoing_declined_title": "상대가 바쁜가봐요",
+  "call.contact.outgoing_declined_body": "상대가 지금은 Direct Call을 정중히 거절했어요. 잠시 후 다시 요청해 보세요.",
+  "call.contact.outgoing_blocked_title": "Direct Call을 받을 수 없어요",
+  "call.contact.outgoing_blocked_body": "상대가 지금은 내 Direct Call을 받지 않도록 설정했어요.",
+  "call.contact.outgoing_expired_title": "Direct Call 요청이 만료됐어요",
+  "call.contact.outgoing_expired_body": "상대 응답이 없어 Direct Call 요청이 종료되었습니다.",
+  "call.contact.outgoing_unavailable_title": "Direct Call 불가",
+  "call.contact.outgoing_unavailable_body": "지금은 상대에게 Direct Call을 연결할 수 없습니다.",
+  "call.contact.accepted_title": "통화 수락됨",
+  "call.contact.accepted_body": "팔로우한 상대가 통화를 수락했습니다.\n잠시후 통화로 연결됩니다.",
+  "call.contact.follow_list_title": "팔로우 목록",
+  "call.contact.follower_list_title": "팔로워 목록",
+  "call.contact.follow_tab": "팔로우",
+  "call.contact.follower_tab": "팔로워",
+  "call.contact.follow_empty_title": "아직 팔로우한 사람이 없어요",
+  "call.contact.follow_empty_text": "통화 중에 팔로우를 추가해보세요",
+  "call.contact.follower_empty_title": "아직 팔로워가 없어요",
+  "call.contact.follower_empty_text": "나를 팔로우한 사람이 여기 표시돼요",
+  "call.contact.follower_route_missing": "서버에 팔로워 목록 API 경로가 아직 등록되지 않았습니다.",
   "common.ad": "광고",
   "common.exit": "나가기",
   "common.retry": "다시 시도",
@@ -1622,7 +1733,8 @@ const missingKo: Record<string, string> = {
   "poptalk.ad_loading_desc": "광고가 준비중이에요. 다시 시도해 주세요.",
   "poptalk.ad_fail_title": "이용에 불편을 드려 죄송해요",
   "poptalk.ad_fail_desc": "광고 시청에 3회 실패했어요. 충전 후 다시 시도해 주세요.",
-  "poptalk.sync_failed": "서버와 팝톡 동기화에 실패했어요. 잠시 후 다시 시도해 주세요.",
+  "poptalk.sync_failed_title": "잠시만요!",
+  "poptalk.sync_failed": "앗! 연결이 잠깐 끊겼어요. 다시 연결해주세요.",
   "fortune.label.matching": "오늘의 매칭운",
   "fortune.score_value": "{score}점",
   "fortune.disclaimer": "이 운세는 오락/참고용이며 실제 미래를 예측하지 않습니다. 중요한 결정은 신중히 하세요.",
@@ -1672,9 +1784,9 @@ Object.assign(missingEn, {
   "shop.tabs.kernel": "Kernel Shop",
   "shop.tabs.gift": "Gift Shop",
   "shop.tabs.giftbox": "My Gifts",
-  "shop.title_pop": "Pop Shop",
+  "shop.title_poptalk": "PopTalk Shop",
   "shop.title_kernel": "Kernel Shop",
-  "shop.unit.pop": "PopTalk",
+  "shop.unit.poptalk": "PopTalk",
   "shop.unit.kernel": "Kernel",
   "shop.error.product_id_missing": "This product ID is not configured yet.",
   "shop.error.confirm_failed": "Payment confirmation failed.\n{reason}",
@@ -1684,7 +1796,7 @@ Object.assign(missingEn, {
   "shop.purchase.done_bonus": "{amount} + {bonus} {unit} purchase completed.",
   "shop.pack.month_1": "1 month",
   "shop.pack.month_1_unlimited": "1 month unlimited",
-  "shop.balance_pop": "PopTalk Balance",
+  "shop.balance_poptalk": "PopTalk Balance",
   "shop.balance_kernel": "Kernel Balance",
   "shop.hero.hot_deal": "HOT DEAL",
   "shop.first_purchase": "First Buy",
@@ -1749,11 +1861,12 @@ Object.assign(missingEn, {
   "profile.current_grade": "Current grade",
   "profile.logout_confirm": "Do you want to log out?",
   "chat.input_placeholder": "Type a message",
-  "beauty.filter": "Filter",
+  "beauty.filter": "Camera Filter",
   "beauty.filter.none": "Original",
   "beauty.filter.warm": "Warm",
   "beauty.filter.cool": "Cool",
   "beauty.filter.mono": "Mono",
+  "beauty.filter.mosaic": "Mosaic",
   "beauty.filter.brightness": "Brightness",
   "beauty.filter.saturation": "Saturation",
   "beauty.filter.contrast": "Contrast",
@@ -1774,6 +1887,13 @@ Object.assign(missingEn, {
   "call.safety.menu_title": "Safety Menu",
   "call.safety.no_active_peer": "There is no current call partner.",
   "call.safety.guide": "You can report or block this user.\nBlocked users will not be matched again.",
+  "call.ai_matching_stop_hint": "If you press the 🚫 button below, AI matching will stop from now on.",
+  "call.ai_matching_stop_confirm_title": "Stop AI Matching",
+  "call.ai_matching_stop_confirm_body": "Do you want to stop AI matching for this account?",
+  "call.ai_matching_stop_done": "AI matching has been disabled for this account.",
+  "call.retry_allow_ai_title": "Allow AI matching?",
+  "call.retry_allow_ai_body": "AI matching is currently disabled.\nAllow AI matching and retry?",
+  "call.retry_allow_ai_no": "No, keep disabled",
   "call.report.title": "Report User",
   "call.report.action": "Report",
   "call.report.reason_title": "Select report reason",
@@ -1841,9 +1961,9 @@ Object.assign(missingKo, {
   "shop.tabs.kernel": "커널샵",
   "shop.tabs.gift": "선물샵",
   "shop.tabs.giftbox": "내선물",
-  "shop.title_pop": "팝톡 상점",
+  "shop.title_poptalk": "팝톡 상점",
   "shop.title_kernel": "커널 상점",
-  "shop.unit.pop": "팝톡",
+  "shop.unit.poptalk": "팝톡",
   "shop.unit.kernel": "커널",
   "shop.error.product_id_missing": "해당 상품의 결제 상품 ID가 아직 설정되지 않았습니다.",
   "shop.error.confirm_failed": "결제 확인에 실패했습니다.\n{reason}",
@@ -1853,7 +1973,7 @@ Object.assign(missingKo, {
   "shop.purchase.done_bonus": "{amount} + {bonus} {unit} 결제가 완료되었습니다.",
   "shop.pack.month_1": "1개월",
   "shop.pack.month_1_unlimited": "1개월 무제한",
-  "shop.balance_pop": "보유 팝톡",
+  "shop.balance_poptalk": "보유 팝톡",
   "shop.balance_kernel": "보유 커널",
   "shop.hero.hot_deal": "HOT DEAL",
   "shop.first_purchase": "첫구매",
@@ -1918,11 +2038,12 @@ Object.assign(missingKo, {
   "profile.current_grade": "현재 내 등급",
   "profile.logout_confirm": "로그아웃 하시겠어요?",
   "chat.input_placeholder": "메시지 입력",
-  "beauty.filter": "필터",
+  "beauty.filter": "카메라 필터",
   "beauty.filter.none": "원본",
   "beauty.filter.warm": "웜톤",
   "beauty.filter.cool": "쿨톤",
   "beauty.filter.mono": "모노",
+  "beauty.filter.mosaic": "모자이크",
   "beauty.filter.brightness": "밝기",
   "beauty.filter.saturation": "채도",
   "beauty.filter.contrast": "대비",
@@ -1943,6 +2064,13 @@ Object.assign(missingKo, {
   "call.safety.menu_title": "안전 메뉴",
   "call.safety.no_active_peer": "현재 통화 중인 상대가 없습니다.",
   "call.safety.guide": "상대를 신고하거나 차단할 수 있습니다.\n차단 시 해당 사용자와는 다시 매칭되지 않습니다.",
+  "call.ai_matching_stop_hint": "아래 🚫 버튼을 누르면 이후 AI 매칭이 중지됩니다.",
+  "call.ai_matching_stop_confirm_title": "AI 매칭 중지",
+  "call.ai_matching_stop_confirm_body": "이 계정에서 AI 매칭을 중지할까요?",
+  "call.ai_matching_stop_done": "이 계정의 AI 매칭이 중지되었습니다.",
+  "call.retry_allow_ai_title": "AI 매칭을 허용할까요?",
+  "call.retry_allow_ai_body": "현재 AI 매칭이 중지되어 있어요.\nAI 매칭을 허용하고 다시 시도할까요?",
+  "call.retry_allow_ai_no": "아니오 괜찮아요",
   "call.report.title": "신고하기",
   "call.report.action": "신고하기",
   "call.report.reason_title": "신고 사유 선택",
@@ -2016,6 +2144,7 @@ const missingJa: Record<string, string> = {
   "call.match_filter.premium_title": "プレミアムマッチングフィルター",
   "call.match_filter.premium_desc": "マッチングフィルターはプレミアム会員のみ利用できます。",
   "call.match_filter.premium_action": "プレミアムに登録",
+  "call.translate.same_language_notice": "相手と言語が同じなので翻訳は不要です。",
   "call.match_filter.route_missing": "サーバーにマッチングフィルターAPIが登録されていません。",
   "call.match_filter.change_conditions": "マッチ条件を変更",
 };
@@ -2032,6 +2161,7 @@ const missingZh: Record<string, string> = {
   "call.match_filter.premium_title": "高级匹配筛选",
   "call.match_filter.premium_desc": "匹配筛选仅限高级会员使用。",
   "call.match_filter.premium_action": "开通高级会员",
+  "call.translate.same_language_notice": "双方语言相同，无需翻译。",
   "call.match_filter.route_missing": "服务器尚未配置匹配筛选API路径。",
   "call.match_filter.change_conditions": "修改匹配条件",
 };
@@ -2296,6 +2426,96 @@ missingKo["dino.rank_empty"] = "\uC544\uC9C1 \uB7AD\uD0B9 \uB370\uC774\uD130\uAC
 missingKo["dino.rank_more_title"] = "4~10\uC704";
 missingKo["giftbox.empty_overlay"] = "텅텅~~!!";
 missingEn["giftbox.empty_overlay"] = "Empty~~!!";
+missingKo["profile.profile_section"] = "프로필 설정";
+missingEn["profile.profile_section"] = "Profile Settings";
+missingKo["profile.profile_open"] = "내 프로필 설정";
+missingEn["profile.profile_open"] = "Edit My Profile";
+missingKo["profile.profile_summary_hint"] = "프로필 사진과 닉네임, 관심사를 설정할 수 있어요.";
+missingEn["profile.profile_summary_hint"] = "Set your profile photo, nickname, and interests.";
+missingKo["profile.profile_summary_hint_edit"] = "프로필 사진과 닉네임, 관심사를 변경할 수 있어요.";
+missingEn["profile.profile_summary_hint_edit"] = "Change your profile photo, nickname, and interests.";
+missingKo["profile.profile_modal_title"] = "내 프로필 설정";
+missingEn["profile.profile_modal_title"] = "My Profile";
+missingKo["profile.profile_default_nickname"] = "유저";
+missingEn["profile.profile_default_nickname"] = "User";
+missingKo["profile.profile_avatar_hint"] = "카메라로 찍거나 사진에서 골라 서버에 저장할 수 있어요.";
+missingEn["profile.profile_avatar_hint"] = "Take a photo or choose one and save it to the server.";
+missingKo["profile.profile_pick_camera"] = "카메라";
+missingEn["profile.profile_pick_camera"] = "Camera";
+missingKo["profile.profile_pick_library"] = "사진 선택";
+missingEn["profile.profile_pick_library"] = "Photos";
+missingKo["profile.profile_clear_avatar"] = "이미지 지우기";
+missingEn["profile.profile_clear_avatar"] = "Remove Image";
+missingKo["profile.profile_avatar_modal_title"] = "프로필 이미지";
+missingEn["profile.profile_avatar_modal_title"] = "Profile Image";
+missingKo["profile.profile_nickname_label"] = "닉네임";
+missingEn["profile.profile_nickname_label"] = "Nickname";
+missingKo["profile.profile_nickname_placeholder"] = "닉네임 입력";
+missingEn["profile.profile_nickname_placeholder"] = "Enter nickname";
+missingKo["profile.profile_nickname_hint"] = "한글, 영문, 숫자만 사용할 수 있고 최대 12자까지 입력할 수 있어요.";
+missingEn["profile.profile_nickname_hint"] = "Use Hangul, letters, and numbers only, up to 12 characters.";
+missingKo["profile.profile_nickname_empty"] = "닉네임을 입력해 주세요.";
+missingEn["profile.profile_nickname_empty"] = "Enter a nickname.";
+missingKo["profile.profile_nickname_invalid"] = "닉네임은 2~12자이며 공백, 특수기호 없이 입력해야 해요.";
+missingEn["profile.profile_nickname_invalid"] = "Nickname must be 2-12 characters with no spaces or symbols.";
+missingKo["profile.profile_nickname_reserved"] = "관리자나 운영자처럼 사용할 수 없는 닉네임이에요.";
+missingEn["profile.profile_nickname_reserved"] = "That nickname is reserved and cannot be used.";
+missingKo["profile.profile_nickname_duplicate"] = "이미 사용 중인 닉네임이에요.";
+missingEn["profile.profile_nickname_duplicate"] = "That nickname is already taken.";
+missingKo["profile.profile_camera_permission"] = "카메라 권한을 허용해야 프로필 사진을 찍을 수 있어요.";
+missingEn["profile.profile_camera_permission"] = "Allow camera access to take a profile photo.";
+missingKo["profile.profile_library_permission"] = "사진 권한을 허용해야 프로필 사진을 선택할 수 있어요.";
+missingEn["profile.profile_library_permission"] = "Allow photo access to choose a profile photo.";
+missingKo["profile.profile_avatar_too_large"] = "이미지 크기가 너무 커서 저장할 수 없어요. 더 작은 사진으로 다시 시도해 주세요.";
+missingEn["profile.profile_avatar_too_large"] = "Image is too large to save. Try a smaller photo.";
+missingKo["profile.profile_avatar_pick_unavailable"] = "프로필 이미지 선택 기능을 사용하려면 새 앱 빌드가 필요할 수 있어요.";
+missingEn["profile.profile_avatar_pick_unavailable"] = "Profile image picking may require installing a newer app build.";
+missingKo["profile.profile_save_loading"] = "저장 중...";
+missingEn["profile.profile_save_loading"] = "Saving...";
+missingKo["profile.profile_saved"] = "프로필이 저장되었어요.";
+missingEn["profile.profile_saved"] = "Profile saved.";
+missingKo["profile.profile_interest_label"] = "관심사";
+missingEn["profile.profile_interest_label"] = "Interests";
+missingKo["profile.profile_interest_hint"] = "관심사는 1개 이상, 최대 3개까지 선택할 수 있어요.";
+missingEn["profile.profile_interest_hint"] = "Choose at least 1 interest, up to 3.";
+missingKo["profile.profile_interest_required"] = "관심사를 최소 1개 이상 선택해 주세요.";
+missingEn["profile.profile_interest_required"] = "Select at least one interest.";
+missingKo["profile.profile_interest_limit"] = "관심사는 최대 3개까지 선택할 수 있어요.";
+missingEn["profile.profile_interest_limit"] = "You can choose up to 3 interests.";
+missingKo["profile.profile_interest_empty"] = "관심사 없음";
+missingEn["profile.profile_interest_empty"] = "No interests";
+missingKo["profile.profile_interest_more"] = "{first} 외 {count}개";
+missingEn["profile.profile_interest_more"] = "{first} +{count}";
+missingKo["profile.profile_interest_summary"] = "관심사: {summary}";
+missingEn["profile.profile_interest_summary"] = "Interests: {summary}";
+missingKo["call.match_filter.interest_title"] = "관심사 필터";
+missingEn["call.match_filter.interest_title"] = "Interest Filter";
+missingKo["interest.movies"] = "영화";
+missingEn["interest.movies"] = "Movies";
+missingKo["interest.music"] = "음악";
+missingEn["interest.music"] = "Music";
+missingKo["interest.travel"] = "여행";
+missingEn["interest.travel"] = "Travel";
+missingKo["interest.food"] = "맛집";
+missingEn["interest.food"] = "Food";
+missingKo["interest.games"] = "게임";
+missingEn["interest.games"] = "Games";
+missingKo["interest.fitness"] = "운동";
+missingEn["interest.fitness"] = "Fitness";
+missingKo["interest.fashion"] = "패션";
+missingEn["interest.fashion"] = "Fashion";
+missingKo["interest.pets"] = "반려동물";
+missingEn["interest.pets"] = "Pets";
+missingKo["interest.books"] = "책";
+missingEn["interest.books"] = "Books";
+missingKo["interest.daily"] = "일상대화";
+missingEn["interest.daily"] = "Daily Chat";
+missingKo["call.chat_me_label"] = "나";
+missingEn["call.chat_me_label"] = "Me";
+missingKo["call.chat_peer_label"] = "상대";
+missingEn["call.chat_peer_label"] = "Peer";
+missingKo["call.chat_ai_label"] = "AI";
+missingEn["call.chat_ai_label"] = "AI";
 const missingByLang: Record<string, Record<string, string>> = {
   ko: missingKo,
   en: missingEn,

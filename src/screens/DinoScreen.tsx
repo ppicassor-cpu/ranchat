@@ -573,26 +573,19 @@ export default function DinoScreen() {
     if (!callMatchedSignal) return;
     if (callMatchedSignal === initialSignalRef.current) return;
     if (callMatchedSignal === handledSignalRef.current) return;
-    if (matchedModalVisible) return;
-    if (matchedTimerRef.current || matchedCountdownRef.current) return;
     handledSignalRef.current = callMatchedSignal;
-
-    setMatchedModalVisible(true);
-    setMatchedCountdown(3);
-    matchedCountdownRef.current = setInterval(() => {
-      setMatchedCountdown((prev) => (prev > 1 ? prev - 1 : 1));
-    }, 1000);
-    matchedTimerRef.current = setTimeout(() => {
-      if (matchedCountdownRef.current) {
-        clearInterval(matchedCountdownRef.current);
-        matchedCountdownRef.current = null;
-      }
+    if (matchedTimerRef.current) {
+      clearTimeout(matchedTimerRef.current);
       matchedTimerRef.current = null;
-      setMatchedModalVisible(false);
-      if (navigation.canGoBack()) navigation.goBack();
-      else navigation.navigate("Call");
-    }, 3000);
-  }, [callMatchedSignal, matchedModalVisible, navigation]);
+    }
+    if (matchedCountdownRef.current) {
+      clearInterval(matchedCountdownRef.current);
+      matchedCountdownRef.current = null;
+    }
+    setMatchedModalVisible(false);
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate("Call");
+  }, [callMatchedSignal, navigation]);
 
   useEffect(() => {
     PRELOAD_IMAGE_SOURCES.forEach((source) => {

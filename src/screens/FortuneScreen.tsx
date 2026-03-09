@@ -394,7 +394,10 @@ export default function FortuneScreen() {
   const [resultVisible, setResultVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [matchedModalVisible, setMatchedModalVisible] = useState(false);
-  const contentTopPadding = useMemo(() => Math.max(insets.top + 24, headerHeight + 58) + 30, [headerHeight, insets.top]);
+  const contentTopPadding = useMemo(
+    () => Math.max(insets.top + 24, headerHeight + 58) + 46,
+    [headerHeight, insets.top]
+  );
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -428,17 +431,15 @@ export default function FortuneScreen() {
     if (!callMatchedSignal) return;
     if (callMatchedSignal === initialSignalRef.current) return;
     if (callMatchedSignal === handledSignalRef.current) return;
-    if (matchedModalVisible) return;
-    if (matchedTimerRef.current) return;
     handledSignalRef.current = callMatchedSignal;
-
-    setMatchedModalVisible(true);
-    matchedTimerRef.current = setTimeout(() => {
+    if (matchedTimerRef.current) {
+      clearTimeout(matchedTimerRef.current);
       matchedTimerRef.current = null;
-      setMatchedModalVisible(false);
-      if (navigation.canGoBack()) navigation.goBack();
-    }, 1400);
-  }, [callMatchedSignal, matchedModalVisible, navigation]);
+    }
+    setMatchedModalVisible(false);
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate("Call");
+  }, [callMatchedSignal, navigation]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -847,7 +848,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: "#fff7fb",
     color: theme.colors.text,
-    fontSize: 15,
+    fontSize: 13,
   },
   pickerRow: {
     zIndex: 8,

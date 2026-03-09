@@ -1,36 +1,21 @@
 ﻿// FILE: C:\ranchat\App.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, AppState, PermissionsAndroid, Platform, StyleSheet, View } from "react-native";
+import { ActivityIndicator, AppState, PermissionsAndroid, Platform, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import RootNavigator from "./src/navigation/RootNavigator";
 
 import { initAds } from "./src/services/ads/AdManager";
-import { initPurchases, syncPurchasesAppUser } from "./src/services/purchases/PurchaseManager";
+import { initPurchases, refreshSubscription, syncPurchasesAppUser } from "./src/services/purchases/PurchaseManager";
 
 import AppModal from "./src/components/AppModal";
 import PrimaryButton from "./src/components/PrimaryButton";
-import AppText from "./src/components/AppText";
 import { theme } from "./src/config/theme";
 import { useAppStore } from "./src/store/useAppStore";
 import { reportLoginEvent } from "./src/services/admin/LoginEventReporter";
+import { translations } from "./src/i18n/translations";
 
 type SupportedLang = "ko" | "en" | "ja" | "zh" | "es" | "de" | "fr" | "it" | "ru";
-
-const TXT = {
-  permTitle: "권한이 필요합니다\nPermissions Required",
-  permMsg:
-    "아래 권한을 허용해야 영상채팅을 시작할 수 있습니다.\nYou need to allow the following permissions to start video chat.",
-  allowBtn: "권한 허용 / Allow Permissions",
-  loadingBtn: "요청 중... / Loading...",
-  cam: "카메라 / Camera",
-  mic: "마이크(소리) / Microphone",
-  loc: "위치(GPS) / Location (GPS)",
-  bt: "근처 기기(블루투스) / Nearby devices (Bluetooth)",
-
-  setupTitle: "설정 중... / Setting up...",
-  setupMsg: "위치와 언어를 찾고 있습니다.\nFinding your location and language...",
-};
 
 function countryToLang(cc: string): SupportedLang {
   const c = String(cc || "").trim().toUpperCase();
@@ -95,6 +80,22 @@ export default function App() {
   const [setupDone, setSetupDone] = useState(false);
 
   const permOk = useMemo(() => Boolean(permState.cam && permState.mic && permState.loc), [permState]);
+  const staticLang = useMemo(() => {
+    const raw = String(prefs?.language || "").trim().toLowerCase();
+    return translations[raw as keyof typeof translations] ? (raw as keyof typeof translations) : "ko";
+  }, [prefs?.language]);
+  const staticT = useCallback((key: string, params?: Record<string, any>) => {
+    const dict = translations[staticLang] || translations.ko;
+    const enDict = translations.en || {};
+    const koDict = translations.ko || {};
+    let text = String((dict as any)[key] || (enDict as any)[key] || (koDict as any)[key] || key);
+    if (params) {
+      Object.keys(params).forEach((k) => {
+        text = text.replace(`{${k}}`, String(params[k]));
+      });
+    }
+    return text;
+  }, [staticLang]);
   const isAuthed = useMemo(() => {
     const verified = Boolean(auth?.verified);
     const token = String(auth?.token || "").trim();
@@ -167,10 +168,7 @@ export default function App() {
 
       if (out.forceLogout && !forcedLogoutRef.current) {
         forcedLogoutRef.current = true;
-        showGlobalModal(
-          "인증 / Authentication",
-          "다른 기기에서 같은 계정으로 로그인되어 자동 로그아웃되었습니다.\nThis account was signed in on another device."
-        );
+        showGlobalModal(staticT("auth.title"), staticT("auth.logout_other_device"));
         logoutAndWipe();
       }
     };
@@ -211,7 +209,39 @@ export default function App() {
     sub?.storeProductId,
     logoutAndWipe,
     showGlobalModal,
+    staticT,
   ]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (!isAuthed) return;
+
+    let closed = false;
+    let appState = AppState.currentState;
+
+    const syncSubscription = async () => {
+      if (closed) return;
+      await refreshSubscription();
+    };
+
+    syncSubscription().catch(() => undefined);
+    const subAppState = AppState.addEventListener("change", (nextState) => {
+      const prev = appState;
+      appState = nextState;
+      const enteredForeground =
+        (prev === "background" || prev === "inactive") && nextState === "active";
+      if (enteredForeground) {
+        syncSubscription().catch(() => undefined);
+      }
+    });
+
+    return () => {
+      closed = true;
+      try {
+        subAppState.remove();
+      } catch {}
+    };
+  }, [hasHydrated, isAuthed]);
 
   const hasAndroidPermission = useCallback(async (perm: string) => {
     try {
@@ -385,38 +415,40 @@ export default function App() {
         {/* 권한 모달 (KO+EN 고정) */}
         <AppModal
           visible={!showSetup && (permChecked ? !permOk : true)}
-          title={TXT.permTitle}
+          title={staticT("app.permission.title")}
+          titleUseSystemFont
           dismissible={false}
           footer={
             <View style={{ gap: 10 }}>
               <PrimaryButton
-                title={permBusy ? TXT.loadingBtn : TXT.allowBtn}
+                title={permBusy ? staticT("app.permission.loading") : staticT("app.permission.allow")}
                 onPress={requestPermissions}
                 disabled={permBusy || permOk}
+                useSystemFont
               />
             </View>
           }
         >
-          <AppText style={styles.modalTextCenter}>{TXT.permMsg}</AppText>
+          <Text style={styles.modalTextCenter}>{staticT("app.permission.message")}</Text>
 
           <View style={{ height: 12 }} />
 
           <View style={styles.permList}>
             <View style={styles.permRow}>
-              <AppText style={[styles.permLeft, !permState.cam ? styles.permLeftNeed : null]}>{TXT.cam}</AppText>
+              <Text style={[styles.permLeft, !permState.cam ? styles.permLeftNeed : null]}>{staticT("app.permission.camera")}</Text>
             </View>
 
             <View style={styles.permRow}>
-              <AppText style={[styles.permLeft, !permState.mic ? styles.permLeftNeed : null]}>{TXT.mic}</AppText>
+              <Text style={[styles.permLeft, !permState.mic ? styles.permLeftNeed : null]}>{staticT("app.permission.microphone")}</Text>
             </View>
 
             <View style={styles.permRow}>
-              <AppText style={[styles.permLeft, !permState.loc ? styles.permLeftNeed : null]}>{TXT.loc}</AppText>
+              <Text style={[styles.permLeft, !permState.loc ? styles.permLeftNeed : null]}>{staticT("app.permission.location")}</Text>
             </View>
 
             {Platform.OS === "android" && Number(Platform.Version) >= 31 ? (
               <View style={styles.permRow}>
-                <AppText style={styles.permLeft}>{TXT.bt}</AppText>
+                <Text style={styles.permLeft}>{staticT("app.permission.nearby_devices")}</Text>
               </View>
             ) : null}
           </View>
@@ -425,14 +457,15 @@ export default function App() {
         {/* 위치/언어 저장 스피너 */}
         <AppModal
           visible={showSetup}
-          title={TXT.setupTitle}
+          title={staticT("app.setup.title")}
+          titleUseSystemFont
           dismissible={false}
           footer={<View />}
         >
           <View style={styles.setupBox}>
             <ActivityIndicator />
             <View style={{ height: 12 }} />
-            <AppText style={styles.modalTextCenter}>{TXT.setupMsg}</AppText>
+            <Text style={styles.modalTextCenter}>{staticT("app.setup.message")}</Text>
           </View>
         </AppModal>
       </View>
