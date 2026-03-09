@@ -1,12 +1,13 @@
 ﻿// FILE: C:\ranchat\src\screens\HomeScreen.tsx
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, View, ScrollView, ImageBackground, Image } from "react-native";
+import { Animated, Dimensions, Easing, Pressable, StyleSheet, View, ScrollView, FlatList, ImageBackground, Image, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { theme } from "../config/theme";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
-import { BannerBar, createInterstitial } from "../services/ads/AdManager";
+import { BannerBar, createInterstitial, isInterstitialCooldownPassed, recordInterstitialShown } from "../services/ads/AdManager";
 import { useAppStore } from "../store/useAppStore";
 import { AdEventType } from "react-native-google-mobile-ads";
 import AppText from "../components/AppText";
@@ -17,14 +18,27 @@ import { COUNTRY_CODES, LANGUAGE_CODES, getCountryName, getLanguageName, normali
 import * as Updates from "expo-updates";
 import { APP_CONFIG } from "../config/app";
 import usePopTalk from "../hooks/usePopTalk";
+import { INTERSTITIAL_COOLDOWN_MS } from "../constants/callConfig";
 import { POPTALK_MATCH_BLOCK_THRESHOLD, POPTALK_REWARDED_AMOUNT } from "../constants/popTalkConfig";
 import { fetchUnifiedWalletState } from "../services/shop/ShopPurchaseService";
+import { refreshSubscription } from "../services/purchases/PurchaseManager";
+import {
+  fetchCallContactsOnServer,
+  fetchPendingRecallInviteOnServer,
+  respondRecallInviteOnServer,
+  setCallFriendOnServer,
+  type CallContactItem,
+  type PendingRecallInvite,
+} from "../services/call/CallContactService";
+import { resolveDisplayName } from "../utils/displayName";
 import { formatPopTalkCount, isPopTalkUnlimited } from "../utils/poptalkDisplay";
 
 const POPTALK_BALANCE_ICON = require("../../assets/poptalk_ICON.png");
 const KERNEL_BALANCE_ICON = require("../../assets/kernel.png");
 const HOME_LOGO = require("../../assets/ranchat_logo.png");
+const HOME_EMPTY_SAD = require("../../assets/sad.png");
 const HOME_WALLET_POLL_INTERVAL_MS = 60000;
+const SAVED_CONTACT_CARD_WIDTH = Math.min(320, Math.max(252, Math.round((Dimensions.get("window").width || 360) - 116)));
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
@@ -44,7 +58,7 @@ export default function HomeScreen({ navigation }: any) {
   const { refreshPopTalk, watchRewardedAdAndReward } = usePopTalk();
 
   const [prefsModal, setPrefsModal] = useState(false);
-  const [activeUsers, setActiveUsers] = useState(0);
+  const [, setActiveUsers] = useState(0);
   const [bannerReady, setBannerReady] = useState(false);
 
   const [langOpen, setLangOpen] = useState(false);
@@ -56,11 +70,21 @@ export default function HomeScreen({ navigation }: any) {
   const [rewardAdFailCount, setRewardAdFailCount] = useState(0);
   const [updateModal, setUpdateModal] = useState(false);
   const [updateBusy, setUpdateBusy] = useState(false);
+  const [savedContactsVisible, setSavedContactsVisible] = useState(false);
+  const [savedContactsLoading, setSavedContactsLoading] = useState(false);
+  const [savedContactsLaunching, setSavedContactsLaunching] = useState(false);
+  const [savedContactsDeletingKey, setSavedContactsDeletingKey] = useState("");
+  const [savedContacts, setSavedContacts] = useState<CallContactItem[]>([]);
+  const [incomingRecallInvite, setIncomingRecallInvite] = useState<PendingRecallInvite | null>(null);
+  const [incomingRecallBusy, setIncomingRecallBusy] = useState<"" | "accept" | "decline" | "block">("");
 
   const interstitialRef = useRef<any>(null);
   const updateCheckedRef = useRef(false);
   const updateCheckInFlightRef = useRef(false);
   const lastUpdateCheckAtRef = useRef(0);
+  const updateAutoTriggeredRef = useRef(false);
+  const incomingRecallHeartScale = useRef(new Animated.Value(1)).current;
+  const incomingRecallHeartGlow = useRef(new Animated.Value(0)).current;
 
   const onBannerLoaded = useCallback(() => {
     setBannerReady(true);
@@ -92,6 +116,14 @@ export default function HomeScreen({ navigation }: any) {
     navigation.navigate("Shop");
   }, [navigation]);
 
+  const goPopTalkShop = useCallback(() => {
+    navigation.navigate("Shop", { initialTab: 0 });
+  }, [navigation]);
+
+  const goKernelShop = useCallback(() => {
+    navigation.navigate("Shop", { initialTab: 1 });
+  }, [navigation]);
+
   const myPopTalkBalanceText = useMemo(() => {
     if (isPopTalkUnlimited(popTalk)) return t("poptalk.unlimited_short");
     return formatPopTalkCount(popTalk?.balance ?? 0);
@@ -109,6 +141,412 @@ export default function HomeScreen({ navigation }: any) {
     return Math.max(0, Math.trunc(Number(assets?.kernelCount ?? 0)));
   }, [assets?.kernelCount]);
 
+  const runtimeLabel = useMemo(() => {
+    const expoConfig: any = Constants.expoConfig ?? {};
+    const versionCodeRaw =
+      Platform.OS === "ios"
+        ? expoConfig?.ios?.buildNumber ?? expoConfig?.android?.versionCode ?? expoConfig?.version
+        : expoConfig?.android?.versionCode ?? expoConfig?.ios?.buildNumber ?? expoConfig?.version;
+    const versionCode = String(versionCodeRaw ?? "").trim() || "0";
+    const runtimeRaw = String(Updates.runtimeVersion ?? expoConfig?.version ?? "").trim();
+    const runtimeMajor = runtimeRaw
+      .split(".")
+      .map((part) => part.trim())
+      .find((part) => /^\d+$/.test(part)) || "0";
+    return `${versionCode}.${runtimeMajor}.0`;
+  }, []);
+
+  const formatSavedContactTime = useCallback((value: number) => {
+    const ms = Number(value || 0);
+    if (!Number.isFinite(ms) || ms <= 0) return "";
+    try {
+      const d = new Date(ms);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mi = String(d.getMinutes()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+    } catch {
+      return "";
+    }
+  }, []);
+
+  const getSavedContactName = useCallback(
+    (item: CallContactItem) => {
+      return resolveDisplayName({
+        nickname: item.peerNickname,
+        loginAccount: item.peerLoginAccount,
+        userId: item.peerUserId,
+        profileId: item.peerProfileId,
+        contactKey: item.contactKey,
+        fallback: t("call.contact.unknown_peer"),
+      });
+    },
+    [t]
+  );
+
+  const getSavedContactMeta = useCallback(
+    (item: CallContactItem) => {
+      const flag = String(item.peerFlag || "").trim();
+      const parts: string[] = [];
+      const countryCode = String(item.peerCountry || "").trim().toUpperCase();
+      const languageCode = normalizeLanguageCode(String(item.peerLanguage || "").trim());
+      const genderCode = String(item.peerGender || "").trim().toLowerCase();
+      if (countryCode) parts.push(getCountryName(t, countryCode));
+      if (languageCode) parts.push(getLanguageName(t, languageCode));
+      if (genderCode === "male") parts.push(t("gender.male"));
+      if (genderCode === "female") parts.push(t("gender.female"));
+      const base = parts.filter(Boolean).join(" / ");
+      const info = `${flag ? `${flag} ` : ""}${base}`.trim();
+      return info || t("call.contact.unknown_peer");
+    },
+    [t]
+  );
+
+  const getSavedContactInterestLabels = useCallback(
+    (item: CallContactItem) => {
+      return (Array.isArray(item.peerInterests) ? item.peerInterests : [])
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 3)
+        .map((id) => t(`interest.${id}`))
+        .filter((label) => Boolean(label) && !String(label).startsWith("interest."));
+    },
+    [t]
+  );
+
+  const findSavedContactForIncomingRecall = useCallback(
+    (invite: PendingRecallInvite | null) => {
+      if (!invite) return null;
+      const actorProfileId = String(invite.actorProfileId || "").trim();
+      const actorSessionId = String(invite.actorSessionId || "").trim();
+      const actorLoginAccount = String(invite.actorLoginAccount || "").trim().toLowerCase();
+      return (
+        savedContacts.find((item) => {
+          const peerProfileId = String(item.peerProfileId || "").trim();
+          const peerSessionId = String(item.peerSessionId || "").trim();
+          const peerLoginAccount = String(item.peerLoginAccount || "").trim().toLowerCase();
+          if (actorProfileId && peerProfileId && actorProfileId === peerProfileId) return true;
+          if (actorSessionId && peerSessionId && actorSessionId === peerSessionId) return true;
+          if (actorLoginAccount && peerLoginAccount && actorLoginAccount === peerLoginAccount) return true;
+          return false;
+        }) || null
+      );
+    },
+    [savedContacts]
+  );
+
+  const incomingRecallContact = useMemo(
+    () => findSavedContactForIncomingRecall(incomingRecallInvite),
+    [findSavedContactForIncomingRecall, incomingRecallInvite]
+  );
+
+  const incomingRecallName = useMemo(() => {
+    return resolveDisplayName({
+      nickname: incomingRecallContact?.peerNickname || incomingRecallInvite?.actorNickname,
+      loginAccount: incomingRecallContact?.peerLoginAccount || incomingRecallInvite?.actorLoginAccount,
+      userId: incomingRecallContact?.peerUserId,
+      profileId: incomingRecallContact?.peerProfileId || incomingRecallInvite?.actorProfileId,
+      contactKey: incomingRecallContact?.contactKey,
+      fallback: t("call.contact.unknown_peer"),
+    });
+  }, [incomingRecallContact, incomingRecallInvite?.actorLoginAccount, incomingRecallInvite?.actorNickname, incomingRecallInvite?.actorProfileId, t]);
+
+  const incomingRecallAvatarUrl = useMemo(() => {
+    const avatarUrl = String(incomingRecallContact?.peerAvatarUrl || incomingRecallInvite?.actorAvatarUrl || "").trim();
+    return avatarUrl || null;
+  }, [incomingRecallContact?.peerAvatarUrl, incomingRecallInvite?.actorAvatarUrl]);
+
+  const incomingRecallMeta = useMemo(() => {
+    const flag = String(incomingRecallContact?.peerFlag || incomingRecallInvite?.actorFlag || "").trim();
+    const parts: string[] = [];
+    const countryCode = String(incomingRecallContact?.peerCountry || incomingRecallInvite?.actorCountry || "").trim().toUpperCase();
+    const languageCode = normalizeLanguageCode(String(incomingRecallContact?.peerLanguage || incomingRecallInvite?.actorLanguage || "").trim());
+    const genderCode = String(incomingRecallContact?.peerGender || incomingRecallInvite?.actorGender || "").trim().toLowerCase();
+    if (countryCode) parts.push(getCountryName(t, countryCode));
+    if (languageCode) parts.push(getLanguageName(t, languageCode));
+    if (genderCode === "male") parts.push(t("gender.male"));
+    if (genderCode === "female") parts.push(t("gender.female"));
+    const base = parts.filter(Boolean).join(" / ");
+    const info = `${flag ? `${flag} ` : ""}${base}`.trim();
+    return info || t("call.contact.unknown_peer");
+  }, [incomingRecallContact?.peerCountry, incomingRecallContact?.peerFlag, incomingRecallContact?.peerGender, incomingRecallContact?.peerLanguage, incomingRecallInvite?.actorCountry, incomingRecallInvite?.actorFlag, incomingRecallInvite?.actorGender, incomingRecallInvite?.actorLanguage, t]);
+
+  const incomingRecallInterestLabels = useMemo(() => {
+    if (!incomingRecallContact) return [];
+    return getSavedContactInterestLabels(incomingRecallContact);
+  }, [getSavedContactInterestLabels, incomingRecallContact]);
+
+  const getSavedContactStatusText = useCallback(
+    (item: CallContactItem) => {
+      if (item.isOnline) return t("call.contact.status_online");
+      return t("call.contact.status_offline");
+    },
+    [t]
+  );
+
+  const loadSavedContacts = useCallback(
+    async (showSpinner = true) => {
+      const token = String(auth?.token || "").trim();
+      const userId = String(auth?.userId || "").trim();
+      const deviceKey = String(auth?.deviceKey || "").trim();
+      if (!token || !userId || !deviceKey) {
+        setSavedContacts([]);
+        showGlobalModal(t("call.contact.title"), t("common.auth_expired"));
+        return false;
+      }
+
+      if (showSpinner) setSavedContactsLoading(true);
+      try {
+        const out = await fetchCallContactsOnServer({
+          token,
+          userId,
+          deviceKey,
+          limit: 200,
+        });
+        if (!out.ok) {
+          const errCode = String(out.errorCode || "").toUpperCase();
+          if (errCode === "CALL_CONTACT_LIST_ROUTE_NOT_FOUND") {
+            showGlobalModal(t("call.contact.title"), t("call.contact.route_missing"));
+          } else {
+            showGlobalModal(t("call.contact.title"), out.errorMessage || out.errorCode || t("common.error_occurred"));
+          }
+          return false;
+        }
+        setSavedContacts(out.contacts.filter((item) => item.isFriend));
+        return true;
+      } finally {
+        if (showSpinner) setSavedContactsLoading(false);
+      }
+    },
+    [auth?.deviceKey, auth?.token, auth?.userId, showGlobalModal, t]
+  );
+
+  const refreshSavedContactsSilently = useCallback(async () => {
+    const token = String(auth?.token || "").trim();
+    const userId = String(auth?.userId || "").trim();
+    const deviceKey = String(auth?.deviceKey || "").trim();
+    if (!token || !userId || !deviceKey) return;
+
+    const out = await fetchCallContactsOnServer({
+      token,
+      userId,
+      deviceKey,
+      limit: 200,
+    }).catch(() => null);
+    if (!out?.ok) return;
+    setSavedContacts(out.contacts.filter((item) => item.isFriend));
+  }, [auth?.deviceKey, auth?.token, auth?.userId]);
+
+  const openSavedContacts = useCallback(() => {
+    setSavedContactsVisible(true);
+    void loadSavedContacts(true);
+  }, [loadSavedContacts]);
+
+  useEffect(() => {
+    void refreshSavedContactsSilently();
+  }, [refreshSavedContactsSilently]);
+
+  useEffect(() => {
+    if (!incomingRecallInvite || incomingRecallContact) return;
+    void refreshSavedContactsSilently();
+  }, [incomingRecallContact, incomingRecallInvite, refreshSavedContactsSilently]);
+
+  useEffect(() => {
+    incomingRecallHeartScale.setValue(1);
+    incomingRecallHeartGlow.setValue(0);
+  }, [incomingRecallHeartGlow, incomingRecallHeartScale, incomingRecallInvite?.inviteId]);
+
+  const onPressSavedContactRecall = useCallback(
+    (item: CallContactItem) => {
+      if (savedContactsLaunching || savedContactsDeletingKey) return;
+      const recallEnabled = Boolean(item.canRecall || item.isOnline);
+      if (!recallEnabled) {
+        showGlobalModal(t("call.contact.title"), t("call.contact.recall_unavailable"));
+        return;
+      }
+      const peerSessionId = String(item.peerSessionId || "").trim();
+      const peerProfileId = String(item.peerProfileId || "").trim();
+      if (!peerSessionId && !peerProfileId) {
+        showGlobalModal(t("call.contact.title"), t("call.contact.recall_unavailable"));
+        return;
+      }
+      setSavedContactsLaunching(true);
+      setSavedContactsVisible(false);
+      navigation.navigate("Call", {
+        entryMode: "contactRecall",
+        recallPeerSessionId: peerSessionId || undefined,
+        recallPeerProfileId: peerProfileId || undefined,
+      });
+      requestAnimationFrame(() => {
+        setSavedContactsLaunching(false);
+      });
+    },
+    [navigation, savedContactsDeletingKey, savedContactsLaunching, showGlobalModal, t]
+  );
+
+  const onPressDeleteSavedContact = useCallback(
+    async (item: CallContactItem) => {
+      if (savedContactsLaunching) return;
+      const token = String(auth?.token || "").trim();
+      const userId = String(auth?.userId || "").trim();
+      const deviceKey = String(auth?.deviceKey || "").trim();
+      const targetKey = String(item.contactKey || item.peerSessionId || item.peerProfileId || "").trim();
+      const peerSessionId = String(item.peerSessionId || "").trim();
+      const peerProfileId = String(item.peerProfileId || "").trim();
+      if (!token || !userId || !deviceKey) {
+        showGlobalModal(t("call.contact.title"), t("common.auth_expired"));
+        return;
+      }
+      if (!targetKey || (!peerSessionId && !peerProfileId)) {
+        showGlobalModal(t("call.contact.title"), t("call.contact.remove_failed"));
+        return;
+      }
+
+      setSavedContactsDeletingKey(targetKey);
+      try {
+        const out = await setCallFriendOnServer({
+          token,
+          userId,
+          deviceKey,
+          roomId: undefined,
+          peerSessionId: peerSessionId || undefined,
+          peerProfileId: peerProfileId || undefined,
+          peerUserId: String(item.peerUserId || "").trim() || undefined,
+          enabled: false,
+        });
+        if (!out.ok) {
+          showGlobalModal(t("call.contact.title"), out.errorMessage || out.errorCode || t("call.contact.remove_failed"));
+          return;
+        }
+        setSavedContacts((prev) =>
+          prev.filter((row) => {
+            const rowKey = String(row.contactKey || row.peerSessionId || row.peerProfileId || "").trim();
+            return rowKey !== targetKey;
+          })
+        );
+      } finally {
+        setSavedContactsDeletingKey("");
+      }
+    },
+    [auth?.deviceKey, auth?.token, auth?.userId, savedContactsLaunching, showGlobalModal, t]
+  );
+
+  const onDeclineIncomingRecall = useCallback(async (blockFuture = false) => {
+    if (incomingRecallBusy || !incomingRecallInvite) return;
+    const token = String(auth?.token || "").trim();
+    const userId = String(auth?.userId || "").trim();
+    const deviceKey = String(auth?.deviceKey || "").trim();
+    if (!token || !userId || !deviceKey) {
+      showGlobalModal(t("call.contact.title"), t("common.auth_expired"));
+      return;
+    }
+
+    setIncomingRecallBusy(blockFuture ? "block" : "decline");
+    try {
+      const out = await respondRecallInviteOnServer({
+        token,
+        userId,
+        deviceKey,
+        inviteId: incomingRecallInvite.inviteId,
+        accept: false,
+        blockFuture,
+      });
+      if (!out.ok) {
+        const errCode = String(out.errorCode || "").toUpperCase();
+        if (["RECALL_INVITE_NOT_FOUND", "RECALL_INVITE_EXPIRED"].includes(errCode)) {
+          showGlobalModal(t("call.contact.title"), t("call.contact.incoming_expired"));
+          setIncomingRecallInvite(null);
+          return;
+        }
+        showGlobalModal(t("call.contact.title"), out.errorMessage || out.errorCode || t("call.contact.recall_failed"));
+        return;
+      }
+      setIncomingRecallInvite(null);
+      if (blockFuture) {
+        showGlobalModal(t("call.contact.title"), t("call.contact.incoming_block_done"));
+      }
+    } finally {
+      setIncomingRecallBusy("");
+    }
+  }, [auth?.deviceKey, auth?.token, auth?.userId, incomingRecallBusy, incomingRecallInvite, showGlobalModal, t]);
+
+  const onAcceptIncomingRecall = useCallback(() => {
+    if (incomingRecallBusy || !incomingRecallInvite) return;
+    const inviteId = String(incomingRecallInvite.inviteId || "").trim();
+    if (!inviteId) return;
+
+    setIncomingRecallBusy("accept");
+    Animated.parallel([
+      Animated.timing(incomingRecallHeartGlow, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(incomingRecallHeartScale, {
+          toValue: 1.16,
+          duration: 140,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(incomingRecallHeartScale, {
+          toValue: 1.85,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start(() => {
+      setIncomingRecallBusy("");
+      setIncomingRecallInvite(null);
+      setSavedContactsVisible(false);
+      navigation.navigate("Call", {
+        entryMode: "contactRecallAccept",
+        recallInviteId: inviteId,
+      });
+    });
+  }, [incomingRecallBusy, incomingRecallHeartGlow, incomingRecallHeartScale, incomingRecallInvite, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let closed = false;
+      let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+      const token = String(auth?.token || "").trim();
+      const userId = String(auth?.userId || "").trim();
+      const deviceKey = String(auth?.deviceKey || "").trim();
+      if (!token || !userId || !deviceKey) {
+        setIncomingRecallInvite(null);
+        return () => undefined;
+      }
+
+      const pollInvite = async () => {
+        if (closed || incomingRecallBusy === "accept") return;
+        const out = await fetchPendingRecallInviteOnServer({ token, userId, deviceKey }).catch(() => null);
+        if (closed || !out?.ok) return;
+        setIncomingRecallInvite((prev) => {
+          const nextInvite = out.invite || null;
+          if (!nextInvite) return incomingRecallBusy ? prev : null;
+          if (incomingRecallBusy && prev?.inviteId === nextInvite.inviteId) return prev;
+          return nextInvite;
+        });
+      };
+
+      void pollInvite();
+      pollTimer = setInterval(() => {
+        void pollInvite();
+      }, 2500);
+
+      return () => {
+        closed = true;
+        if (pollTimer) clearInterval(pollTimer);
+      };
+    }, [auth?.deviceKey, auth?.token, auth?.userId, incomingRecallBusy])
+  );
+
   const headerLeft = useCallback(() => (
   <Pressable
     hitSlop={12}
@@ -124,11 +562,23 @@ const headerRight = useCallback(() => (
     <View style={styles.walletGroup}>
       <View style={styles.walletChip}>
         <Image source={POPTALK_BALANCE_ICON} style={styles.walletIcon} resizeMode="contain" />
-        <AppText style={styles.walletValue}>{myPopTalkBalanceText}</AppText>
+        <Pressable
+          hitSlop={10}
+          onPressIn={goPopTalkShop}
+          style={({ pressed }) => [styles.walletValuePressable, pressed ? { opacity: 0.65 } : null]}
+        >
+          <AppText style={[styles.walletValue, styles.walletValueLink]}>{myPopTalkBalanceText}</AppText>
+        </Pressable>
       </View>
       <View style={styles.walletChip}>
         <Image source={KERNEL_BALANCE_ICON} style={styles.walletIcon} resizeMode="contain" />
-        <AppText style={styles.walletValue}>{kernelBalance.toLocaleString("ko-KR")}</AppText>
+        <Pressable
+          hitSlop={10}
+          onPressIn={goKernelShop}
+          style={({ pressed }) => [styles.walletValuePressable, pressed ? { opacity: 0.65 } : null]}
+        >
+          <AppText style={[styles.walletValue, styles.walletValueLink]}>{kernelBalance.toLocaleString("ko-KR")}</AppText>
+        </Pressable>
       </View>
     </View>
     <Pressable
@@ -140,13 +590,20 @@ const headerRight = useCallback(() => (
     </Pressable>
     <Pressable
       hitSlop={12}
+      onPressIn={openSavedContacts}
+      style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
+    >
+      <Ionicons name="people-outline" size={22} color={theme.colors.text} />
+    </Pressable>
+    <Pressable
+      hitSlop={12}
       onPressIn={openPrefs}
       style={({ pressed }) => [styles.headerBtn, pressed ? { opacity: 0.6 } : null]}
     >
       <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
     </Pressable>
   </View>
-), [goShop, kernelBalance, myPopTalkBalanceText, openPrefs]);
+), [goKernelShop, goPopTalkShop, goShop, kernelBalance, myPopTalkBalanceText, openPrefs, openSavedContacts]);
 
 useLayoutEffect(() => {
   navigation.setOptions({
@@ -205,9 +662,29 @@ useEffect(() => {
       const base = String(APP_CONFIG.AUTH_HTTP_BASE_URL || "").replace(/\/+$/, "");
       const path = String((APP_CONFIG as any)?.ACTIVE_USERS_PATH || "/api/active-users");
       const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-      const res = await fetch(`${base}${normalizedPath}`);
+      const separator = normalizedPath.includes("?") ? "&" : "?";
+      const res = await fetch(`${base}${normalizedPath}${separator}ts=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
       const data = await res.json();
-      const activeCount = Number(data.activeUsers) || 0;
+      const candidates = [
+        data?.eligibleActiveUsers,
+        data?.activeUsers,
+        data?.wsClients,
+        data?.registeredSessions,
+        data?.queuedUsers,
+        data?.loginPresenceActive,
+        data?.connectedTotal,
+        data?.activeTotal,
+      ]
+        .map((v) => Number(v))
+        .filter((v) => Number.isFinite(v) && v >= 0);
+      const activeCount = candidates.length ? Math.trunc(Math.max(...candidates)) : 0;
       setActiveUsers(activeCount);
     } catch (error) {
       setActiveUsers(0);
@@ -255,19 +732,31 @@ useEffect(() => {
       const token = String(auth?.token || "").trim();
       const userId = String(auth?.userId || "").trim();
       const deviceKey = String(auth?.deviceKey || "").trim();
-      const planId = String(sub?.planId || "").trim();
-      const storeProductId = String(sub?.storeProductId || "").trim();
-      const isPremiumNow = Boolean(sub?.isPremium);
+
+      const readSubscriptionState = () => {
+        const subState = (useAppStore.getState() as any)?.sub || {};
+        const premiumExpiresRaw = Number(subState.premiumExpiresAtMs);
+        return {
+          planId: String(subState.planId || "").trim(),
+          storeProductId: String(subState.storeProductId || "").trim(),
+          isPremium: Boolean(subState.isPremium),
+          premiumExpiresAtMs: Number.isFinite(premiumExpiresRaw) && premiumExpiresRaw > 0 ? Math.trunc(premiumExpiresRaw) : null,
+        };
+      };
 
       const syncNow = async () => {
         if (!token || !userId || closed) return;
+        await refreshSubscription().catch(() => undefined);
+        if (closed) return;
+        const subscriptionState = readSubscriptionState();
         const out = await fetchUnifiedWalletState({
           token,
           userId,
           deviceKey,
-          planId,
-          storeProductId,
-          isPremium: isPremiumNow,
+          planId: subscriptionState.planId,
+          storeProductId: subscriptionState.storeProductId,
+          isPremium: subscriptionState.isPremium,
+          premiumExpiresAtMs: subscriptionState.premiumExpiresAtMs,
         });
         if (!closed && out.ok) {
           applyUnifiedState(out);
@@ -307,6 +796,7 @@ useEffect(() => {
         ws.onopen = () => {
           if (!ws || closed) return;
           reconnectAttempt = 0;
+          const subscriptionState = readSubscriptionState();
           try {
             ws.send(
               JSON.stringify({
@@ -314,9 +804,10 @@ useEffect(() => {
                 token,
                 userId,
                 deviceKey,
-                planId,
-                storeProductId,
-                isPremium: isPremiumNow,
+                planId: subscriptionState.planId,
+                storeProductId: subscriptionState.storeProductId,
+                isPremium: subscriptionState.isPremium,
+                premiumExpiresAtMs: subscriptionState.premiumExpiresAtMs,
               })
             );
           } catch {}
@@ -382,7 +873,7 @@ useEffect(() => {
         reconnectTimer = null;
         closeSocket();
       };
-    }, [applyUnifiedState, auth?.deviceKey, auth?.token, auth?.userId, setAssets, sub?.isPremium, sub?.planId, sub?.storeProductId])
+    }, [applyUnifiedState, auth?.deviceKey, auth?.token, auth?.userId, setAssets, sub?.isPremium, sub?.planId, sub?.premiumExpiresAtMs, sub?.storeProductId])
   );
 
   const isoToFlag = useCallback((iso: string) => {
@@ -538,6 +1029,21 @@ useEffect(() => {
     }
   }, [showGlobalModal, t, updateBusy]);
 
+  useEffect(() => {
+    if (!updateModal) {
+      updateAutoTriggeredRef.current = false;
+      return;
+    }
+    if (!updateAutoTriggeredRef.current) {
+      updateAutoTriggeredRef.current = true;
+      doApplyUpdate().catch(() => undefined);
+    }
+    const timer = setTimeout(() => {
+      setUpdateModal(false);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [doApplyUpdate, updateModal]);
+
   const onPressMatch = useCallback(async () => {
     if (matchBusy) return;
     setMatchBusy(true);
@@ -567,6 +1073,12 @@ useEffect(() => {
       return;
     }
 
+    if (!isInterstitialCooldownPassed(INTERSTITIAL_COOLDOWN_MS, Date.now())) {
+      goCall();
+      setMatchBusy(false);
+      return;
+    }
+
     const ad = createInterstitial();
     interstitialRef.current = ad;
 
@@ -591,7 +1103,13 @@ useEffect(() => {
 
     unsubClosed = ad.addAdEventListener(AdEventType.CLOSED, () => { cleanup(); runOnce(); });
     unsubLoaded = ad.addAdEventListener(AdEventType.LOADED, () => {
-      try { ad.show(); } catch { cleanup(); runOnce(); }
+      try {
+        ad.show();
+        recordInterstitialShown(Date.now());
+      } catch {
+        cleanup();
+        runOnce();
+      }
     });
     unsubError = ad.addAdEventListener(AdEventType.ERROR, () => { cleanup(); runOnce(); });
 
@@ -624,15 +1142,9 @@ useEffect(() => {
           <AppText style={styles.sub}>{t("home.subtitle")}</AppText>
 
           <View style={styles.matchBtnWrap}>
-            <PrimaryButton title={t("home.match_button")} onPress={onPressMatch} />
+            <PrimaryButton title={t("home.match_button")} onPress={onPressMatch} disabled={matchBusy} />
           </View>
-          <AppText style={styles.runtime}>
-            {t("home.runtime_info", {
-              runtime: Updates.runtimeVersion ?? "-",
-              update: Updates.updateId ? Updates.updateId.slice(-4) : "-",
-              users: String(activeUsers).padStart(6, "0"),
-            })}
-          </AppText>        
+          <AppText style={styles.runtime}>{`Runtime ${runtimeLabel}`}</AppText>
         </View>
       </View>
 
@@ -651,32 +1163,14 @@ useEffect(() => {
         </View>
       ) : null}
 
-      <AppModal
-        visible={updateModal}
-        title={t("modal.update.title")}
-        onClose={() => {
-          if (updateBusy) return;
-          setUpdateModal(false);
-        }}
-        dismissible={!updateBusy}
-        footer={
-          <View style={{ gap: 10 }}>
-            <PrimaryButton
-              title={updateBusy ? t("modal.update.applying") : t("modal.update.apply")}
-              onPress={doApplyUpdate}
-              disabled={updateBusy}
-            />
-            <PrimaryButton
-              title={t("modal.update.later")}
-              onPress={() => setUpdateModal(false)}
-              variant="ghost"
-              disabled={updateBusy}
-            />
+      {updateModal ? (
+        <View pointerEvents="none" style={styles.updateToastLayer}>
+          <View style={styles.updateToastBox}>
+            <AppText style={styles.updateToastTitle}>New UPDATE</AppText>
+            <AppText style={styles.updateToastBody}>자동으로 업데이트 됩니다</AppText>
           </View>
-        }
-      >
-        <AppText style={styles.modalText}>{t("modal.update.body")}</AppText>
-      </AppModal>
+        </View>
+      ) : null}
 
       {/* 설정 모달 */}
       <AppModal
@@ -882,6 +1376,262 @@ useEffect(() => {
           {rewardAdFailCount >= 3 ? t("poptalk.ad_fail_desc") : t("poptalk.ad_loading_desc")}
         </AppText>
       </AppModal>
+
+      <AppModal
+        visible={Boolean(incomingRecallInvite)}
+        title={t("call.contact.incoming_title")}
+        dismissible={false}
+        footer={
+          <View style={styles.incomingRecallFooter}>
+            <PrimaryButton
+              title={t("call.contact.incoming_block")}
+              variant="ghost"
+              disabled={Boolean(incomingRecallBusy)}
+              style={styles.incomingRecallDeclineBtn}
+              textStyle={styles.incomingRecallDeclineText}
+              onPress={() => {
+                void onDeclineIncomingRecall(true);
+              }}
+            />
+            <PrimaryButton
+              title={t("call.contact.incoming_decline")}
+              variant="ghost"
+              disabled={Boolean(incomingRecallBusy)}
+              style={styles.incomingRecallDeclineBtn}
+              textStyle={styles.incomingRecallDeclineText}
+              onPress={() => {
+                void onDeclineIncomingRecall(false);
+              }}
+            />
+            <Animated.View
+              style={[
+                styles.incomingRecallAcceptWrap,
+                {
+                  transform: [{ scale: incomingRecallHeartScale }],
+                  opacity: incomingRecallBusy === "decline" || incomingRecallBusy === "block" ? 0.55 : 1,
+                },
+              ]}
+            >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.incomingRecallAcceptGlow,
+                  {
+                    opacity: incomingRecallHeartGlow,
+                    transform: [
+                      {
+                        scale: incomingRecallHeartGlow.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.86, 1.34],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+              <Pressable
+                disabled={Boolean(incomingRecallBusy)}
+                onPress={onAcceptIncomingRecall}
+                style={({ pressed }) => [
+                  styles.incomingRecallAcceptBtn,
+                  pressed && !incomingRecallBusy ? { opacity: 0.92 } : null,
+                ]}
+              >
+                <AppText style={incomingRecallBusy === "accept" ? styles.incomingRecallHeartText : styles.incomingRecallAcceptText}>
+                  {incomingRecallBusy === "accept" ? "♥" : t("call.contact.incoming_accept")}
+                </AppText>
+              </Pressable>
+            </Animated.View>
+          </View>
+        }
+      >
+        <View style={styles.incomingRecallBody}>
+          <View style={styles.incomingRecallBodyRow}>
+            <View style={styles.incomingRecallAvatarWrap}>
+              {incomingRecallAvatarUrl ? (
+                <Image source={{ uri: incomingRecallAvatarUrl }} style={styles.incomingRecallAvatarImage} />
+              ) : (
+                <View style={styles.incomingRecallAvatarFallback}>
+                  <Ionicons name="person" size={30} color="#B25278" />
+                </View>
+              )}
+            </View>
+            <View style={styles.incomingRecallTextWrap}>
+              <View style={styles.incomingRecallTitleRow}>
+                <AppText style={styles.incomingRecallCaller} numberOfLines={1}>
+                  {incomingRecallName}
+                </AppText>
+                {incomingRecallContact?.isMutualFriend ? (
+                  <View style={styles.incomingRecallMutualBadge}>
+                    <Ionicons name="swap-horizontal" size={12} color="#5B4AA2" />
+                  </View>
+                ) : null}
+              </View>
+              {incomingRecallMeta ? (
+              <AppText style={styles.incomingRecallMeta} numberOfLines={2}>
+                {incomingRecallMeta}
+              </AppText>
+            ) : null}
+            {incomingRecallInterestLabels.length > 0 ? (
+              <View style={styles.savedContactInterestRow}>
+                {incomingRecallInterestLabels.map((label) => (
+                  <View key={`incoming_${label}`} style={styles.savedContactInterestChip}>
+                    <AppText style={styles.savedContactInterestText} numberOfLines={2} ellipsizeMode="tail">
+                      {label}
+                    </AppText>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </View>
+      </AppModal>
+
+      <AppModal
+        visible={savedContactsVisible}
+        dismissible={!savedContactsLaunching}
+        onClose={() => {
+          if (savedContactsLaunching) return;
+          setSavedContactsVisible(false);
+        }}
+      >
+        <View style={styles.savedContactsHeader}>
+          <Pressable
+            hitSlop={10}
+            disabled={savedContactsLaunching}
+            onPress={() => setSavedContactsVisible(false)}
+            style={({ pressed }) => [
+              styles.savedContactsCloseBadge,
+              savedContactsLaunching ? { opacity: 0.45 } : null,
+              pressed ? { opacity: 0.74 } : null,
+            ]}
+          >
+            <Ionicons name="close" size={13} color="#7F3552" />
+            <AppText style={styles.savedContactsCloseBadgeText}>{t("common.close")}</AppText>
+          </Pressable>
+          <AppText style={styles.savedContactsHeaderTitle}>친구 목록</AppText>
+          <View style={styles.savedContactsHeaderSpacer} />
+        </View>
+        {savedContactsLoading ? <AppText style={styles.modalText}>{t("common.loading")}</AppText> : null}
+        {!savedContactsLoading && savedContacts.length <= 0 ? (
+          <View style={styles.savedContactsEmptyWrap}>
+            <Image source={HOME_EMPTY_SAD} style={styles.savedContactsEmptyImage} resizeMode="contain" />
+            <AppText style={styles.savedContactsEmptyTitle}>친구가 한명도 없어요~</AppText>
+            <AppText style={styles.savedContactsEmptyText}>친구를 추가해보세요</AppText>
+          </View>
+        ) : null}
+        {savedContacts.length > 0 ? (
+          <FlatList
+            data={savedContacts}
+            keyExtractor={(item) => String(item.contactKey || item.peerSessionId || item.peerProfileId || item.peerUserId || "contact")}
+            horizontal
+            style={styles.savedContactsScroll}
+            contentContainerStyle={[styles.savedContactsList, savedContacts.length === 1 ? styles.savedContactsListSingle : null]}
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled={false}
+            keyboardShouldPersistTaps="handled"
+            scrollEventThrottle={16}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            disableIntervalMomentum
+            snapToInterval={SAVED_CONTACT_CARD_WIDTH + 14}
+            ItemSeparatorComponent={() => <View style={styles.savedContactSpacer} />}
+            renderItem={({ item }) => {
+              const displayName = getSavedContactName(item);
+              const avatarUrl = String(item.peerAvatarUrl || "").trim();
+              const lastCallLabel = formatSavedContactTime(item.lastCallAtMs);
+              const interestLabels = getSavedContactInterestLabels(item);
+              const isOnline = Boolean(item.isOnline);
+              const statusText = getSavedContactStatusText(item);
+              const statusStyle = isOnline ? styles.savedContactStatusOnline : styles.savedContactStatusOffline;
+              const recallEnabled = Boolean(item.canRecall || item.isOnline);
+              return (
+                <View key={item.contactKey || item.peerSessionId || item.peerProfileId} style={styles.savedContactCard}>
+                  <View style={styles.savedContactHeroRow}>
+                    <View style={styles.savedContactAvatarFallback}>
+                      {avatarUrl ? (
+                        <Image source={{ uri: avatarUrl }} style={styles.savedContactAvatarImage} />
+                      ) : (
+                        <Ionicons name="person" size={28} color="#B25278" />
+                      )}
+                    </View>
+                    <View style={styles.savedContactTextWrap}>
+                      <View style={styles.savedContactTitleRow}>
+                        <AppText style={styles.savedContactTitle} numberOfLines={1}>
+                          {displayName}
+                        </AppText>
+                        {item.isMutualFriend ? (
+                          <View style={styles.savedContactMutualBadge}>
+                            <Ionicons name="swap-horizontal" size={12} color="#5B4AA2" />
+                          </View>
+                        ) : null}
+                        <View
+                          style={[
+                            styles.savedContactStatusChip,
+                            isOnline ? styles.savedContactStatusChipOnline : null,
+                          ]}
+                        >
+                          <AppText style={[styles.savedContactStatusChipText, statusStyle]}>{statusText}</AppText>
+                        </View>
+                      </View>
+                      <AppText style={styles.savedContactMeta} numberOfLines={1}>
+                        {getSavedContactMeta(item)}
+                      </AppText>
+                      {interestLabels.length > 0 ? (
+                        <View style={styles.savedContactInterestRow}>
+                          {interestLabels.map((label) => (
+                            <View key={`${item.contactKey}_${label}`} style={styles.savedContactInterestChip}>
+                              <AppText style={styles.savedContactInterestText} numberOfLines={2} ellipsizeMode="tail">
+                                {label}
+                              </AppText>
+                            </View>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  <View style={styles.savedContactInfoPanel}>
+                    <View style={styles.savedContactInfoTextWrap}>
+                      <AppText style={styles.savedContactInfoLabel} numberOfLines={1}>
+                        {lastCallLabel ? t("call.contact.last_call_at", { time: lastCallLabel }) : "최근 통화 기록이 아직 없어요"}
+                      </AppText>
+                    </View>
+                    <Pressable
+                      hitSlop={10}
+                      disabled={Boolean(savedContactsDeletingKey)}
+                      onPress={() => {
+                        void onPressDeleteSavedContact(item);
+                      }}
+                      style={({ pressed }) => [
+                        styles.savedContactDeleteBtn,
+                        savedContactsDeletingKey && savedContactsDeletingKey === String(item.contactKey || item.peerSessionId || item.peerProfileId || "").trim()
+                          ? { opacity: 0.45 }
+                          : null,
+                        pressed ? { opacity: 0.72 } : null,
+                      ]}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#C24164" />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.savedContactActionWrap}>
+                    <PrimaryButton
+                      title={recallEnabled ? t("call.contact.recall") : t("call.contact.recall_unavailable")}
+                      variant={recallEnabled ? "primary" : "ghost"}
+                      style={styles.savedContactActionBtn}
+                      textStyle={styles.savedContactActionBtnText}
+                      disabled={!recallEnabled || savedContactsLaunching || Boolean(savedContactsDeletingKey)}
+                      onPress={() => onPressSavedContactRecall(item)}
+                    />
+                  </View>
+                </View>
+              );
+            }}
+          />
+        ) : null}
+      </AppModal>
     </View>
   );
 }
@@ -907,6 +1657,38 @@ const styles = StyleSheet.create({
   sub: { fontSize: 14, color: theme.colors.sub, textAlign: "center", lineHeight: 20, maxWidth: 460 },
   runtime: { fontSize: 12, color: theme.colors.sub, textAlign: "center", lineHeight: 18, opacity: 0.6, marginTop: 4 },
   matchBtnWrap: { width: "100%", maxWidth: 420 },
+  updateToastLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  updateToastBox: {
+    minWidth: 220,
+    maxWidth: 320,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(74, 26, 92, 0.78)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 164, 214, 0.22)",
+  },
+  updateToastTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
+    textAlign: "center",
+  },
+  updateToastBody: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "rgba(255,255,255,0.9)",
+    textAlign: "center",
+    lineHeight: 18,
+  },
 
   banner: {
     position: "absolute",
@@ -940,6 +1722,382 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#FDF2D6",
     minWidth: 24,
+  },
+  walletValuePressable: {
+    minWidth: 24,
+    paddingVertical: 1,
+  },
+  walletValueLink: {
+    color: "#FFF2B3",
+  },
+  savedContactsScroll: {
+    maxHeight: 420,
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  savedContactsList: {
+    paddingHorizontal: 4,
+    paddingBottom: 4,
+  },
+  savedContactsListSingle: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  savedContactsHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    gap: 10,
+  },
+  savedContactsCloseBadge: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,228,238,0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(194,65,100,0.18)",
+  },
+  savedContactsCloseBadgeText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
+    color: "#7F3552",
+    textAlign: "center",
+  },
+  savedContactsHeaderTitle: {
+    flex: 1,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "900",
+    color: "#55263A",
+    textAlign: "center",
+  },
+  savedContactsHeaderSpacer: {
+    width: 56,
+  },
+  savedContactsEmptyWrap: {
+    width: "100%",
+    minHeight: 240,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,244,248,0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(225,162,190,0.34)",
+    paddingHorizontal: 22,
+    paddingVertical: 30,
+  },
+  savedContactsEmptyImage: {
+    width: 92,
+    height: 92,
+    marginBottom: 4,
+  },
+  savedContactsEmptyTitle: {
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: "900",
+    color: "#7D415B",
+    textAlign: "center",
+  },
+  savedContactsEmptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+    color: "#9A6A7C",
+    textAlign: "center",
+  },
+  savedContactSpacer: {
+    width: 14,
+  },
+  savedContactCard: {
+    width: SAVED_CONTACT_CARD_WIDTH,
+    alignItems: "stretch",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,245,248,0.98)",
+    borderWidth: 1,
+    borderColor: "rgba(225,162,190,0.44)",
+    shadowColor: "#AA4A73",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  savedContactStatusChip: {
+    minHeight: 24,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(180,64,128,0.10)",
+  },
+  savedContactStatusChipWaiting: {
+    backgroundColor: "rgba(184,50,128,0.12)",
+  },
+  savedContactStatusChipOnline: {
+    backgroundColor: "rgba(176,225,246,0.42)",
+  },
+  savedContactStatusChipText: {
+    fontSize: 11,
+    fontWeight: "800",
+    lineHeight: 14,
+    textAlign: "center",
+  },
+  savedContactHeroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  savedContactAvatarFallback: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,220,232,0.98)",
+    borderWidth: 1,
+    borderColor: "rgba(209,114,153,0.18)",
+    flexShrink: 0,
+  },
+  savedContactAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  savedContactTextWrap: {
+    flex: 1,
+    gap: 6,
+    minHeight: 72,
+    justifyContent: "center",
+  },
+  savedContactTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+  },
+  savedContactTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#55263A",
+  },
+  savedContactMutualBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(86, 58, 156, 0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(86, 58, 156, 0.18)",
+  },
+  savedContactMeta: {
+    fontSize: 12,
+    color: "#7F5B69",
+    lineHeight: 18,
+  },
+  savedContactInterestRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    columnGap: 6,
+    rowGap: 4,
+    flexWrap: "wrap",
+  },
+  savedContactInterestChip: {
+    maxWidth: "100%",
+    minHeight: 22,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(91,74,162,0.09)",
+    borderWidth: 1,
+    borderColor: "rgba(91,74,162,0.14)",
+  },
+  savedContactInterestText: {
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: "700",
+    color: "#5B4AA2",
+    textAlign: "center",
+  },
+  savedContactInfoPanel: {
+    minHeight: 44,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.68)",
+    borderWidth: 1,
+    borderColor: "rgba(225,162,190,0.18)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  savedContactInfoTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  savedContactInfoLabel: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#8A6170",
+    textAlign: "left",
+  },
+  savedContactStatusWaiting: {
+    color: "#B83280",
+  },
+  savedContactStatusOnline: {
+    color: "#4C8FB3",
+  },
+  savedContactStatusOffline: {
+    color: "#8A6B78",
+  },
+  savedContactActionWrap: {
+    width: "100%",
+    alignItems: "stretch",
+    justifyContent: "flex-end",
+  },
+  savedContactActionBtn: {
+    width: "100%",
+    height: 38,
+  },
+  savedContactActionBtnText: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  savedContactDeleteBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(194,65,100,0.08)",
+  },
+  incomingRecallBody: {
+    width: "100%",
+    alignItems: "stretch",
+    paddingVertical: 6,
+  },
+  incomingRecallBodyRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  incomingRecallAvatarWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(209,114,153,0.18)",
+    backgroundColor: "rgba(255,220,232,0.98)",
+    flexShrink: 0,
+  },
+  incomingRecallAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  incomingRecallAvatarFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,220,232,0.98)",
+  },
+  incomingRecallTextWrap: {
+    flex: 1,
+    alignItems: "flex-start",
+    gap: 6,
+    minHeight: 72,
+    justifyContent: "center",
+  },
+  incomingRecallTitleRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  incomingRecallCaller: {
+    flex: 1,
+    fontSize: 19,
+    fontWeight: "900",
+    color: "#55263A",
+    textAlign: "left",
+  },
+  incomingRecallMutualBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(86, 58, 156, 0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(86, 58, 156, 0.18)",
+  },
+  incomingRecallMeta: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#7F5B69",
+    textAlign: "left",
+  },
+  incomingRecallFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  incomingRecallDeclineBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 16,
+  },
+  incomingRecallDeclineText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  incomingRecallAcceptWrap: {
+    flex: 1,
+    alignItems: "stretch",
+    justifyContent: "center",
+  },
+  incomingRecallAcceptGlow: {
+    position: "absolute",
+    inset: -4,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,120,170,0.22)",
+  },
+  incomingRecallAcceptBtn: {
+    height: 42,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.pinkDeep,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  incomingRecallAcceptText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  incomingRecallHeartText: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    lineHeight: 22,
   },
 
   modalText: { fontSize: 14, color: theme.colors.sub, lineHeight: 20 },

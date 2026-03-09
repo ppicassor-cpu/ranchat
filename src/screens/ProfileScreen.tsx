@@ -1,6 +1,6 @@
 ﻿// FILE: C:\ranchat\src\screens\ProfileScreen.tsx
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import AppModal from "../components/AppModal";
 import PrimaryButton from "../components/PrimaryButton";
 import { theme } from "../config/theme";
@@ -16,14 +16,41 @@ import { Ionicons } from "@expo/vector-icons";
 import { fetchCallBlockListOnServer, type CallBlockListItem, unblockCallPeersOnServer } from "../services/call/CallBlockListService";
 import {
   MATCH_FILTER_ALL,
+  MATCH_INTEREST_OPTIONS,
   createDefaultMatchFilter,
   fetchMatchFilterOnServer,
   normalizeMatchFilter,
+  normalizeMatchInterests,
   saveMatchFilterOnServer,
   type MatchFilter,
   type MatchFilterGender,
 } from "../services/call/MatchFilterService";
 import { countryCodeToFlagEmoji } from "../utils/countryUtils";
+import { mergeProfileSyncResult, syncProfileToServer } from "../services/profile/ProfileSync";
+import { getCurrentGoogleNativeEmail } from "../services/auth/NativeSocialLogin";
+
+const PROFILE_NICKNAME_REGEX = /^[A-Za-z0-9가-힣]+$/;
+const RESERVED_PROFILE_NICKNAME_TOKENS = [
+  "admin",
+  "administrator",
+  "operator",
+  "staff",
+  "moderator",
+  "mod",
+  "master",
+  "official",
+  "manager",
+  "관리자",
+  "운영자",
+  "운영팀",
+  "어드민",
+  "매니저",
+  "마스터",
+];
+const PROFILE_AVATAR_BASE64_MAX_CHARS = 360000;
+const PROFILE_INTEREST_MIN_COUNT = 1;
+const PROFILE_INTEREST_MAX_COUNT = 3;
+const PROFILE_NICKNAME_MAX_LEN = 12;
 
 
 function toErrMsg(e: unknown) {
@@ -51,6 +78,37 @@ function shortSessionId(v: string): string {
   return `${raw.slice(0, 9)}...${raw.slice(-6)}`;
 }
 
+function normalizeNicknameDraft(value: string): string {
+  return String(value || "").trim().slice(0, PROFILE_NICKNAME_MAX_LEN);
+}
+
+function validateNicknameDraft(value: string, t: (key: string, params?: any) => string): string {
+  const nickname = normalizeNicknameDraft(value);
+  if (!nickname) return t("profile.profile_nickname_empty");
+  if (nickname.length < 2 || nickname.length > PROFILE_NICKNAME_MAX_LEN || !PROFILE_NICKNAME_REGEX.test(nickname)) {
+    return t("profile.profile_nickname_invalid");
+  }
+  const compact = nickname.toLowerCase().replace(/[0-9]/g, "");
+  if (RESERVED_PROFILE_NICKNAME_TOKENS.some((token) => compact.includes(String(token).toLowerCase()))) {
+    return t("profile.profile_nickname_reserved");
+  }
+  return "";
+}
+
+function normalizeProfileInterests(values: string[] | null | undefined): string[] {
+  return normalizeMatchInterests(values, { allowAll: false, fallbackToAll: false }).slice(0, PROFILE_INTEREST_MAX_COUNT);
+}
+
+function formatInterestSummary(values: string[], t: (key: string, params?: any) => string): string {
+  const normalized = normalizeProfileInterests(values);
+  if (normalized.length <= 0) return t("profile.profile_interest_empty");
+  const labels = normalized
+    .map((id) => t(`interest.${id}`))
+    .filter(Boolean);
+  if (labels.length <= 1) return labels[0] || t("profile.profile_interest_empty");
+  return t("profile.profile_interest_more", { first: labels[0], count: labels.length - 1 });
+}
+
 const SECTION_ICON_COLOR = "#8F97A3";
 const SECTION_ICON_SIZE = 18;
 const ACTION_ICON_SIZE = 19;
@@ -75,9 +133,12 @@ export default function ProfileScreen() {
   const prefs = useAppStore((s) => s.prefs);
   const sub = useAppStore((s) => s.sub);
   const auth = useAppStore((s) => s.auth);
+  const profile = useAppStore((s: any) => s.profile);
   const logoutAndWipe = useAppStore((s) => s.logoutAndWipe);
 
   const setPrefs = useAppStore((s) => s.setPrefs);
+  const setAuth = useAppStore((s) => s.setAuth);
+  const setProfile = useAppStore((s: any) => s.setProfile);
   const showGlobalModal = useAppStore((s) => s.showGlobalModal);
 
   const fontScale = useAppStore((s: any) => s.ui.fontScale);
@@ -88,6 +149,7 @@ export default function ProfileScreen() {
   const [logoutModal, setLogoutModal] = useState(false);
   const [policyModal, setPolicyModal] = useState(false);
   const [langModal, setLangModal] = useState(false);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [callBlockModal, setCallBlockModal] = useState(false);
   const [callBlockListBusy, setCallBlockListBusy] = useState(false);
   const [callBlockUnblockBusy, setCallBlockUnblockBusy] = useState(false);
@@ -99,6 +161,11 @@ export default function ProfileScreen() {
   const [genderOpen, setGenderOpen] = useState(false);
 
   const [restoreBusy, setRestoreBusy] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileImageBusy, setProfileImageBusy] = useState<"" | "camera" | "library">("");
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [avatarDraft, setAvatarDraft] = useState<string | null>(null);
+  const [profileInterestDraft, setProfileInterestDraft] = useState<string[]>([]);
   const [matchFilterModalVisible, setMatchFilterModalVisible] = useState(false);
   const [matchFilterUpsellModalVisible, setMatchFilterUpsellModalVisible] = useState(false);
   const [matchFilterLoading, setMatchFilterLoading] = useState(false);
@@ -151,6 +218,236 @@ export default function ProfileScreen() {
 
     return t("profile.plan.premium");
   }, [sub, t]);
+  const authEmail = useMemo(() => String(auth?.email || "").trim().toLowerCase(), [auth?.email]);
+  const profileDisplayName = useMemo(() => {
+    const nickname = String(profile?.nickname || "").trim();
+    return nickname || authEmail || t("profile.profile_default_nickname");
+  }, [authEmail, profile?.nickname, t]);
+  const profileAvatarUrl = useMemo(() => {
+    const avatarUrl = String(profile?.avatarUrl || "").trim();
+    return avatarUrl || null;
+  }, [profile?.avatarUrl]);
+  const profileInterests = useMemo(
+    () => normalizeProfileInterests(profile?.interests),
+    [profile?.interests]
+  );
+  const hasConfiguredProfileSettings = useMemo(
+    () => Boolean(String(profile?.nickname || "").trim() || profileAvatarUrl || profileInterests.length > 0),
+    [profile?.nickname, profileAvatarUrl, profileInterests.length]
+  );
+  const nicknameDraftError = useMemo(() => validateNicknameDraft(nicknameDraft, t), [nicknameDraft, t]);
+  const profileInterestDraftError = useMemo(
+    () =>
+      profileInterestDraft.length > PROFILE_INTEREST_MAX_COUNT
+        ? t("profile.profile_interest_limit")
+        : profileInterestDraft.length >= PROFILE_INTEREST_MIN_COUNT
+          ? ""
+          : t("profile.profile_interest_required"),
+    [profileInterestDraft.length, t]
+  );
+
+  const applyProfileSyncResult = useCallback((out: any, fallback?: any) => {
+    if (!out || typeof out !== "object") return;
+    const currentProfile = (useAppStore.getState() as any)?.profile;
+    const nextProfile = mergeProfileSyncResult(currentProfile, out, fallback);
+    setProfile(nextProfile);
+    return nextProfile;
+  }, [setProfile]);
+
+  const loadProfileFromServer = useCallback(async () => {
+    const token = String(auth?.token || "").trim();
+    const userId = String(auth?.userId || "").trim();
+    const deviceKey = String(auth?.deviceKey || "").trim();
+    if (!token || !userId || !deviceKey) return;
+    try {
+      const out = await syncProfileToServer({
+        token,
+        userId,
+        deviceKey,
+        country: prefs?.country,
+        language: prefs?.language,
+        gender: prefs?.gender,
+      });
+      applyProfileSyncResult(out);
+    } catch {}
+  }, [applyProfileSyncResult, auth?.deviceKey, auth?.token, auth?.userId, prefs?.country, prefs?.gender, prefs?.language]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (authEmail) return () => undefined;
+
+    (async () => {
+      const email = await getCurrentGoogleNativeEmail().catch(() => "");
+      if (cancelled) return;
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      if (!normalizedEmail) return;
+      setAuth({ email: normalizedEmail });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authEmail, setAuth]);
+
+  const openProfileModal = useCallback(() => {
+    setNicknameDraft(normalizeNicknameDraft(String(profile?.nickname || "").trim()));
+    setAvatarDraft(String(profile?.avatarUrl || "").trim() || null);
+    setProfileInterestDraft(normalizeProfileInterests(profile?.interests));
+    setProfileModalVisible(true);
+  }, [profile?.avatarUrl, profile?.interests, profile?.nickname]);
+
+  const closeProfileModal = useCallback(() => {
+    if (profileSaving) return;
+    setProfileModalVisible(false);
+    setProfileImageBusy("");
+  }, [profileSaving]);
+
+  const toggleProfileInterest = useCallback((value: string) => {
+    const interestId = String(value || "").trim().toLowerCase();
+    if (!interestId) return;
+    const current = normalizeProfileInterests(profileInterestDraft);
+    if (current.includes(interestId)) {
+      setProfileInterestDraft(current.filter((item) => item !== interestId));
+      return;
+    }
+    if (current.length >= PROFILE_INTEREST_MAX_COUNT) {
+      showGlobalModal(t("profile.profile_section"), t("profile.profile_interest_limit"));
+      return;
+    }
+    setProfileInterestDraft([...current, interestId]);
+  }, [profileInterestDraft, showGlobalModal, t]);
+
+  const pickProfileImage = useCallback(async (source: "camera" | "library") => {
+    if (profileSaving || profileImageBusy) return;
+    setProfileImageBusy(source);
+    try {
+      const ImagePicker = await import("expo-image-picker");
+      const permission =
+        source === "camera"
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showGlobalModal(
+          t("profile.profile_section"),
+          source === "camera" ? t("profile.profile_camera_permission") : t("profile.profile_library_permission")
+        );
+        return;
+      }
+
+      const result =
+        source === "camera"
+          ? await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.3,
+              base64: true,
+            })
+          : await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.3,
+              base64: true,
+              selectionLimit: 1,
+            });
+
+      if (result.canceled || !Array.isArray(result.assets) || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      const base64 = String(asset?.base64 || "").trim();
+      if (!base64 || base64.length > PROFILE_AVATAR_BASE64_MAX_CHARS) {
+        showGlobalModal(t("profile.profile_section"), t("profile.profile_avatar_too_large"));
+        return;
+      }
+      const mimeType = String(asset?.mimeType || "").toLowerCase();
+      const mediaType = mimeType.includes("png") ? "image/png" : mimeType.includes("webp") ? "image/webp" : "image/jpeg";
+      setAvatarDraft(`data:${mediaType};base64,${base64}`);
+    } catch {
+      showGlobalModal(t("profile.profile_section"), t("profile.profile_avatar_pick_unavailable"));
+    } finally {
+      setProfileImageBusy("");
+    }
+  }, [profileImageBusy, profileSaving, showGlobalModal, t]);
+
+  const saveProfileSettings = useCallback(async () => {
+    if (profileSaving) return;
+    const nickname = normalizeNicknameDraft(nicknameDraft);
+    const interests = normalizeProfileInterests(profileInterestDraft);
+    const validationMessage = validateNicknameDraft(nickname, t);
+    if (validationMessage) {
+      showGlobalModal(t("profile.profile_section"), validationMessage);
+      return;
+    }
+    if (profileInterestDraft.length > PROFILE_INTEREST_MAX_COUNT) {
+      showGlobalModal(t("profile.profile_section"), t("profile.profile_interest_limit"));
+      return;
+    }
+    if (interests.length < PROFILE_INTEREST_MIN_COUNT) {
+      showGlobalModal(t("profile.profile_section"), t("profile.profile_interest_required"));
+      return;
+    }
+    const token = String(auth?.token || "").trim();
+    const userId = String(auth?.userId || "").trim();
+    const deviceKey = String(auth?.deviceKey || "").trim();
+    if (!token || !userId || !deviceKey) {
+      showGlobalModal(t("profile.profile_section"), t("profile.block_auth_required"));
+      return;
+    }
+
+    setProfileSaving(true);
+    try {
+      const out = await syncProfileToServer({
+        token,
+        userId,
+        deviceKey,
+        country: prefs?.country,
+        language: prefs?.language,
+        gender: prefs?.gender,
+        nickname,
+        interests,
+        avatarDataUrl: avatarDraft || null,
+      });
+      if (!out || typeof out !== "object") {
+        throw new Error("PROFILE_SYNC_EMPTY");
+      }
+      const appliedProfile = applyProfileSyncResult(out, {
+        nickname,
+        avatarUrl: avatarDraft || null,
+        interests,
+        updatedAt: Date.now(),
+      });
+      setNicknameDraft(normalizeNicknameDraft(String(appliedProfile?.nickname || "").trim()));
+      setAvatarDraft(String(appliedProfile?.avatarUrl || "").trim() || null);
+      setProfileInterestDraft(normalizeProfileInterests(appliedProfile?.interests));
+      setProfileModalVisible(false);
+      showGlobalModal(t("profile.profile_section"), t("profile.profile_saved"));
+    } catch (e) {
+      const code = String((e as any)?.code || "").trim().toLowerCase();
+      let message = String((e as any)?.detail || (e as any)?.message || "").trim();
+      if (code === "nickname_taken") message = t("profile.profile_nickname_duplicate");
+      else if (code === "nickname_reserved") message = t("profile.profile_nickname_reserved");
+      else if (code === "nickname_invalid" || code === "nickname_required") message = t("profile.profile_nickname_invalid");
+      else if (code === "avatar_invalid") message = t("profile.profile_avatar_too_large");
+      if (!message) message = t("common.error_occurred");
+      showGlobalModal(t("profile.profile_section"), message);
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [
+    applyProfileSyncResult,
+    auth?.deviceKey,
+    auth?.token,
+    auth?.userId,
+    avatarDraft,
+    nicknameDraft,
+    profileInterestDraft,
+    prefs?.country,
+    prefs?.gender,
+    prefs?.language,
+    profileSaving,
+    showGlobalModal,
+    t,
+  ]);
 
   const matchFilterCountryOptions = useMemo(
     () => COUNTRY_CODES.map((code) => ({ code, label: `${countryCodeToFlagEmoji(code) || ""} ${getCountryName(t, code)}`.trim() })),
@@ -215,6 +512,27 @@ export default function ProfileScreen() {
     setMatchFilterDraft((prev) => normalizeMatchFilter({ ...prev, gender }));
   }, []);
 
+  const toggleMatchFilterInterests = useCallback((value: string) => {
+    setMatchFilterDraft((prev) => {
+      const normalized = normalizeMatchFilter(prev);
+      const key = String(value || "").trim().toLowerCase();
+      if (!key) return normalized;
+      let nextInterests = [...normalized.interests];
+      if (key.toUpperCase() === MATCH_FILTER_ALL) {
+        nextInterests = [MATCH_FILTER_ALL];
+      } else {
+        const withoutAll = nextInterests.filter((v) => v !== MATCH_FILTER_ALL);
+        if (withoutAll.includes(key)) {
+          const after = withoutAll.filter((v) => v !== key);
+          nextInterests = after.length > 0 ? after : [MATCH_FILTER_ALL];
+        } else {
+          nextInterests = [...withoutAll, key];
+        }
+      }
+      return normalizeMatchFilter({ ...normalized, interests: nextInterests });
+    });
+  }, []);
+
   const formatCountryMatchSummary = useCallback((countriesRaw: string[]) => {
     const anyLabel = String(t("call.match_filter.any_option") || "").replace(/\s*\(ALL\)\s*/gi, "").trim();
     const countries = normalizeMatchFilter({ countries: countriesRaw }).countries;
@@ -243,7 +561,11 @@ export default function ProfileScreen() {
         : normalized.gender === "female"
         ? t("gender.female")
         : t("call.match_filter.gender_all");
-    return `${countrySummary} / ${languageSummary} / ${genderSummary}`;
+    const interestSummary =
+      normalized.interests.includes(MATCH_FILTER_ALL)
+        ? t("call.match_filter.any_option")
+        : formatInterestSummary(normalized.interests, t);
+    return `${countrySummary} / ${languageSummary} / ${genderSummary} / ${interestSummary}`;
   }, [formatCountryMatchSummary, formatLanguageMatchSummary, matchFilter, t]);
 
   const loadMatchFilter = useCallback(async () => {
@@ -269,7 +591,8 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!isScreenFocused) return;
     loadMatchFilter().catch(() => undefined);
-  }, [isScreenFocused, loadMatchFilter]);
+    loadProfileFromServer().catch(() => undefined);
+  }, [isScreenFocused, loadMatchFilter, loadProfileFromServer]);
 
   const closeMatchFilterUpsellModal = useCallback(() => {
     setMatchFilterUpsellModalVisible(false);
@@ -567,6 +890,33 @@ export default function ProfileScreen() {
       <View style={styles.card}>
         <View style={styles.sectionSplitRow}>
           <View style={styles.sectionLabelWithIconRow}>
+            <Ionicons name="person-circle-outline" size={SECTION_ICON_SIZE} color={SECTION_ICON_COLOR} />
+            <AppText style={styles.sectionStatusLine} numberOfLines={1} ellipsizeMode="tail">
+              {t("profile.profile_section")}
+            </AppText>
+          </View>
+        </View>
+
+        <View style={styles.profileSummaryRow}>
+          <ProfileAvatarPreview uri={profileAvatarUrl} size={60} />
+          <View style={styles.profileSummaryTextWrap}>
+            <AppText style={styles.profileSummaryName} numberOfLines={1} ellipsizeMode="tail">
+              {profileDisplayName}
+            </AppText>
+            <AppText style={styles.profileSummaryHint}>
+              {t(hasConfiguredProfileSettings ? "profile.profile_summary_hint_edit" : "profile.profile_summary_hint")}
+            </AppText>
+          </View>
+        </View>
+
+        <View style={{ height: 14 }} />
+
+        <ProfilePrimaryButton title={t("profile.profile_open")} onPress={openProfileModal} variant="ghost" />
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.sectionSplitRow}>
+          <View style={styles.sectionLabelWithIconRow}>
             <Ionicons name="language-outline" size={SECTION_ICON_SIZE} color={SECTION_ICON_COLOR} />
             <AppText style={styles.sectionStatusLine} numberOfLines={1} ellipsizeMode="tail">
               {t("profile.language_section")}
@@ -637,6 +987,23 @@ export default function ProfileScreen() {
       />
 
       <LanguageModal visible={langModal} onClose={() => setLangModal(false)} prefs={prefs} setPrefs={setPrefs} />
+      <ProfileEditModal
+        visible={profileModalVisible}
+        onClose={closeProfileModal}
+        nickname={nicknameDraft}
+        onChangeNickname={setNicknameDraft}
+        nicknameError={nicknameDraftError}
+        avatarUrl={avatarDraft}
+        interests={profileInterestDraft}
+        interestError={profileInterestDraftError}
+        imageBusy={profileImageBusy}
+        saving={profileSaving}
+        onPickCamera={() => pickProfileImage("camera")}
+        onPickLibrary={() => pickProfileImage("library")}
+        onClearAvatar={() => setAvatarDraft(null)}
+        onToggleInterest={toggleProfileInterest}
+        onSave={saveProfileSettings}
+      />
 
       <PolicyModal
         visible={policyModal}
@@ -866,6 +1233,54 @@ export default function ProfileScreen() {
                   ]}
                 >
                   <AppText style={[styles.matchFilterOptionText, active ? styles.matchFilterOptionTextActive : null]}>{t(key)}</AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <AppText style={styles.sectionTitle}>{t("call.match_filter.interest_title")}</AppText>
+          <View style={styles.matchFilterInterestOptionWrap}>
+            <Pressable
+              onPress={() => toggleMatchFilterInterests(MATCH_FILTER_ALL)}
+              style={({ pressed }) => [
+                styles.matchFilterOption,
+                styles.matchFilterInterestOption,
+                normalizedMatchFilterDraft.interests.includes(MATCH_FILTER_ALL) ? styles.matchFilterOptionActive : null,
+                pressed ? styles.matchFilterOptionPressed : null,
+              ]}
+            >
+              <AppText
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={[
+                  styles.matchFilterOptionText,
+                  styles.matchFilterInterestOptionText,
+                  normalizedMatchFilterDraft.interests.includes(MATCH_FILTER_ALL) ? styles.matchFilterOptionTextActive : null,
+                ]}
+              >
+                {t("call.match_filter.any_option")}
+              </AppText>
+            </Pressable>
+            {MATCH_INTEREST_OPTIONS.map((opt) => {
+              const active = normalizedMatchFilterDraft.interests.includes(opt.id);
+              return (
+                <Pressable
+                  key={`profile_match_filter_interest_${opt.id}`}
+                  onPress={() => toggleMatchFilterInterests(opt.id)}
+                  style={({ pressed }) => [
+                    styles.matchFilterOption,
+                    styles.matchFilterInterestOption,
+                    active ? styles.matchFilterOptionActive : null,
+                    pressed ? styles.matchFilterOptionPressed : null,
+                  ]}
+                >
+                  <AppText
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={[styles.matchFilterOptionText, styles.matchFilterInterestOptionText, active ? styles.matchFilterOptionTextActive : null]}
+                  >
+                    {t(opt.labelKey)}
+                  </AppText>
                 </Pressable>
               );
             })}
@@ -1116,6 +1531,199 @@ function PrefsModal({
   );
 }
 
+function ProfileAvatarPreview({
+  uri,
+  size = 72,
+}: {
+  uri?: string | null;
+  size?: number;
+}) {
+  const borderRadius = size / 2;
+  return (
+    <View style={[styles.profileAvatarFrame, { width: size, height: size, borderRadius }]}>
+      {uri ? (
+        <Image source={{ uri }} style={styles.profileAvatarImage} />
+      ) : (
+        <View style={styles.profileAvatarFallback}>
+          <Ionicons name="person-outline" size={Math.max(24, Math.round(size * 0.44))} color={SECTION_ICON_COLOR} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function ProfileEditModal({
+  visible,
+  onClose,
+  nickname,
+  onChangeNickname,
+  nicknameError,
+  avatarUrl,
+  interests,
+  interestError,
+  imageBusy,
+  saving,
+  onPickCamera,
+  onPickLibrary,
+  onClearAvatar,
+  onToggleInterest,
+  onSave,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  nickname: string;
+  onChangeNickname: (value: string) => void;
+  nicknameError: string;
+  avatarUrl?: string | null;
+  interests: string[];
+  interestError: string;
+  imageBusy: "" | "camera" | "library";
+  saving: boolean;
+  onPickCamera: () => void;
+  onPickLibrary: () => void;
+  onClearAvatar: () => void;
+  onToggleInterest: (value: string) => void;
+  onSave: () => void;
+}) {
+  const { t } = useTranslation();
+  const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
+  useEffect(() => {
+    if (visible) return;
+    setAvatarPickerVisible(false);
+  }, [visible]);
+  const openAvatarPicker = useCallback(() => {
+    if (saving || imageBusy) return;
+    setAvatarPickerVisible(true);
+  }, [imageBusy, saving]);
+  const closeAvatarPicker = useCallback(() => {
+    if (imageBusy) return;
+    setAvatarPickerVisible(false);
+  }, [imageBusy]);
+  const pickCameraAndClose = useCallback(() => {
+    setAvatarPickerVisible(false);
+    onPickCamera();
+  }, [onPickCamera]);
+  const pickLibraryAndClose = useCallback(() => {
+    setAvatarPickerVisible(false);
+    onPickLibrary();
+  }, [onPickLibrary]);
+  const clearAvatarAndClose = useCallback(() => {
+    setAvatarPickerVisible(false);
+    onClearAvatar();
+  }, [onClearAvatar]);
+
+  return (
+    <>
+      <AppModal
+        visible={visible}
+        title={t("profile.profile_modal_title")}
+        onClose={onClose}
+        dismissible={!saving}
+        footer={
+          <View style={{ gap: 10 }}>
+            <ProfilePrimaryButton
+              title={saving ? t("profile.profile_save_loading") : t("common.save")}
+              onPress={onSave}
+              disabled={saving || Boolean(nicknameError) || Boolean(interestError)}
+            />
+            <ProfilePrimaryButton title={t("common.close")} onPress={onClose} variant="ghost" disabled={saving} />
+          </View>
+        }
+      >
+        <View style={styles.profileModalBody}>
+          <Pressable
+            onPress={openAvatarPicker}
+            disabled={saving || Boolean(imageBusy)}
+            style={({ pressed }) => [styles.profileAvatarEditPressable, pressed ? { opacity: 0.88 } : null]}
+          >
+            <ProfileAvatarPreview uri={avatarUrl} size={92} />
+            <View style={styles.profileAvatarEditBadge}>
+              <Ionicons name="camera-outline" size={16} color={theme.colors.white} />
+            </View>
+          </Pressable>
+
+          <View style={styles.profileInputWrap}>
+            <AppText style={styles.sectionTitle}>{t("profile.profile_nickname_label")}</AppText>
+            <TextInput
+              value={nickname}
+              onChangeText={(value) => onChangeNickname(normalizeNicknameDraft(value))}
+              placeholder={t("profile.profile_nickname_placeholder")}
+              placeholderTextColor={theme.colors.sub}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={PROFILE_NICKNAME_MAX_LEN}
+              editable={!saving}
+              style={styles.profileNicknameInput}
+            />
+            <AppText style={[styles.profileInputHint, nicknameError ? styles.profileInputHintError : null]}>
+              {nicknameError || t("profile.profile_nickname_hint")}
+            </AppText>
+          </View>
+
+          <View style={styles.profileInputWrap}>
+            <AppText style={styles.sectionTitle}>{t("profile.profile_interest_label")}</AppText>
+            <View style={styles.profileInterestWrap}>
+              {MATCH_INTEREST_OPTIONS.map((opt) => {
+                const active = interests.includes(opt.id);
+                return (
+                  <Pressable
+                    key={`profile_interest_${opt.id}`}
+                    onPress={() => onToggleInterest(opt.id)}
+                    style={({ pressed }) => [
+                      styles.profileInterestChip,
+                      active ? styles.profileInterestChipActive : null,
+                      pressed ? styles.matchFilterOptionPressed : null,
+                    ]}
+                  >
+                    <AppText style={[styles.profileInterestChipText, active ? styles.profileInterestChipTextActive : null]}>
+                      {t(opt.labelKey)}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <AppText style={[styles.profileInputHint, interestError ? styles.profileInputHintError : null]}>
+              {interestError || t("profile.profile_interest_hint")}
+            </AppText>
+          </View>
+        </View>
+      </AppModal>
+
+      <AppModal
+        visible={avatarPickerVisible}
+        title={t("profile.profile_avatar_modal_title")}
+        onClose={closeAvatarPicker}
+        dismissible={!Boolean(imageBusy)}
+        size="compact"
+        footer={<ProfilePrimaryButton title={t("common.close")} onPress={closeAvatarPicker} variant="ghost" disabled={Boolean(imageBusy)} />}
+      >
+        <View style={styles.profileAvatarPickerGrid}>
+          <Pressable onPress={pickCameraAndClose} disabled={Boolean(imageBusy)} style={({ pressed }) => [styles.profileAvatarPickerCard, pressed ? styles.matchFilterOptionPressed : null]}>
+            <View style={styles.profileAvatarPickerIconWrap}>
+              <Ionicons name="camera-outline" size={22} color={theme.colors.pinkDeep} />
+            </View>
+            <AppText style={styles.profileAvatarPickerTitle}>{imageBusy === "camera" ? t("common.loading") : t("profile.profile_pick_camera")}</AppText>
+          </Pressable>
+          <Pressable onPress={pickLibraryAndClose} disabled={Boolean(imageBusy)} style={({ pressed }) => [styles.profileAvatarPickerCard, pressed ? styles.matchFilterOptionPressed : null]}>
+            <View style={styles.profileAvatarPickerIconWrap}>
+              <Ionicons name="images-outline" size={22} color={theme.colors.pinkDeep} />
+            </View>
+            <AppText style={styles.profileAvatarPickerTitle}>{imageBusy === "library" ? t("common.loading") : t("profile.profile_pick_library")}</AppText>
+          </Pressable>
+          {avatarUrl ? (
+            <Pressable onPress={clearAvatarAndClose} disabled={Boolean(imageBusy)} style={({ pressed }) => [styles.profileAvatarPickerCard, styles.profileAvatarPickerDangerCard, pressed ? styles.matchFilterOptionPressed : null]}>
+              <View style={[styles.profileAvatarPickerIconWrap, styles.profileAvatarPickerDangerIconWrap]}>
+                <Ionicons name="trash-outline" size={22} color={theme.colors.danger} />
+              </View>
+              <AppText style={styles.profileAvatarPickerDangerTitle}>{t("profile.profile_clear_avatar")}</AppText>
+            </Pressable>
+          ) : null}
+        </View>
+      </AppModal>
+    </>
+  );
+}
+
 
 function LanguageModal({
   visible,
@@ -1340,6 +1948,175 @@ const styles = StyleSheet.create({
   profilePrimaryButtonText: {
     fontWeight: "600",
   },
+  profileSummaryRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  profileSummaryTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  profileSummaryName: {
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "800",
+    color: theme.colors.text,
+  },
+  profileSummaryHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.sub,
+  },
+  profileSummaryMeta: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: theme.colors.pinkDeep,
+    fontWeight: "700",
+  },
+  profileModalBody: {
+    width: "100%",
+    alignItems: "center",
+    gap: 12,
+  },
+  profileAvatarFrame: {
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: "#F7E8EE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  profileAvatarFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E9CBD5",
+  },
+  profileAvatarEditPressable: {
+    position: "relative",
+    marginBottom: 2,
+  },
+  profileAvatarEditBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: theme.colors.pinkDeep,
+    borderWidth: 2,
+    borderColor: theme.colors.card,
+    alignItems: "center",
+    justifyContent: "center",
+    ...theme.shadow.card,
+  },
+  profileInputWrap: {
+    width: "100%",
+    gap: 8,
+  },
+  profileInterestWrap: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  profileInterestChip: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileInterestChipActive: {
+    borderColor: theme.colors.pinkDeep,
+    backgroundColor: "#FFF1F6",
+  },
+  profileInterestChipText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.sub,
+    fontWeight: "700",
+  },
+  profileInterestChipTextActive: {
+    color: theme.colors.pinkDeep,
+  },
+  profileNicknameInput: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    lineHeight: 18,
+    color: theme.colors.text,
+  },
+  profileInputHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: theme.colors.sub,
+  },
+  profileInputHintError: {
+    color: theme.colors.danger,
+  },
+  profileAvatarPickerGrid: {
+    width: "100%",
+    gap: 10,
+  },
+  profileAvatarPickerCard: {
+    width: "100%",
+    minHeight: 74,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.line,
+    backgroundColor: theme.colors.white,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  profileAvatarPickerDangerCard: {
+    borderColor: "#F3C4CF",
+    backgroundColor: "#FFF6F8",
+  },
+  profileAvatarPickerIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF1F6",
+  },
+  profileAvatarPickerDangerIconWrap: {
+    backgroundColor: "#FDECEF",
+  },
+  profileAvatarPickerTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: theme.colors.text,
+    fontWeight: "700",
+  },
+  profileAvatarPickerDangerTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: theme.colors.danger,
+    fontWeight: "700",
+  },
 
   headerTitle: { fontSize: 20, fontWeight: "800", color: theme.colors.text },
   headerTitleContainer: { marginLeft: -10 },
@@ -1495,6 +2272,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     rowGap: 8,
   },
+  matchFilterInterestOptionWrap: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   matchFilterOption: {
     borderRadius: 12,
     borderWidth: 1,
@@ -1517,6 +2300,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 8,
   },
+  matchFilterInterestOption: {
+    minHeight: 40,
+  },
   matchFilterOptionActive: {
     borderColor: "rgba(176,30,86,0.88)",
     backgroundColor: "rgba(255,240,247,0.96)",
@@ -1537,6 +2323,10 @@ const styles = StyleSheet.create({
   },
   matchFilterLanguageOptionText: {
     textAlign: "center",
+  },
+  matchFilterInterestOptionText: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   matchFilterOptionTextActive: {
     color: "#9D174D",
